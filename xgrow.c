@@ -164,9 +164,9 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
    if (strncmp(arg,"Gfc=",4)==0) {Gfc=atof(&arg[4]);}
    if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
-   if (strcmp(arg,"periodic")==0) periodic=!periodic;
-   if (strcmp(arg,"wander")==0) wander=!wander;
-   if (strcmp(arg,"fission")==0) fission_allowed=!fission_allowed;
+   if (strncmp(arg,"periodic",8)==0) periodic=!periodic;
+   if (strncmp(arg,"wander",6)==0) wander=!wander;
+   if (strncmp(arg,"fission",7)==0) fission_allowed=!fission_allowed;
    if (strncmp(arg,"seed=",5)==0) {
       char *p=(&arg[5]);
       seed_i=atoi(p);
@@ -489,12 +489,33 @@ void showpic(flake *fp, int err) /* display the field */
       for (col=0;col<size;col++) {
         color = getcolor(row,col);
         j=block*((col+NBDY)+block*NCOLS*(row+NBDY));
-        if (color!=picture[j])
+        if (color!=picture[j]) {
 	  for (i1=0;i1<blocktop;i1++) {
             j1=i1*block*NCOLS+j;
             for (i2=0;i2<blocktop;i2++)
                picture[j1+i2]=color;
           }
+          if (block>4 && fp->Cell(row,col)!=0) {
+            for (i1=0;i1<blocktop;i1++) // col-1 side
+               picture[i1*block*NCOLS+j-1]=lightcolor;
+            for (i1=0;i1<blocktop;i1++) // col+1 side
+               picture[i1*block*NCOLS+j+blocktop]=lightcolor;
+            for (i1=0;i1<blocktop;i1++) // row+1 side
+               picture[blocktop*block*NCOLS+j+i1]=lightcolor;
+            for (i1=0;i1<blocktop;i1++) // row-1 side
+               picture[-block*NCOLS+j+i1]=lightcolor;
+	  }
+          if (block>4 && fp->Cell(row,col)==0) {
+            if (fp->Cell(row,col-1)==0) for (i1=0;i1<blocktop;i1++) // col-1 side
+               picture[i1*block*NCOLS+j-1]=translate[0];
+            if (fp->Cell(row,col+1)==0) for (i1=0;i1<blocktop;i1++) // col+1 side
+               picture[i1*block*NCOLS+j+blocktop]=translate[0];
+            if (fp->Cell(row+1,col)==0) for (i1=0;i1<blocktop;i1++) // row+1 side
+               picture[blocktop*block*NCOLS+j+i1]=translate[0];
+            if (fp->Cell(row-1,col)==0) for (i1=0;i1<blocktop;i1++) // row-1 side
+               picture[-block*NCOLS+j+i1]=translate[0];
+	  }
+	}
       }
   else { 
      for (row=0,j=NCOLS*NBDY+NBDY;row<size;row++,j+=2*NBDY) 
@@ -506,10 +527,29 @@ void showpic(flake *fp, int err) /* display the field */
     for (row=0;row<size;row++)
      for (col=0;col<size;col++) {
        color=getcolor(row,col);
-       if (color!=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY)))
+       if (color!=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY))) {
          for (i2=0;i2<blocktop;i2++)
            for (i1=0;i1<blocktop;i1++)
             XPutPixel(spinimage,j1+i1,j2+i2,color);
+          if (block>4 && fp->Cell(row,col)!=0) {
+            for (i1=0;i1<blocktop;i1++) {
+               XPutPixel(spinimage,j1-1,j2+i1,lightcolor); // col-1 side
+               XPutPixel(spinimage,j1+blocktop,j2+i1,lightcolor); // col+1 side
+               XPutPixel(spinimage,j1+i1,j2+blocktop,lightcolor); // row+1 side
+               XPutPixel(spinimage,j1+i1,j2-1,lightcolor); // row-1 side
+	    }
+	  }
+          if (block>4 && fp->Cell(row,col)==0) {
+            if (fp->Cell(row,col-1)==0) for (i1=0;i1<blocktop;i1++) 
+               XPutPixel(spinimage,j1-1,j2+i1,translate[0]); // col-1 side
+            if (fp->Cell(row,col+1)==0) for (i1=0;i1<blocktop;i1++) 
+               XPutPixel(spinimage,j1+blocktop,j2+i1,translate[0]); // col+1 side
+            if (fp->Cell(row+1,col)==0) for (i1=0;i1<blocktop;i1++) 
+               XPutPixel(spinimage,j1+i1,j2+blocktop,translate[0]); // row+1 side
+            if (fp->Cell(row-1,col)==0) for (i1=0;i1<blocktop;i1++) 
+               XPutPixel(spinimage,j1+i1,j2-1,translate[0]); // row-1 side
+	  }
+       }
      }
    else
     for (row=0;row<size;row++)
@@ -563,10 +603,19 @@ void add_sample_pic(flake *fp, int err) /* add sample the field */
      for (col=0;col<size;col++) { 
        oldcolor=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY));
        color = MAX( getcolordij(row,col,di,dj), oldcolor ); 
-       if (color!=oldcolor)
+       if (color!=oldcolor) {
          for (i2=0;i2<blocktop;i2++)
            for (i1=0;i1<blocktop;i1++)
             XPutPixel(spinimage,j1+i1,j2+i2,color);
+          if (block>4) {
+            for (i1=0;i1<blocktop;i1++) {
+               XPutPixel(spinimage,j1-1,j2+i1,lightcolor); // col-1 side
+               XPutPixel(spinimage,j1+blocktop,j2+i1,lightcolor); // col+1 side
+               XPutPixel(spinimage,j1+i1,j2+blocktop,lightcolor); // row+1 side
+               XPutPixel(spinimage,j1+i1,j2-1,lightcolor); // row-1 side
+	    }
+	  }
+       }
      }
  }
  XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
