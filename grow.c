@@ -1254,6 +1254,85 @@ int double_tile_allowed(tube *tp, flake *fp, int i, int j, int n) {
 
 }
 
+int not_in_block(int i,int j,const int *di,const int *dj,int t,int n) {
+  int x, outside=0;
+  for (x = 0; x < n; x++) {
+    if (x == t) { continue; }
+    if (di[x] == i && dj[x] == j) {
+      outside = 0;
+      break;
+    }
+  }
+  return outside;
+}
+
+void order_removals(tube *tp, flake *fp,
+		    int n, const int *di,const int *dj,int removals[]) {
+  int index,t;
+  int already_chosen, outside_neighbors, adjacent_to_already_chosen;
+  int x, y;
+  // Remove tiles one by one in an order that satisfies the following
+  // properties (before any removals occur)
+  // 1.  The last tile to be removed is bound to a tile not to be removed.
+  // 2.  Each preceding tile is either bound to a tile to be removed after
+  // it or satisfies (1).
+  
+  if (n == 1) {
+    removals[0] = 0;
+    return;
+  }
+
+  index = n-1;
+  // index = place in removal order
+  // t = place in unordered chunk
+  for (index = n-1; index >= 0; index--) {
+    for (t = 0; t < n; t++) {
+      already_chosen = 0;
+      for (x = n-1; x > index; x--) {
+	if (removals[x] == t) {
+	  already_chosen = 1;
+	  break;
+	}
+      }
+      if (!already_chosen) {
+	outside_neighbors = 0;
+	// Check bottom
+	if (fp->Cell(di[t]+1,dj[t]) && 
+	    not_in_block(di[t]+1,dj[t],di,dj,t,n)) {
+	  outside_neighbors = 1;
+	}
+	// Top 
+	if (fp->Cell(di[t]-1,dj[t]) && 
+	    not_in_block(di[t]-1,dj[t],di,dj,t,n)) {
+	  outside_neighbors = 1;
+	}
+	// Left
+	if (fp->Cell(di[t],dj[t]-1) && 
+	    not_in_block(di[t],dj[t]-1,di,dj,t,n)) {
+	  outside_neighbors = 1;
+	}
+	// Right
+	if (fp->Cell(di[t],dj[t]+1) && 
+	    not_in_block(di[t],dj[t]+1,di,dj,t,n)) {
+	  outside_neighbors = 1;
+	}
+	if (outside_neighbors) {
+	  removals[index] = t;
+	  break;
+	}
+      } 
+      else {
+	adjacent_to_already_chosen = 0;
+	if (adjacent_to_already_chosen) {
+	  removals[index] = t;
+	  break;
+	}   
+      }
+    }
+    assert(t < n);
+  }
+}
+
 /* simulates 'events' events */
 void simulate(tube *tp, int events, double tmax, int emax, int smax)
 {
@@ -1524,7 +1603,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	/* hydrolysis happens here */
 	if (oldn>0 && n>0) change_cell(fp,i,j,n);
 	if (n==0 && !tp->dt_left[oldn]) {  /* dissociation: check connectedness */
-          int d, k, dn, di[4], dj[4], oldns[4];
+          int d, k, dn, di[4], dj[4], oldns[4], removals[4];
           if      (chunk==0 && !tp->dt_right[oldn]) { 
 	    dn=1; di[0]=i; dj[0]=j; 
 	  }
@@ -1538,14 +1617,20 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
           else if (chunk==2) { dn=2; di[0]=i; dj[0]=j; di[1]=i+1; dj[1]=j; }
           else { dn=4; di[0]=i; dj[0]=j;   di[1]=i; dj[1]=j+1; 
 	  di[2]=i; dj[2]=j+1; di[3]=i+1; dj[3]=j+1; }
+	
+	  if (dn > 1) {
+	    // determine the ordering of tiles to be removed
+	    order_removals(tp,fp,dn,di,dj,removals);
+	  }
+	  else {
+	    removals[0] = 0;
+	  }
           for (d=0; d<dn; d++) { // delete each tile to be removed
-	    i=di[d]; j=dj[d]; if (periodic) { i=(i+size)%size; j=(j+size)%size; }
-	    oldns[d]=fp->Cell(i,j); // must make sure oldn is correct for each tile in chunk
+	    i=di[removals[d]]; j=dj[removals[d]]; if (periodic) { i=(i+size)%size; j=(j+size)%size; }
+	    oldns[removals[d]]=fp->Cell(i,j); // must make sure oldn is correct for each tile in chunk
 	    if (i==fp->seed_i && j==fp->seed_j)
 	      printf("removing seed at %d, %d! chunk=%d from %d,%d\n",i,j,chunk,di[0],dj[0]);
 	    change_cell(fp,i,j,0);
-	  } i=di[0]; j=dj[0];
-	  for (d=0; d<dn; d++) {
 	    if (!locally_fission_proof(fp,i,j,oldn)) { /* couldn't quickly confirm... */
 	      if (flake_fission(fp,i,j)) {
 		if (fission_allowed==0) {
@@ -1555,8 +1640,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 		  // doesn't remove cells if fission_allowed==0.)
 		  /* If removing second half of the double tile breaks things,
 		     put back both parts of the double tile */
-		  for (k=0; k<dn; k++) {
-		    change_cell(fp,di[k],dj[k],oldns[k]); tp->stat_a--; tp->stat_d--;
+		  for (k=0; k<=d; k++) {
+		    change_cell(fp,di[removals[k]],dj[removals[k]],oldns[removals[k]]); tp->stat_a--; tp->stat_d--;
 		  }
 		  break;
 		}
@@ -1571,7 +1656,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 		}
 	      }
 	    }
-	  }
+	  } i=di[0]; j=dj[0];
 	}
       } 
     } // else dprintf("can't move seed!\n"); NEW: no error, since this event exists
