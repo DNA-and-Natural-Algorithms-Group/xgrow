@@ -269,6 +269,41 @@ void recalc_G(flake *fp)
    update_tube_rates(fp);
 }
 
+/* calculate the dG of the flake, excluding concentration effects */
+double calc_dG_bonds(flake *fp)
+{
+  int n,i,j,size=(1<<fp->P);  tube *tp=fp->tube;
+  double dG=0;
+
+   /* add up bond energy and hydrolysis energy only */
+   for (i=0;i<size;i++)
+     for(j=0;j<size;j++) {
+       if ((n=fp->Cell(i,j))>0) {
+         dG += - Gse(fp,i,j,n)/2.0 - tp->Gcb[n];
+       }
+     }
+   return dG; 
+}
+
+/* calculate the perimeter of the flake */
+int calc_perimeter(flake *fp)
+{
+  int n,i,j,size=(1<<fp->P); 
+  int perimeter=0;
+
+   /* add up number of empty cells next to this one */
+   for (i=0;i<size;i++)
+     for(j=0;j<size;j++) {
+       if ((n=fp->Cell(i,j))>0) {
+         perimeter += (fp->Cell(i-1,j)==0)+(fp->Cell(i+1,j)==0)+
+                      (fp->Cell(i,j-1)==0)+(fp->Cell(i,j+1)==0);
+       }
+     }
+   return perimeter;
+}
+
+
+
 void reset_params(tube *tp, double old_Gmc, double old_Gse, 
 		  double new_Gmc, double new_Gse)
 {  int n,m;

@@ -152,6 +152,8 @@ void set_params(tube *tp, int** units, double* strength, double* stoic,
 void reset_params(tube *tp, double old_Gmc, double old_Gse,
  double new_Gmc, double new_Gse);
 void recalc_G(flake *fp);
+double calc_dG_bonds(flake *fp);
+int calc_perimeter(flake *fp);
 void update_rates(flake *fp, int ii, int jj);
 void update_tube_rates(flake *fp);
 void change_cell(flake *fp, int i, int j, unsigned char n);

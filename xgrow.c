@@ -78,6 +78,7 @@ int paused=0, errorc=0;
 int update_rate=10000;
 static char *progname;
 char stringbuffer[256];
+char tileset_name[256];
 
 /* various window stuff */
 Display *display;
@@ -281,7 +282,7 @@ void getargs(int argc, char **argv)
    printf("  smax=                 quit when the fragment is size s\n");
    printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles? [default=1]\n");
    printf("  clean_X=              for cleaning, minimal ratio of off-rate to on-rate [default=1.0]\n");
-   printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events\n");
+   printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events, perimeter, dG, dG_bonds\n");
    printf("  arrayfile=            output matrix of final tiles (after cleaning)\n");
    exit (0);
  }
@@ -293,8 +294,11 @@ void getargs(int argc, char **argv)
  Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
  seed_i=250; seed_j=250; seed_n=1; hydro=0;
 
- if ( (tilefp = fopen(&argv[1][0],"r"))!=NULL )
-     { read_tilefile(tilefp); }
+  
+ if      ( (sprintf(&tileset_name[0],"%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
+ else if ( (sprintf(&tileset_name[0],"%s.tiles",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
+ else if ( (sprintf(&tileset_name[0],"tilesets/%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
+ else if ( (sprintf(&tileset_name[0],"tilesets/%s.tiles",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
  else {
    printf("* First argument must be a tile file!\nTry 'xgrow --' for help.\n");
    exit(0);   
@@ -345,6 +349,20 @@ void getargs(int argc, char **argv)
  
 }
 
+void write_datalines(FILE *out)
+{ flake *fpp; int perimeter; double dG_bonds;  
+
+    for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
+     perimeter=calc_perimeter(fpp);
+     dG_bonds = calc_dG_bonds(fpp);
+     if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
+       Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
+     fprintf(out, " %f %f %f %f %d %d %ld %d %f %f\n",
+       Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events,
+       perimeter, fpp->G, dG_bonds);
+    }
+}
+
 void closeargs()
 { 
   int row,col,i;  flake *fpp;
@@ -355,13 +373,7 @@ void closeargs()
 
   /* output information for *all* flakes */
   if (datafp!=NULL) {
-    for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
-     if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
-       Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
-     fprintf(datafp, " %f %f %f %f %d %d %ld\n",
-       Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events);
-    }
-    fclose(datafp);
+    write_datalines(datafp); fclose(datafp);
   } 
   if (arrayfp!=NULL) {
     for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
@@ -558,7 +570,7 @@ void repaint()
 /* a lot of this is taken from the basicwin program in the
    Xlib Programming Manual */
 void openwindow(int argc, char **argv)
-{char *window_name="xgrow";
+{char *window_name;
  char *icon_name="xgrow";
  Pixmap icon_pixmap;
  char *display_name=NULL;
@@ -572,6 +584,9 @@ void openwindow(int argc, char **argv)
    0x1f, 0xf8, 0x1f, 0x88, 0x1f, 0x88, 0x1f, 0x88, 0x1f, 0x88, 0x1f, 0xf8,
    0x1f, 0xf8, 0x1f, 0xf8, 0x1f, 0xf8, 0x1f, 0xf8, 0x1f, 0xf8, 0xff, 0xff,
    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+ window_name=(char *) malloc(256);
+ sprintf(window_name,"xgrow: %s",tileset_name);
 
 /* open up the display */
  if ((display=XOpenDisplay(display_name))==NULL)
@@ -882,6 +897,7 @@ int main(int argc, char **argv)
    // printf("flake initialized, size_P=%d, size=%d\n",size_P,size);
 
  new_Gse=Gse; new_Gmc=Gmc;
+ if (tracefp!=NULL) write_datalines(tracefp);
 
  /* loop forever, looking for events */
  while((tmax==0 || tp->t < tmax) && 
@@ -889,25 +905,11 @@ int main(int argc, char **argv)
        (smax==0 || tp->stat_a-tp->stat_d < smax)) { 
    if (!XXX) {
      simulate(tp,update_rate,tmax,emax,smax);
-     if (tracefp!=NULL) { flake *fpp;
-       for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
-         if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
-            Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
-         fprintf(tracefp, " %f %f %f %f %d %d %ld\n",
-            Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events);
-       }
-     }
+     if (tracefp!=NULL) write_datalines(tracefp);
    } else {
    if (0==paused && 0==mousing && !XPending(display)) {
      simulate(tp,update_rate,tmax,emax,smax);
-     if (tracefp!=NULL) { flake *fpp;
-       for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
-         if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
-            Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
-         fprintf(tracefp, " %f %f %f %f %d %d %ld\n",
-            Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events);
-       }
-     }
+     if (tracefp!=NULL) write_datalines(tracefp);
      if (fp->flake_conc>0) recalc_G(fp);
                    // make sure displayed G is accurate for conc's
                    // hopefully this won't slow things down too much.
