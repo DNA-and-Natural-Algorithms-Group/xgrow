@@ -1097,11 +1097,11 @@ void setfission(int value)
 {fission_allowed=value;
  if (fission_allowed>0) 
    if (fission_allowed==1)
-     XDrawImageString(display,fissionbutton,gcr,0,font_height," fission OK ",12);
+     XDrawImageString(display,fissionbutton,gcr,0,font_height," fission  OK ",13);
    else
-     XDrawImageString(display,fissionbutton,gcr,0,font_height,"chunkfission",12);
+     XDrawImageString(display,fissionbutton,gcr,0,font_height,"chunk fission",13);
  else
-   XDrawImageString(display,fissionbutton,gcr,0,font_height," NO fission ",12);
+   XDrawImageString(display,fissionbutton,gcr,0,font_height," NO  fission ",13);
 }
 
 
@@ -1585,7 +1585,7 @@ int main(int argc, char **argv)
 	}
         break;
        case ButtonRelease:
-	 if (mousing==3) {
+	 if (mousing==3) { // change Gmc, Gse w/ visual GUI
            reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);
            if (Gfc>0) Gfc+=(new_Gmc-Gmc); 
            fprm=fparam;
@@ -1634,7 +1634,9 @@ int main(int argc, char **argv)
             setwander(1-wander); repaint(); 
         } else if (report.xbutton.window==fissionbutton) {
 	  fission_allowed = (fission_allowed+1)%3;
-            setfission(fission_allowed); repaint(); 
+            setfission(fission_allowed); 
+            reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);  // this recalc's all rates
+            repaint(); 
         } else if (report.xbutton.window==exportbutton) {
              x=report.xbutton.x;
              y=report.xbutton.y;
@@ -1697,8 +1699,8 @@ int main(int argc, char **argv)
 	     } 
 	     //             print_tree(tp->flake_tree,0,'*');  
              sampling=0; repaint();
-        } else if (report.xbutton.window==tempbutton) {
-             x=report.xbutton.x;
+        } else if (report.xbutton.window==tempbutton) { // change Gse w/ button
+             x=report.xbutton.x;  
              y=report.xbutton.y;
              b=report.xbutton.button;
              if (tp->hydro) break; /* don't know how to reset params */
