@@ -81,9 +81,39 @@
             Fixed puncture so it fissions if you cut the flake in two.
             Added error messages when tile file read fails.
             Added middle mouse click -> tile # underneath pointer is identified.
+   12/29/03
+    Note: Mism()      == exists a neighbor for which both se are non-null and different.
+          errortile() == exists a neighbor for which se are different. 
+                         (thus it includes growth front and tiles abutting null bonds
+                          i.e. a "dangling" sticky end)  
+    Previously: CONNECTED is true for mismatched sticky ends.
+                Only not connected if bond 0 is involved.  
+                But otherwise, zero-strength bonds connect.
+                Without this convention, there would be no speckle of random tiles 
+                 around the edge (which is nice, because it visually illustrates that
+                 any tile can be added anywhere) if all zero-strength interactions
+                 immediately & instantly dissociate, as they do for speed reasons.
+    New:        CONNECTED is true iff there is a non-zero bond (regardless how small).
+                Thus, unmatches sticky-ends may dangle in the breeze
+                 without considering the tiles to be connected.
+
+    This, in combination with an additional quick test to make sure that removing
+     a tile won't lead to fission, greatly speeds up the simulation in cases where
+     previously there was a deadly slow-down: if strength-0 edges abutted a
+      growing region (as happens when sierpinski boundary erroneously grows inside the
+      flake) the dissociations are frequent, and required flake_fission fills to
+      be performed frequently.
+    locally_fission_proof() was added to augment the ring[] test (which verifies
+     that all neighbors of a removed tile are connected to each other) with a slightly
+     slower but still fast (compared to the full fission fill test) test that verifies
+     that the local connectivity of neighbors is *unchanged* with and without the tile.
+
 
   TO DO List:
   
+  * Mism() and errortile()
+    ought to be redefined to be sensible for g() type glues implementing complementary
+    (rather than self-complementary) sticky ends.  E.g., precalculate bestmatch[bond_type]
   * tile files should allow sticky ends to be specified by string labels rather
     than numbers.  num_tiles and num_bindings should be ignored, and inferred from
     the file.  (compatibility with existing xgrow tile files must be maintained.)
@@ -91,6 +121,7 @@
   * Is it possible to reverse the random-number generator, so as to "reverse time"?
     That way, you see something interesting, and you can ask "How did that happen again?"
     In that case, it would be useful to have GUI to change update_rate.
+  * Only 255 tile types are allowed for.  This may soon be limiting.
   * Would be nice to change other parameters in addition to Gse, Gmc.  E.g. inc/dec by
     left/right mouse click on the numbers in the display.
   * Something like "multiflakes=100@27" argument does "the right thing"
@@ -98,18 +129,6 @@
            with each seed centered in the field,
        defaults to "wander"
   * Event counter should simply have more bits!
-  * Should CONNECTED be true for mismatched sticky ends??  Currently, it is.
-    Only not connected if bond 0 is involved.  (But zero-strength bonds connect.)
-    Freaky, but no speckle of tiles around the edge if all zero-strength interactions
-    immediately & instantly dissociate.  Related: mismatches (Mism) and errortile()
-    ought to be redefined to be sensible for g() type glues implementing complementary
-    (rather than self-complementary) sticky ends.
-  * This might fix the major slow-down bug we suffer from: if strength-0 edges abut a
-    growing region (as happens when sierpinski boundary erroneously grows inside the
-    flake) the dissociations are frequent, and will require flake_fission fills to
-    be performed.  If it can be observered that the dissociating tile did not bond
-    with the strength-0 side in the first place, then we can quickly obviate the full
-    fill call.
   * In no-fission mode, one can get caught up on very fast -- but disallowed --
     dissociations, which must be rejected.  This is not good. 
     (not sure if this is still true.  EW 11/10/03)
