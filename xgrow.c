@@ -104,7 +104,7 @@ int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
 int block=1; /* default to small blocks; calling with argument changes this */
 int wander, periodic, linear; 
-FILE *datafp, *arrayfp, *tilefp;
+FILE *tracefp, *datafp, *arrayfp, *tilefp;
 double *strength;
 int N, num_bindings, units_length;
 int **units; double *stoic;
@@ -176,6 +176,7 @@ void parse_arg_line(char *arg)
    if (strcmp(arg,"-linear")==0) linear=1;
    if (strncmp(arg,"update_rate=",12)==0) 
       update_rate=MAX(1,MIN(atoi(&arg[12]),100000));
+   if (strncmp(arg,"tracefile=",10)==0) tracefp=fopen(&arg[10], "a");
    if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
    if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
    if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
@@ -274,6 +275,7 @@ void getargs(int argc, char **argv)
    printf("  -linear               simulate linear A B tiles, write errs > stdout \n");
    printf("  -nw                   no X window (only if ?max set)\n");
    printf("  update_rate=          update display every so-many events\n");
+   printf("  tracefile=            append datafile info (see below) EVERY so-many events\n");
    printf("  tmax=                 quit after time t has passed\n");
    printf("  emax=                 quit after e events have occurred\n");
    printf("  smax=                 quit when the fragment is size s\n");
@@ -885,11 +887,27 @@ int main(int argc, char **argv)
  while((tmax==0 || tp->t < tmax) && 
        (emax==0 || tp->events < emax) &&
        (smax==0 || tp->stat_a-tp->stat_d < smax)) { 
-  if (!XXX) 
+   if (!XXX) {
      simulate(tp,update_rate,tmax,emax,smax);
-  else {
+     if (tracefp!=NULL) { flake *fpp;
+       for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
+         if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
+            Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
+         fprintf(tracefp, " %f %f %f %f %d %d %ld\n",
+            Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events);
+       }
+     }
+   } else {
    if (0==paused && 0==mousing && !XPending(display)) {
      simulate(tp,update_rate,tmax,emax,smax);
+     if (tracefp!=NULL) { flake *fpp;
+       for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
+         if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
+            Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
+         fprintf(tracefp, " %f %f %f %f %d %d %ld\n",
+            Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events);
+       }
+     }
      if (fp->flake_conc>0) recalc_G(fp);
                    // make sure displayed G is accurate for conc's
                    // hopefully this won't slow things down too much.
