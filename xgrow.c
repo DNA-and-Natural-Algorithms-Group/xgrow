@@ -307,6 +307,10 @@ void getargs(int argc, char **argv)
  }
  while (seed_i>=size) seed_i/=2;
  while (seed_j>=size) seed_j/=2;
+ if (!XXX) {
+   printf(" Starting simulation (seed=%d,%d,%d) on %d x %d board.\n",
+	  seed_i, seed_j, seed_n, size, size);
+ }
 
  NROWS=(size+NBDY*2);
  NCOLS=(size+NBDY*2);
