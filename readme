@@ -1,0 +1,146 @@
+
+11/8/98
+
+This simulation package for algorithmic self-assembly of tiles
+grew out of the xdna/xsier C code from ~/Toys/xal 
+and the kinetic model used in ../kinetic
+
+Here, the simulator code and the X display code are separated as much as
+possible into xgrow.c (main and X stuff) and grow.c (the model).
+
+
+11/12/98
+
+old.1 was functionally like xdna ("local equil" Boltzman sampling) but
+ with code separated.
+
+old.2 is a working version of the hierarchical kinetic model, but with
+ only the Sierpinski rules (exactly the same as kin7 I think).
+ the X routine are yet to be generalized, nor can data be collected yet.
+
+12/3/98
+
+old.3 is a working version with hydrolysis added, for investigating
+ error-correction.  A routine for flake fission -- removing disconnected
+ components -- has been added.
+
+10/12/99
+
+old.4 is ??
+
+old.5 is a working version; linear assembly statistic has been added also.
+
+This directory also contains .m files and data files for the revised
+simulations paper.
+
+10/27/01
+
+Current version was modified for 16-bit graphics displays (previous version
+core-dumped).  But now some odd things with fission fragments not disappearing.
+
+7/5/02
+
+Modified to read in general tile set definitions by Michael DeLorimier
+and Erik Winfree.
+
+Hydrolysis is now a generic option for any tile set.
+ Note: Hydrolysis mode doubles the number of tiles. 
+ Problem: "mismatch" is w/r to "input" side, which is hard-coded
+  to be S-E, as in Sierpinski tiles.  Thus, e.g. binary.tile
+  (the binary-counting square) has error-correction problems; it only
+  works is Gao=0, indicating no preference for "input" vs "output".
+
+ Gbor is a funny parameter: it changes the relative strength of
+  bond type 1, only. (But not other "strength 2" bonds.)  Strictly
+  speaking, however, it is for convenience only -- bond strengths
+  can be changed arbitrarily in the tile file.
+  Gbor WAS REMOVED, NOW THAT STOICHIOMETRY IS SPECIFIED IN THE TILE FILE.
+
+ The following work
+  xgrow sierpinsky.tile Ghyd=4 Gam=10 Gseh=7 Gas=25 block=2
+  xgrow sierpinsky.tile Gse=6 Gmc=11 Ghyd=10 Gam=6 Gseh=3 Gas=25 block=2
+  xgrow barcode.tile Gse=6.3 Gmc=11 block=2 seed=120,120,1 Gfc=15
+  xgrow binary.tile block=3 seed=120,120,1 Gse=10 Gmc=19.95 
+ The following cause occasional probability errors (Four rose petals)
+  xgrow sierpinsky.tile Gas=30 Gam=10 Gseh=8 block=2
+  xgrow unary2.tile block=3 seed=120,120,1 Gse=20 Gmc=39
+  xgrow binary.tile block=3 seed=120,120,1 Gse=10 Gmc=19.95 Gao=0 Gam=5
+  xgrow binary.tile block=3 seed=120,120,1 Gse=20 Gmc=39.9
+
+ Note that the simulator seems to *really* slow down when the space is
+  full and there are no moves, or when there is a thin diagonal component
+  (is this true?).  Is the problem in the connectivity-testing?
+  IDENTIFY THIS PROBLEM FOR SURE, USING gprof, AND FIX IF DEEMED IMPORTANT.
+  PROBLEM IDENTIFIED IN simulate(): IF MOST TILE ADDITION SITES CAN ONLY
+  ADD TILES THAT ARE NOT "CONNECTED" THEN MOST CALLS TO choose_cell() ARE
+  IGNORED, AND FEW CALLS TO change_cell() ARE MADE.
+
+ Also note that connectivity considers 0-strength bonds between adjacent
+  tiles to be "connected", as long as both tile types have nominally 
+  non-zero sticky-end strengths -- the opposite choice from my 
+  recommendation to Renat, which was to consider tiles connected only if 
+  the actual bond strength is greater than zero.       
+  IT MIGHT BE WORTH CHANGING THIS, IF IT'S NOT TOO HARD
+    xgrow AB.tile Gse=8 Gmc=7 block=3
+    xgrow barcode.tile Gse=8 Gmc=7 block=3
+  demonstrate domain boundaries, where the entire boundary energy is
+  zero... and hence in solution (if there really is a zero energy)
+  the domain would just fall off... not so realistic...  (although
+  this is a real and interesting effect if self-assembly happens on
+  a surface, or if there is a slight favorable mismatch energy.)
+
+ It should be possible to simulate the T=1 or T=2 irreversible 
+   tile assembly model directly, rather than only the kinetic reversible model.
+   THIS SHOULD BE ADDED, USING A FAST PROCEDURE TRACKING OPEN SITES, AS IN
+   tiles.el
+
+ It should be possible decrease the "temperature" slowly, simulating an 
+  annealing process. Gmc should stay the same, but Gse should decrease, say 
+  linearly, with time, at some time constant.  I haven't worked out how
+  to correctly choose a next reaction if Gse is linearly decreasing, but
+  let's say we only recalculate rates after each reaction, if time has 
+  advanced a certain number of seconds (scaled to Gmc).
+
+ Default parameters should be read from the tile file, using the
+  same format as the command line (which should overwrite the defaults).
+
+ The tile format in my elisp simulator tiles.el is more convenient:
+    binding domains can have interpretable names, and integral strengths
+    can be directly specified.  Also, tiles can be given names for
+    interpretable diagrams. 
+    Another advantage is that tile sets can be built-up by algorithms,
+    e.g. the Turing Machine tile set.
+    Disadvantages: slow, awkward simulation, ugly, needs random-number
+    generator for tile placement.
+
+7/7/02
+ EW changed tile file format to assume that the 1st bond (bond type 0)
+  has bond strength 0; hence it is not specified, just as tile type 0
+  with bonds {0 0 0 0} is not specified explicitly.
+
+ Added file format to read stoichiometry (relative concentrations) for
+  each tile type -- this way, for example, border tiles can be at lower
+  concentrations.  Gmc still scales all concentrations; stoichiometry
+  of 1.0 is assumed if none is given.  
+  (Gbor has therefore been eliminated.)
+
+ Handling of the "rose petals" numerical round-off error has been
+  improved, so that sums are recalculated from lower levels every time
+  they are used.
+ 
+ Remaining Issues on To-Do List (see above for details)
+  * Connectivity definition
+  * Slow-down due to choosing un-connectable tile additions.
+  * Graphics update frequency changed from 
+     fixed number of events to fixed simulated time or to fixed real time
+  * Convenient tile file format, with command-line type default params
+  * Irreversible Tile Assembly Model directly implemented
+  * Temperature annealing
+  * Following multiple flakes simultaneously
+  * Gfc is a strange hack... and it clearly affects the resulting shape...
+     but what *is* the "concentration" of a flake?  can it be determined
+     better, or estimated, by following multiple flakes?
+  * reconsider the hydrolysis model
+  * graphical display of tile types, and other information, would be useful
+  * choose_cell() in grow.c could make more efficient use of random numbers
+  * user-specifiable grid size, and block > 4.

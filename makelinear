@@ -1,0 +1,1 @@
+gcc -O -g -o lgrow  xgrow.c grow.c -I/usr/X11R6/include -L/usr/X11R6/lib -lX11 -lm

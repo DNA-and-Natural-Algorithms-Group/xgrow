@@ -1,0 +1,10 @@
+tile edges matches {{N E S W}*}
+num tile types=4
+num binding types=2
+tile edges={
+{1 1 1 1}
+{1 2 2 1}
+{2 1 2 2}
+{2 2 1 2}}
+binding strengths=
+{1 1}
