@@ -1,4 +1,4 @@
-/*  xgrow
+/*  xgrow.c
 
   This code is freely distributable.
            
@@ -80,12 +80,19 @@
    11/16/03 Fixed color use for Err & Hyd display.
             Fixed puncture so it fissions if you cut the flake in two.
             Added error messages when tile file read fails.
+            Added middle mouse click -> tile # underneath pointer is identified.
 
   TO DO List:
-  * add debugging feature so tile # underneath pointer is identified
+  
   * tile files should allow sticky ends to be specified by string labels rather
     than numbers.  num_tiles and num_bindings should be ignored, and inferred from
-    the file.  
+    the file.  (compatibility with existing xgrow tile files must be maintained.)
+  * Would like auto-rotate for tile files, to simulate DAO-E flip, DAE-O symmetry, etc.
+  * Is it possible to reverse the random-number generator, so as to "reverse time"?
+    That way, you see something interesting, and you can ask "How did that happen again?"
+    In that case, it would be useful to have GUI to change update_rate.
+  * Would be nice to change other parameters in addition to Gse, Gmc.  E.g. inc/dec by
+    left/right mouse click on the numbers in the display.
   * Something like "multiflakes=100@27" argument does "the right thing"
        by adding 100 flakes for each tile type, at Gfc=27+stoich,
            with each seed centered in the field,
@@ -94,13 +101,23 @@
   * Should CONNECTED be true for mismatched sticky ends??  Currently, it is.
     Only not connected if bond 0 is involved.  (But zero-strength bonds connect.)
     Freaky, but no speckle of tiles around the edge if all zero-strength interactions
-    immediately & instantly dissociate.  
+    immediately & instantly dissociate.  Related: mismatches (Mism) and errortile()
+    ought to be redefined to be sensible for g() type glues implementing complementary
+    (rather than self-complementary) sticky ends.
+  * This might fix the major slow-down bug we suffer from: if strength-0 edges abut a
+    growing region (as happens when sierpinski boundary erroneously grows inside the
+    flake) the dissociations are frequent, and will require flake_fission fills to
+    be performed.  If it can be observered that the dissociating tile did not bond
+    with the strength-0 side in the first place, then we can quickly obviate the full
+    fill call.
   * In no-fission mode, one can get caught up on very fast -- but disallowed --
     dissociations, which must be rejected.  This is not good. 
     (not sure if this is still true.  EW 11/10/03)
   * rubberbanding for "puncture"
   * green dot (current value), red dot (selection cursor) for Gse/Gmc mouse choice
   * fp->G nan and other discrepencies should be tracked down.
+  * Very Much want to implement a Surface mode, with Gsf for the surface, and
+    allowing disconnected flakes.
 
   Compiling:  see makecc and makeccprof and makeccefence
 
@@ -187,8 +204,8 @@ int wander, periodic, linear, fission_allowed;
 FILE *tracefp, *datafp, *arrayfp, *tilefp;
 double *strength;
 double **glue;
-int N, num_bindings, tilet_length;
-int **tilet; double *stoic;
+int N, num_bindings, tileb_length;
+int **tileb; double *stoic;
 int hydro; int clean_cycles=1; double clean_X=1.0;
 double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
@@ -351,24 +368,24 @@ void read_tilefile(FILE *tilefp)
  rsc;
 
  fscanf(tilefp,"tile edges="); rsc;
- tilet_length = N+1;
- tilet = (int**) calloc(sizeof(int*),tilet_length);
- stoic = (double*) calloc(sizeof(double),tilet_length);
+ tileb_length = N+1;
+ tileb = (int**) calloc(sizeof(int*),tileb_length);
+ stoic = (double*) calloc(sizeof(double),tileb_length);
  r=0; fscanf(tilefp,"{\n%n",&r); rsc;
  if (r!=2) { fprintf(stderr,"Reading tile file: expected tile set start {.\n"); exit(-1); }
- tilet[0] = (int*) calloc(sizeof(int),4);
+ tileb[0] = (int*) calloc(sizeof(int),4);
  for (j=0;j<4;j++) {
-   tilet[0][j] = 0;
+   tileb[0][j] = 0;
  }
  stoic[0]=0;
- for (i=1;i<tilet_length;i++) {
-   tilet[i] = (int*) calloc(sizeof(int),4);
+ for (i=1;i<tileb_length;i++) {
+   tileb[i] = (int*) calloc(sizeof(int),4);
    r=0; fscanf(tilefp,"{%n",&r); rsc; 
    if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d start def {. \n",i); exit(-1); }
    /* XXX we will need to change this too */
    /* read in the four binding types {N E S W} */
    for (j=0;j<4;j++) {
-     if (1!=fscanf(tilefp,"%d",&tilet[i][j]))
+     if (1!=fscanf(tilefp,"%d",&tileb[i][j]))
        { fprintf(stderr,"Reading tile file: expected tile %d bond %d.\n",i,j); exit(-1); } 
    }
    r=0; fscanf(tilefp,"}%n",&r); rsc; 
@@ -384,8 +401,8 @@ void read_tilefile(FILE *tilefp)
  r=0; fscanf(tilefp,"}%n",&r); rsc; 
  if (r!=1) { fprintf(stderr,"Reading tile file: expected tile set end }.\n"); exit(-1); }
  // printf("Tile set loaded (%d tiles)\n",N);
- // for (i=1;i<tilet_length;i++) {
- //   for (j=0;j<4;j++) printf("%d ",tilet[i][j]); printf("\n");
+ // for (i=1;i<tileb_length;i++) {
+ //   for (j=0;j<4;j++) printf("%d ",tileb[i][j]); printf("\n");
  // }
 
 
@@ -896,7 +913,7 @@ void closeargs()
   if (export_fp!=NULL) fclose(export_fp);
 
   // free memory
-  for (i=0;i<=tp->N;i++) free(tilet[i]); free(tilet);
+  for (i=0;i<=tp->N;i++) free(tileb[i]); free(tileb);
   for (i=0;i<=tp->N;i++) free(glue[i]); free(glue);
   free(strength); free(stoic);
   
@@ -907,10 +924,10 @@ void closeargs()
 
 // (i,j) should not be empty. returns 0 if OK, 1 if mismatches with E or S or N or W, or unbound s.e.
 #define errortile(i,j) (                                                    \
-         (tilet[fp->Cell(i,j)][1] != tilet[fp->Cell(i,(j)+1)][3] ||         \
-          tilet[fp->Cell(i,j)][3] != tilet[fp->Cell(i,(j)-1)][1] ||         \
-          tilet[fp->Cell(i,j)][0] != tilet[fp->Cell((i)-1,j)][2] ||         \
-          tilet[fp->Cell(i,j)][2] != tilet[fp->Cell((i)+1,j)][0]) ? 1 : 0 ) \
+         (tileb[fp->Cell(i,j)][1] != tileb[fp->Cell(i,(j)+1)][3] ||         \
+          tileb[fp->Cell(i,j)][3] != tileb[fp->Cell(i,(j)-1)][1] ||         \
+          tileb[fp->Cell(i,j)][0] != tileb[fp->Cell((i)-1,j)][2] ||         \
+          tileb[fp->Cell(i,j)][2] != tileb[fp->Cell((i)+1,j)][0]) ? 1 : 0 ) \
 
 #define getcolor(i,j) ( (fp->Cell(i,j)==0)? translate[0] : (              \
          (err==1) ? ( errortile(i,j) ? errorcolor : goodcolor ) : (       \
@@ -1496,10 +1513,10 @@ int main(int argc, char **argv)
    }
 
  if (hydro) { /* automatically double the number of tiles */
-   tilet=(int**) realloc(tilet,sizeof(int*)*(2*N+1));
+   tileb=(int**) realloc(tileb,sizeof(int*)*(2*N+1));
    for (i=1;i<=N;i++) {
-     tilet[i+N]= (int*) calloc(sizeof(int),4);
-     for (j=0;j<4;j++) tilet[i+N][j] = tilet[i][j];
+     tileb[i+N]= (int*) calloc(sizeof(int),4);
+     for (j=0;j<4;j++) tileb[i+N][j] = tileb[i][j];
    }
    stoic=(double*) realloc(stoic,sizeof(double)*(2*N+1));
    for (i=1;i<=N;i++) stoic[i+N]= stoic[i];
@@ -1517,7 +1534,7 @@ int main(int argc, char **argv)
  
    /* set initial state */
    tp = init_tube(size_P,N,num_bindings);   
-   set_params(tp,tilet,strength,glue,stoic,hydro,ratek,
+   set_params(tp,tileb,strength,glue,stoic,hydro,ratek,
           Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
 
    fprm=fparam;
@@ -1633,7 +1650,7 @@ int main(int argc, char **argv)
                sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
                                     "tile #%d = {%d %d %d %d} at (%d,%d)           ",
                        1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15,
-		       t,tp->tilet[t][0],tp->tilet[t][1],tp->tilet[t][2],tp->tilet[t][3],i,j);
+		       t,tp->tileb[t][0],tp->tileb[t][1],tp->tileb[t][2],tp->tileb[t][3],i,j);
                XDrawImageString(display,window,gc,5,2*font_height,
                  stringbuffer,strlen(stringbuffer));
 	     }
@@ -1706,7 +1723,7 @@ int main(int argc, char **argv)
         } else if (report.xbutton.window==restartbutton) {
             free_tube(tp); 
             tp = init_tube(size_P,N,num_bindings);   
-            set_params(tp,tilet,strength,glue,stoic,hydro,ratek,
+            set_params(tp,tileb,strength,glue,stoic,hydro,ratek,
                Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
             fprm=fparam; 
             while (fprm!=NULL) {
@@ -1819,7 +1836,7 @@ int main(int argc, char **argv)
                sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
                                     "tile #%d = {%d %d %d %d} at (%d,%d)           ",
                        1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15,
-		       t,tp->tilet[t][0],tp->tilet[t][1],tp->tilet[t][2],tp->tilet[t][3],i,j);
+		       t,tp->tileb[t][0],tp->tileb[t][1],tp->tileb[t][2],tp->tileb[t][3],i,j);
                XDrawImageString(display,window,gc,5,2*font_height,
                  stringbuffer,strlen(stringbuffer));
 	     }

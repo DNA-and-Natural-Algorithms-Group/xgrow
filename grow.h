@@ -76,14 +76,14 @@ double exp(); double log();
 /* the tile at i,j is being added, then it counts each mismatch ONCE.    */
 
 #define Mism(fp,i,j,n) (                                                   \
- ((fp->tube->tilet)[n][1] != (fp->tube->tilet)[fp->Cell(i,(j)+1)][3] &&    \
-  (fp->tube->tilet)[n][1]*(fp->tube->tilet)[fp->Cell(i,(j)+1)][3] > 0) +   \
- ((fp->tube->tilet)[n][3] != (fp->tube->tilet)[fp->Cell(i,(j)-1)][1] &&    \
-  (fp->tube->tilet)[n][3]*(fp->tube->tilet)[fp->Cell(i,(j)-1)][1] > 0) +   \
- ((fp->tube->tilet)[n][2] != (fp->tube->tilet)[fp->Cell((i)+1,j)][0] &&    \
-  (fp->tube->tilet)[n][2]*(fp->tube->tilet)[fp->Cell((i)+1,j)][0] > 0) +   \
- ((fp->tube->tilet)[n][0] != (fp->tube->tilet)[fp->Cell((i)-1,j)][2] &&    \
-  (fp->tube->tilet)[n][0]*(fp->tube->tilet)[fp->Cell((i)-1,j)][2] > 0) )
+ ((fp->tube->tileb)[n][1] != (fp->tube->tileb)[fp->Cell(i,(j)+1)][3] &&    \
+  (fp->tube->tileb)[n][1]*(fp->tube->tileb)[fp->Cell(i,(j)+1)][3] > 0) +   \
+ ((fp->tube->tileb)[n][3] != (fp->tube->tileb)[fp->Cell(i,(j)-1)][1] &&    \
+  (fp->tube->tileb)[n][3]*(fp->tube->tileb)[fp->Cell(i,(j)-1)][1] > 0) +   \
+ ((fp->tube->tileb)[n][2] != (fp->tube->tileb)[fp->Cell((i)+1,j)][0] &&    \
+  (fp->tube->tileb)[n][2]*(fp->tube->tileb)[fp->Cell((i)+1,j)][0] > 0) +   \
+ ((fp->tube->tileb)[n][0] != (fp->tube->tileb)[fp->Cell((i)-1,j)][2] &&    \
+  (fp->tube->tileb)[n][0]*(fp->tube->tileb)[fp->Cell((i)-1,j)][2] > 0) )
 
 
 
@@ -126,7 +126,7 @@ typedef struct flake_tree_struct {
 
 
 typedef struct tube_struct {
-  int **tilet;         /* tile types */
+  int **tileb;         /* {N E S W} bond types for each tile type */
   double *strength;    /* bond strengths.  assumes tile types stick to
 			  each other and not other types of tiles          */
   double **glue;       /* A generalized version of the strength function:
@@ -184,7 +184,7 @@ void free_tube(tube *tp);
 void insert_flake(flake *fp, tube *tp);
 void print_tree(flake_tree *ftp, int L, char s);
 void clean_flake(flake *fp, double X, int iters);
-void set_params(tube *tp, int** tilet, double* strength, double **glue, 
+void set_params(tube *tp, int** tileb, double* strength, double **glue, 
  double* stoic,int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao, double T);

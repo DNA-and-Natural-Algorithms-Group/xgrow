@@ -184,3 +184,22 @@ Hydrolysis is now a generic option for any tile set.
     could slow things down a bit.
   * in a few places, I added code to pro-actively fix up potential
     numerical error
+
+11/17/03
+
+  OK, so I haven't been providing comments in this file as frequently as I should...
+  Very brief comments have been entered in xgrow.c itself, at the front.
+
+  
+  * chunk_fission -- decribe this please.  motivation and implementation.
+
+  * Mismatch, errortile, and HCONNECTEED issues, contemplation of revision.
+
+  * surface mode needed!
+
+  * show mismatches _between_ tiles, for large blocks.
+  
+  * read tile bond type alphanumerics
+
+
+
