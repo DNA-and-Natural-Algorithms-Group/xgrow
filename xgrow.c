@@ -62,6 +62,8 @@
             flake G now reports G_bonds + G_concs *including* the seed tile
                (if wander is off, then screen display offsets for seed tile [])
             actually fixed the simulation event counter wrap-around.
+   5/25/03  enhanced tile file definition to allow X named colors.
+               e.g., {2 3 5 1}[.4](purple)
 
   TO DO List:
   * Something like "multiflakes=100@27" argument does "the right thing"
@@ -143,7 +145,10 @@ XSizeHints size_hints;
 long event_mask;
 int depth;
 long int darkcolor,lightcolor,black,white;
-
+char *tile_colors[MAXTILETYPES]={ "black",
+  "blue",      "red",      "green",      "yellow", "gold",   "purple", "white", 
+  "dark blue", "dark red", "dark green", "wheat",  "orange", "cyan",   "light grey"};
+  
 
 /* simulation parameters */
 tube *tp; flake *fp; 
@@ -257,6 +262,10 @@ void read_tilefile(FILE *tilefp)
 { 
  float strength_float, stoic_float; int i,j;
 
+ rewind(tilefp); 
+   // needs to be read twice, 
+   //  once to get sim specs, field size, etc
+   //  once to get colors after X window is open
  rsc;
  fscanf(tilefp,"tile edges matches {{N E S W}*}\n"); rsc;
 
@@ -282,6 +291,11 @@ void read_tilefile(FILE *tilefp)
    fscanf(tilefp,"}"); rsc;
    if (fscanf(tilefp,"[%g]",&stoic_float)) 
      stoic[i]=stoic_float; else stoic[i]=1.0; rsc;
+   if (fscanf(tilefp," (%200[^)])",&stringbuffer[0])) {
+     tile_colors[i]=(char *)malloc(strlen(stringbuffer)+2);
+     strcpy(tile_colors[i],stringbuffer);
+   }
+
    fscanf(tilefp,"\n"); rsc;
  }
  fscanf(tilefp,"}\n"); rsc;
@@ -365,6 +379,9 @@ void getargs(int argc, char **argv)
  Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
  seed_i=250; seed_j=250; seed_n=1; hydro=0;
 
+
+ // reset tile colors that haven't been assigned
+ for (i=15; i<MAXTILETYPES; i++) tile_colors[i]=NULL;
   
  if      ( (sprintf(&tileset_name[0],"%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
  else if ( (sprintf(&tileset_name[0],"%s.tiles",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
@@ -857,38 +874,12 @@ void openwindow(int argc, char **argv)
               lightcolor=colorcell.pixel;
  if (XAllocNamedColor(display,cmap,"black",&colorcell,&xcolor))
               translate[0]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"blue",&colorcell,&xcolor))
-              translate[1]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"red",&colorcell,&xcolor))
-              translate[2]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"green",&colorcell,&xcolor))
-              translate[3]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"yellow",&colorcell,&xcolor))
-              translate[4]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"gold",&colorcell,&xcolor))
-              translate[5]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"purple",&colorcell,&xcolor))
-              translate[6]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"white",&colorcell,&xcolor))
-              translate[7]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"dark blue",&colorcell,&xcolor)) {
-   translate[8]=colorcell.pixel;
- }
- if (XAllocNamedColor(display,cmap,"dark red",&colorcell,&xcolor))
-              translate[9]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"dark green",&colorcell,&xcolor))
-              translate[10]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"wheat",&colorcell,&xcolor))
-              translate[11]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"orange",&colorcell,&xcolor))
-              translate[12]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"cyan",&colorcell,&xcolor))
-              translate[13]=colorcell.pixel;
- if (XAllocNamedColor(display,cmap,"light grey",&colorcell,&xcolor))
-              translate[14]=colorcell.pixel;
- /* fill out the color table for future uses... only 14 colors!! */
- for(i=15;i<MAXTILETYPES;i++)
-   translate[i]=translate[(i-1)%14+1]; 
+
+ for (i=1;i<MAXTILETYPES;i++) 
+    if (tile_colors[i]!=NULL &&
+        XAllocNamedColor(display,cmap,tile_colors[i],&colorcell,&xcolor))
+              translate[i]=colorcell.pixel;
+    else translate[i]=translate[(i>14) ? ((i-1)%14+1) : 0]; 
 
    /* make the main window */
  window=XCreateSimpleWindow(display,RootWindow(display,screen),
