@@ -134,6 +134,7 @@
             (Sometimes bogus value resulted in non-fission when fission should have occurred.)
     6/4/04  Bond types can now be given as names.  See spiral.tiles for example.
     6/20/04 Added command-line option for setting tile stoichiometry.
+            Made sure file is flushed immediately after export.
 
   TO DO List:
   
@@ -725,6 +726,7 @@ void write_datalines(FILE *out, char *text)
 	   perimeter, fpp->G, dG_bonds,text);
    if (strcmp(text,"")==0) break;
  }
+ fflush(out);
 }
 
 
@@ -747,6 +749,7 @@ void write_flake(FILE *filep, char *mode, flake *fp)
         fprintf(filep, "; ...\n");
      }
      fprintf(filep," ] };\n\n");
+     fflush(filep);
   }
 }  
 
@@ -754,10 +757,11 @@ void export_flake(char *mode, flake *fp)
 {
   if (export_fp==NULL) export_fp=fopen("xgrow_export_output","a+");
   write_flake(export_fp, mode, fp);
+  fflush(export_fp);
 }
 
 
-/*
+/*    READ in by Shaun Lee
  * Count the number of flakes in an exported file.
  * Doesn't actually count the number of flakes, it just watches
  * the flake number and returns the last one it finds.
@@ -896,7 +900,7 @@ int count_flakes(FILE *flake_file)
 }
 
 
-/* Import flakes */
+/* Import flakes by Shaun Lee*/
 /*
  * Import flake data for flake n from the file and store it into
  * flake fp, then recalc_g at the end.  If there is no corresponding flake
