@@ -1374,11 +1374,12 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
                        di[2]=i; dj[2]=j+1; di[3]=i+1; dj[3]=j+1; }
           for (d=0; d<dn; d++) { // delete each tile to be removed
            i=di[d]; j=dj[d]; if (periodic) { i=(i+size)%size; j=(j+size)%size; }
+           oldn=fp->Cell(i,j); // must make sure oldn is correct for each tile in chunk
 	   if (i==fp->seed_i && j==fp->seed_j)
 	     printf("removing seed at %d, %d! chunk=%d from %d,%d\n",i,j,chunk,di[0],dj[0]);
            if (fp->Cell(i,j)>0) {  // might have been removed already by previous fission
             change_cell(fp,i,j,0);
-            if (!locally_fission_proof(fp,i,j,oldn)) /* couldn't quickly confirm... */
+            if (!locally_fission_proof(fp,i,j,oldn)) { /* couldn't quickly confirm... */
               if (flake_fission(fp,i,j) && fission_allowed==0) {
 		change_cell(fp,i,j,oldn); tp->stat_a--; tp->stat_d--;
                 // re-attach cell:
@@ -1386,6 +1387,16 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
                 // cause fission. (note that flake_fission calculates but
                 // doesn't remove cells if fission_allowed==0.)
 	      }
+            } else if (0) { // should be fission_proof, according to local test
+	      // this is time consuming!  here only for debugging!
+              if (flake_fission(fp,i,j)) {
+                printf("Fission_proof locale fissioned at %d,%d [chunk cell %d/%d]: "
+                       "\n %3d %3d %3d\n %3d %3d %3d\n %3d %3d %3d\n", i,j, d, dn,
+		       fp->Cell(i-1,j-1), fp->Cell(i-1,j  ), fp->Cell(i-1,j+1), 
+		       fp->Cell(i  ,j-1),     oldn         , fp->Cell(i  ,j+1), 
+		       fp->Cell(i+1,j-1), fp->Cell(i+1,j  ), fp->Cell(i+1,j+1) );
+	      }
+	    }
            }
           } i=di[0]; j=dj[0];
 	} 
