@@ -263,19 +263,20 @@ void getargs(int argc, char **argv)
    printf("  Gao=    delta a. e. for output vs input-triggers hydrolysis\n");
    printf("  Gfc=    log concentration of flakes (otherwise no depletion)\n");
    printf("  T=      threshold T (relative to Gse) for irreversible Tile Assembly Model\n");
-/* printf("  anneal=g/t        anneal Gse to g with time constant t\n"); */
-   printf("  seed=i,j,n        seed tile type n at position i,j\n");
-   printf("  stripe=o[:p,w]*   width w stripe with p errors, offset o\n");
-   printf("  wander            wandering `seed' designation\n");
-   printf("  periodic          periodic boundary conditions\n");
-   printf("  -linear           simulate linear A B tiles, write errs > stdout \n");
-   printf("  -nw               no X window (only if ?max set)\n");
-   printf("  update_rate=      update display every so-many events\n");
-   printf("  tmax=             quit after time t has passed\n");
-   printf("  emax=             quit after e events have occurred\n");
-   printf("  smax=             quit when the fragment is size s\n");
-   printf("  datafile=         append Gmc, Gse, time, size, #mismatched se\n");
-   printf("  arrayfile=        output matrix of final tiles\n");
+/* printf("  anneal=g/t            anneal Gse to g with time constant t\n"); */
+   printf("  seed=i,j,n            seed tile type n at position i,j\n");
+   printf("  addflakes=i,j,n:N@Gfc simulate N separate flakes\n");
+   printf("  stripe=o[:p,w]*       width w stripe with p errors, offset o\n");
+   printf("  wander                wandering `seed' designation\n");
+   printf("  periodic              periodic boundary conditions\n");
+   printf("  -linear               simulate linear A B tiles, write errs > stdout \n");
+   printf("  -nw                   no X window (only if ?max set)\n");
+   printf("  update_rate=          update display every so-many events\n");
+   printf("  tmax=                 quit after time t has passed\n");
+   printf("  emax=                 quit after e events have occurred\n");
+   printf("  smax=                 quit when the fragment is size s\n");
+   printf("  datafile=             append Gmc, Gse, time, size, #mismatched se\n");
+   printf("  arrayfile=            output matrix of final tiles\n");
    exit (0);
  }
 
@@ -861,7 +862,8 @@ int main(int argc, char **argv)
   else {
    if (0==paused && 0==mousing && !XPending(display)) {
      simulate(tp,update_rate,tmax,emax,smax);
-     recalc_G(fp); // make sure displayed G is accurate for conc's
+     if (fp->flake_conc>0) recalc_G(fp);
+                   // make sure displayed G is accurate for conc's
                    // hopefully this won't slow things down too much.
      stat++; if (stat==1) { stat=0; repaint(); }
    }

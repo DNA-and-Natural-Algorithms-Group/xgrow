@@ -172,3 +172,15 @@ Hydrolysis is now a generic option for any tile set.
       delta-G is similarly unconstant -- but, with depletion, its
          not clear how to compute it correctly when all concentrations
          are changing.
+
+7/29/02
+  * debugged multiple flake revision.  appears to be working.
+    not thoroughly tested, though.
+  * to avoid numerical errors, changed model slightly so that
+    concentrations cannot go to zero.  thus, under situations
+    when they would, most of the simulation time is repetitively
+    trying to add a tile which would violate that constraint.
+  * recalc_G() is run in xgrow.c after each call to simulate()...
+    could slow things down a bit.
+  * in a few places, I added code to pro-actively fix up potential
+    numerical error
