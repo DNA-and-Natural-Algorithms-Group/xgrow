@@ -64,6 +64,7 @@
             actually fixed the simulation event counter wrap-around.
    5/25/03  enhanced tile file definition to allow X named colors.
                e.g., {2 3 5 1}[.4](purple)
+   summer 03 Added command-line option to read in initial tile assembly.  (Shaun Lee)
    10/14/03 Changed format of input file to allow a generalized strength function of the form
               g(a,b) = c where a and b are tile types, and c is the floating point strength.
 	      (Rebecca Schulman)
@@ -84,6 +85,7 @@
   * rubberbanding for "puncture"
   * green dot (current value), red dot (selection cursor) for Gse/Gmc mouse choice
   * puncture can try to erase the seed, leading to disconnected flakes... yikes!
+    or simply lead to disconnected assemblies... also yikes!
   * fp->G nan and other discrepencies should be tracked down.
 
   Compiling:  see makecc and makeccprof
@@ -357,27 +359,27 @@ void read_tilefile(FILE *tilefp)
  for (i=0;i<=num_bindings;i++) {
    glue[i] = (double *) calloc(sizeof (double),num_bindings + 1);
  }
- strength = (double*) calloc(sizeof(double),num_bindings+1); fscanf(tilefp,"{");
+ strength = (double*) calloc(sizeof(double),num_bindings+1); 
 
  temp_char = getc (tilefp);
  ungetc(temp_char, tilefp);
  if (temp_char == 'b') {
    fscanf(tilefp,"binding strengths=\n"); rsc; 
+   fscanf(tilefp,"{");
    strength[0]=0; /* bond type 0 ("null") always has strength 0 */
    for (i=1;i<=num_bindings;i++) {
      fscanf(tilefp,"%g",&strength_float);
      strength[i]=(double)strength_float;
+     // printf("strength for se #%d = %g\n",i,strength[i]);
    } rsc;
    fscanf(tilefp,"}\n"); rsc;
  }
- while (fgetc(tilefp) == 'g') {
-   fscanf(tilefp,"(%d,%d)=%g\n",&n,&m,&glue_float);
-   printf ("n is %d\n",n);
-   printf ("m is %d\n",m);
-   printf ("Glue float is %g\n",glue_float);
+ while ((temp_char=fgetc(tilefp)) == 'g') {
+   fscanf(tilefp,"(%d,%d)=%g\n",&n,&m,&glue_float);  rsc;
+   // printf ("Glue float is g(%d,%d)=%g\n",n,m,glue_float);
    glue[n][m] = (double) glue_float;
    glue[m][n] = (double) glue_float;
- }
+ } ungetc(temp_char, tilefp); rsc;
    
  while(fgets(&stringbuffer[0],256,tilefp)!=NULL) {
    parse_arg_line(&stringbuffer[0]); rsc;
