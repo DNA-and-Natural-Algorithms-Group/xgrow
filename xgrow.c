@@ -415,8 +415,8 @@ void read_skip_comment(FILE *fp)
 
 void read_tilefile(FILE *tilefp) 
 { 
- float strength_float, glue_float, stoic_float; int i,j;
- int temp_char;
+ float strength_float, glue_float, stoic_float; int i,j,k;
+ int temp_char; char s[255], **btnames;
  int n,m,r;
 
  rewind(tilefp); 
@@ -432,6 +432,32 @@ void read_tilefile(FILE *tilefp)
  if (1!=fscanf(tilefp,"num binding types=%d\n", &num_bindings))
    { fprintf(stderr,"Reading tile file: expected num binding types.\n"); exit(-1); } 
  rsc;
+
+
+ btnames=(char **)malloc((num_bindings+1)*sizeof(char *));  
+ for (k=0;k<=num_bindings;k++) btnames[k]="null";   // until overwritten by tile file specification;
+
+ temp_char = getc (tilefp); ungetc(temp_char, tilefp);
+ if (temp_char == 'b') {
+   r=0; fscanf(tilefp,"binding type names=%n",&r); rsc;
+   if (r!=19) { fprintf(stderr,"Reading tile file: expected binding type names.\n"); exit(-1); }
+   r=0; fscanf(tilefp,"{%n",&r); rsc;
+   if (r!=1) { fprintf(stderr,"Reading tile file: expected binding type names {.\n"); exit(-1); }
+   
+   for (i=1;i<=num_bindings;i++) {
+     if (1!=fscanf(tilefp,"%100s",&s[0]))
+       { fprintf(stderr,"Reading tile file: expected binding type %d name.\n",i); exit(-1); }
+     if (s[strlen(s)-1]=='}') { ungetc('}',tilefp); s[strlen(s)-1]=0; }
+     if (strlen(s)==0)
+       { fprintf(stderr,"Reading tile file: expected binding type %d name.\n",i); exit(-1); }
+     btnames[i]=malloc(strlen(s)); strcpy(btnames[i],s); rsc;
+     if (index("0123456789",btnames[i][0])!=NULL)
+       { fprintf(stderr,"Reading tile file: binding type %d name ('%s') cannot begin with 0-9.\n",i,s); exit(-1); }
+     // printf("read bond type %d name = '%s'\n",i,btnames[i]);
+   } rsc;
+   r=0; fscanf(tilefp,"}%n",&r); rsc;
+   if (r!=1) { fprintf(stderr,"Reading tile file: expected binding type names }.\n"); exit(-1); }
+ }
 
  fscanf(tilefp,"tile edges="); rsc;
  tileb_length = N+1;
@@ -450,10 +476,22 @@ void read_tilefile(FILE *tilefp)
    if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d start def {. \n",i); exit(-1); }
    /* XXX we will need to change this too */
    /* read in the four binding types {N E S W} */
-   for (j=0;j<4;j++) {
-     if (1!=fscanf(tilefp,"%d",&tileb[i][j]))
-       { fprintf(stderr,"Reading tile file: expected tile %d bond %d.\n",i,j); exit(-1); } 
-   }
+   for (j=0;j<4;j++) { rsc;
+     temp_char = getc (tilefp); ungetc(temp_char, tilefp);
+     if (index("0123456789",temp_char)!=NULL) {
+       if (1!=fscanf(tilefp,"%d",&tileb[i][j]))
+         { fprintf(stderr,"Reading tile file: expected tile %d bond %d value.\n",i,j); exit(-1); } 
+     } else {
+       if (1!=fscanf(tilefp,"%s",&s[0]))
+         { fprintf(stderr,"Reading tile file: expected tile %d bond %d's name.\n",i,j); exit(-1); } 
+       if (s[strlen(s)-1]=='}') { ungetc('}',tilefp); s[strlen(s)-1]=0; }
+       for (k=0;k<=num_bindings;k++) if (strcmp(s,btnames[k])==0) break;
+       if (k<=num_bindings)
+         { tileb[i][j]=k; }
+       else
+         { fprintf(stderr,"Reading tile file: expected tile %d bond %d's name '%s' unknown.\n",i,j,s); exit(-1); } 
+     }
+   } rsc;
    r=0; fscanf(tilefp,"}%n",&r); rsc; 
    if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d end def }. \n",i); exit(-1); }
    if (fscanf(tilefp,"[%g]",&stoic_float)) 
@@ -479,8 +517,7 @@ void read_tilefile(FILE *tilefp)
  }
  strength = (double*) calloc(sizeof(double),num_bindings+1); 
 
- temp_char = getc (tilefp);
- ungetc(temp_char, tilefp);
+ temp_char = getc (tilefp);  ungetc(temp_char, tilefp);
  if (temp_char == 'b') {
    r=0; fscanf(tilefp,"binding strengths=%n",&r); rsc;
    if (r!=18) { fprintf(stderr,"Reading tile file: expected binding strength defs.\n"); exit(-1); }
@@ -513,6 +550,9 @@ void read_tilefile(FILE *tilefp)
  }
 
  fclose(tilefp);
+ 
+ // better not free this: some strings are constants, some are alloc'ed.
+ // for (i=1; i<=num_bindings;i++) free(btnames[i]); free(btnames);
 }
 
 void getargs(int argc, char **argv)
