@@ -850,7 +850,7 @@ flake *choose_flake(tube *tp)
   } }
 
 
-/* here, we loose the part that's unconnected to the seed, rather     */
+/* here, we lose the part that's unconnected to the seed, rather      */
 /* than saving it and creating a new flake.                           */
 /* the cell at ii, jj has already been removed (set to 0).            */
 /* if fission_allowed==0, then the unconnected tiles are not removed. */
@@ -1034,11 +1034,12 @@ int locally_fission_proof(flake *fp, int i, int j, int oldn)
 /* remove all tiles whose off-rate more than is 'X' times faster than its on-rate. */
 /* (these are calculated for individual tiles only; chunk_fission has no effect.) */
 /* repeat 'iters' times. */
-/* WARNING: could remove tiles that leave the flake disconnected! */
 void clean_flake(flake *fp, double X, int iters)
 {
   int i,j,n; double kc;  tube *tp=fp->tube;
-  int size = (1<<fp->P); int it;
+  int size = (1<<fp->P); int it; int *F;
+
+  F = (int *)calloc(size*size, sizeof(int));  /* scratch space */
 
   kc = tp->k*tp->conc[0]; /* on-rate */
 
@@ -1047,16 +1048,19 @@ void clean_flake(flake *fp, double X, int iters)
     for (i=0; i<size; i++)
       for (j=0; j<size; j++) {
         n = fp->Cell(i,j);
-        tp->Fgroup[i+size*j] = (exp(-Gse(fp,i,j,n)) > X * tp->conc[n]);
+        F[i+size*j] = (exp(-Gse(fp,i,j,n)) > X * tp->conc[n]);
       }
     for (i=0; i<size; i++)
-      for (j=0; j<size; j++)
-        if (tp->Fgroup[i+size*j]) change_cell(fp, i, j, 0);
-    for (i=0; i<size; i++)
-      for (j=0; j<size; j++)
-        tp->Fgroup[i+size*j] = 0;
+      for (j=0; j<size; j++) 
+        if (F[i+size*j]) {
+           n = fp->Cell(i,j); change_cell(fp, i,j,0);
+           if (!locally_fission_proof(fp,i,j,n)) /* couldn't quickly confirm... */
+	     if (flake_fission(fp,i,j) && fission_allowed==0) {
+		change_cell(fp,i,j,n); tp->stat_a--; tp->stat_d--;
+	     }
+	}
   }
-
+  free(F);
 } // clean_flake()
 
 /* add tiles whose off-rate less than 'X' times faster than its on-rate. */
@@ -1065,7 +1069,9 @@ void clean_flake(flake *fp, double X, int iters)
 void fill_flake(flake *fp, double X, int iters)
 {
   int i,j,n; double secure, most_secure; double kc;  tube *tp=fp->tube;
-  int size = (1<<fp->P); int it;
+  int size = (1<<fp->P); int it; int *F;
+
+  F = (int *)calloc(size*size, sizeof(int));  /* scratch space */
 
   kc = tp->k*tp->conc[0]; /* on-rate */
 
@@ -1073,24 +1079,112 @@ void fill_flake(flake *fp, double X, int iters)
   for (it=0; it<iters; it++) {
     for (i=0; i<size; i++)
       for (j=0; j<size; j++) {
-        tp->Fgroup[i+size*j] = 0; most_secure=0;
+        most_secure=0;
         if (fp->Cell(i,j)==0) for (n=1; n<=fp->N; n++) {
           secure = (exp(-Gse(fp,i,j,n)) - X * tp->conc[n]);
           if (secure<most_secure) { 
-            tp->Fgroup[i+size*j] = n; most_secure=secure;
+            F[i+size*j] = n; most_secure=secure;
 	  }
 	}
-            
       }
     for (i=0; i<size; i++)
-      for (j=0; j<size; j++)
-        if (tp->Fgroup[i+size*j]) change_cell(fp, i, j, tp->Fgroup[i+size*j]);
-    for (i=0; i<size; i++)
-      for (j=0; j<size; j++)
-        tp->Fgroup[i+size*j] = 0;
+      for (j=0; j<size; j++) {
+        if (F[i+size*j]) change_cell(fp, i, j, F[i+size*j]);
+        F[i+size*j] = 0;
+      }
   }
-
+  free(F);
 } // fill_flake()
+
+
+/* Repair, as well as possible, a flake 
+     [constructed by a tile set in which all errorless assemblies have no holes]
+     * first, remove all tiles involved with mismatches. 
+     * identify holes -- perform an inefficient fill from the edges of empty space
+                      -- unfilled, empty cells are "interior"
+     * fill in interior sites where a unique strength-T tile may be added
+                      -- repeat until no longer possible
+     * fill in interior sites with "the" tile that makes the strongest bond
+                      -- repeat until no longer possible
+
+  NOTE: because this will always completely fill in any interior holes, it may construct
+    a flake that is NOT connected by non-zero Gse -- thus, if simulation is continues,
+    flake fission may not reach all relevant tiles when removing tiles in said interior hole, 
+    leading to visibly non-connected regions.  This is a BUG.  But seldom relevant.
+*/ 
+void repair_flake(flake *fp, double T, double Gse)
+{
+  int i,j,n; tube *tp=fp->tube; int size = (1<<fp->P); 
+  int morefill, bestn, numn; double bestGse; int *F;
+
+  F = (int *)calloc(size*size, sizeof(int));  /* scratch space */
+
+  // first, remove all tiles involved with mismatches -- identify, then remove
+    for (i=0; i<size; i++)
+      for (j=0; j<size; j++)  
+	if ((n=fp->Cell(i,j))>0 && Mism(fp,i,j,n)) F[i+size*j] = 1;
+    for (i=0; i<size; i++)
+      for (j=0; j<size; j++) 
+        if (F[i+size*j]) {
+           n = fp->Cell(i,j); change_cell(fp, i,j,0); F[i+size*j]=0;
+           if (!locally_fission_proof(fp,i,j,n)) /* couldn't quickly confirm... */
+	     if (flake_fission(fp,i,j) && fission_allowed==0) {
+		change_cell(fp,i,j,n); tp->stat_a--; tp->stat_d--;
+	     }
+	}
+
+  // identify holes -- perform an inefficient fill from the edges of empty space 
+  //                -- unfilled, empty cells are "interior"                       
+    for (i=0; i<size; i++) {
+      j=0;      while (j<size && fp->Cell(i,j)==0) { F[i+size*j] = 1; j++; }
+      j=size-1; while (j>=0   && fp->Cell(i,j)==0) { F[i+size*j] = 1; j--; }
+      j=0;      while (j<size && fp->Cell(j,i)==0) { F[j+size*i] = 1; j++; }
+      j=size-1; while (j>=0   && fp->Cell(j,i)==0) { F[j+size*i] = 1; j--; }
+    }
+    do { morefill=0;
+      for (i=1; i<size-1; i++)
+        for (j=1; j<size-1; j++)  
+	  if (F[i+size*j]==0 && fp->Cell(i,j)==0)  
+            if (F[i+1+size*j]==1 || F[i+size*j+size]==1 || 
+                F[i-1+size*j]==1 || F[i+size*j-size]==1) 
+	      { F[i+size*j] = 1; morefill=1; }
+    } while (morefill);
+    // now all "exterior" cells have Fgroup set to 1; tiles and interior empties are 0
+
+  // fill in interior sites where a unique strength-T tile may be added
+  //                -- repeat until no longer possible
+    do { morefill=0;
+      for (i=0; i<size; i++)
+        for (j=0; j<size; j++)  
+	  if (fp->Cell(i,j)==0 && F[i+size*j]==0) {
+            bestn=0; numn=0;
+            for (n=1; n<=fp->N; n++) if (Gse(fp,i,j,n)>=T*Gse) { bestn=n; numn++; }
+
+            // we can change immediately, since if there is a correct fill-in, 
+            // it doesn't matter what order the fill-in occurs by unique steps
+
+            if (numn==1) { change_cell(fp,i,j,bestn); morefill=1; }
+	  }
+    } while (morefill);
+
+  // fill in interior sites with "the" tile that makes the strongest bond
+  //                -- repeat until no longer possible
+    do { morefill=0;
+      for (i=0; i<size; i++)
+        for (j=0; j<size; j++)  
+	  if (fp->Cell(i,j)==0 && F[i+size*j]==0) {
+            bestn=0; bestGse=0;
+            for (n=1; n<=fp->N; n++) if (Gse(fp,i,j,n)>=bestGse) { bestn=n; bestGse=Gse(fp,i,j,n); }
+
+            // we can change immediately, since at this point we're sure to make mistakes anyway
+
+            if (bestn>0) { change_cell(fp,i,j,bestn); morefill=1; }
+	  }
+    } while (morefill);
+
+  free(F);
+} // repair_flake()
+
 
 /* recalculate # mismatches counting only tiles w/o an empty space within rad.       */
 /* (also see recalc_G for original #mismatches count, as displayed in window always) */
@@ -1272,14 +1366,14 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	     printf("removing seed at %d, %d! chunk=%d from %d,%d\n",i,j,chunk,di[0],dj[0]);
            if (fp->Cell(i,j)>0) {  // might have been removed already by previous fission
             change_cell(fp,i,j,0);
-            if (!locally_fission_proof(fp,i,j,oldn)) { /* couldn't quickly confirm... */
-              if (flake_fission(fp,i,j) && fission_allowed==0)
+            if (!locally_fission_proof(fp,i,j,oldn)) /* couldn't quickly confirm... */
+              if (flake_fission(fp,i,j) && fission_allowed==0) {
 		change_cell(fp,i,j,oldn); tp->stat_a--; tp->stat_d--;
                 // re-attach cell:
                 // dissociation was chosen, but rejected because it would
                 // cause fission. (note that flake_fission calculates but
                 // doesn't remove cells if fission_allowed==0.)
-	    }
+	      }
            }
           } i=di[0]; j=dj[0];
 	} 
