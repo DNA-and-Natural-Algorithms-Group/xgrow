@@ -1,0 +1,51 @@
+
+% A B tiles, very and only somewhat supersaturated
+xgrow AB.tile Gse=7 Gmc=13.9 block=3 seed=130,130,1
+xgrow AB.tile Gse=7 Gmc=12 block=3 seed=130,130,1
+
+% A B tiles, quickly nucleating
+xgrow AB.tile Gse=7 Gmc=11 block=3 seed=130,130,1
+
+% A B tiles growing rapidly
+% note the domain boundaries due to 0-strength bonds 
+xgrow AB.tile Gse=7 Gmc=7 block=3 seed=130,130,1
+
+% A B tiles with limited monomer concentration
+xgrow AB.tile Gse=7 Gmc=11 block=3 seed=130,130,1 Gfc=18
+
+% bar code tiles
+xgrow barcode.tile Gse=7 Gmc=13.9 block=3 seed=130,130,1
+xgrow barcode.tile Gse=7 Gmc=7 block=3 seed=130,130,1
+xgrow barcode.tile Gse=7 Gmc=11 block=3 seed=130,130,1 Gfc=18
+
+% bar code, nucleated
+xgrow barseed.tile Gse=7 Gmc=13.9 block=3 seed=180,180,5
+xgrow barseed.tile Gse=7 Gmc=13.9 block=3 seed=180,180,5 Gfc=22
+xgrow barseed.tile Gse=11 Gmc=21.8 block=3 seed=180,180,5
+
+% a variant of the same idea...
+xgrow lines.tile Gse=7 Gmc=13.9 block=3
+xgrow lines2.tile Gse=7 Gmc=13.9 block=3
+
+% small squares, large squares
+xgrow unary.tile Gse=11 Gmc=21.8 block=3 seed=130,130,1
+xgrow comb.tile Gse=11 Gmc=21.8 block=3 seed=130,130,1
+xgrow binary.tile Gse=11 Gmc=21.8 block=3 seed=130,130,1
+xgrow binary.tile Gse=15 Gmc=29 block=3 seed=130,130,1
+
+% Sierpinski XOR rule tiles by themselves
+xgrow XOR.tile Gse=7 Gmc=12 block=3 seed=130,130,1
+
+% Sierpinski growth
+xgrow sierpinski.tile Gse=7 Gmc=12 block=3
+xgrow sierpinski.tile Gse=10 Gmc=19.8 block=3
+
+% hydrolysis of tiles with mismatched input sticky ends -- helps!
+xgrow sierpinski.tile Gse=7 Gmc=12 block=3 Gam=7 Gseh=3.5
+
+% ...but not if reactions can't distinguish input from output sides
+xgrow sierpinski.tile Gse=7 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=0
+
+% infinite binary counter
+xgrow count.tile Gse=10 Gmc=19.8 block=3
+
