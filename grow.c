@@ -1105,7 +1105,8 @@ void fill_flake(flake *fp, double X, int iters)
      * fill in interior sites where a unique strength-T tile may be added
                       -- repeat until no longer possible
      * fill in interior sites with "the" tile that makes the strongest bond
-                      -- repeat until no longer possible
+                      -- perform in rounds with decreasing minT, requiring at least minT*Gse to add 
+                      -- within each round, repeat until no longer possible
 
   NOTE: because this will always completely fill in any interior holes, it may construct
     a flake that is NOT connected by non-zero Gse -- thus, if simulation is continues,
@@ -1115,7 +1116,8 @@ void fill_flake(flake *fp, double X, int iters)
 void repair_flake(flake *fp, double T, double Gse)
 {
   int i,j,n; tube *tp=fp->tube; int size = (1<<fp->P); 
-  int morefill, bestn, numn; double bestGse; int *F;
+  int morefill, bestn, numn; double bestGse; int *F; 
+  double minT,bigT; int n1,n2;
 
   F = (int *)calloc(size*size, sizeof(int));  /* scratch space */
 
@@ -1168,13 +1170,23 @@ void repair_flake(flake *fp, double T, double Gse)
     } while (morefill);
 
   // fill in interior sites with "the" tile that makes the strongest bond
-  //                -- repeat until no longer possible
+  //                -- perform in rounds with decreasing minT, requiring at least minT*Gse to add 
+  //                -- within each round, repeat until no longer possible
+
+  bestGse=0;
+  for (n1=1; n1<=tp->N; n1++) 
+    for (n2=1; n2<=tp->N; n2++) 
+      bestGse=MAX(bestGse,MAX(tp->Gse_NS[n1][n2],tp->Gse_EW[n1][n2]));
+  bigT=ceil(4*bestGse/Gse); // over-estimate max bond-strength to hold in a single tile
+
+  for (minT=bigT; minT>-1; minT-=1.0)
     do { morefill=0;
       for (i=0; i<size; i++)
         for (j=0; j<size; j++)  
 	  if (fp->Cell(i,j)==0 && F[i+size*j]==0) {
-            bestn=0; bestGse=0;
-            for (n=1; n<=fp->N; n++) if (Gse(fp,i,j,n)>=bestGse) { bestn=n; bestGse=Gse(fp,i,j,n); }
+            bestn=0; bestGse=minT*Gse;
+            for (n=1; n<=fp->N; n++) if (Gse(fp,i,j,n)>=bestGse) 
+               { bestn=n; bestGse=Gse(fp,i,j,n); }
 
             // we can change immediately, since at this point we're sure to make mistakes anyway
 
