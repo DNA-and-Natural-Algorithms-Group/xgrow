@@ -605,6 +605,7 @@ void getargs(int argc, char **argv)
    printf("  Gah=    activation energy for hydrolyzed neighbors\n");
    printf("  Gao=    delta a. e. for output vs input-triggers hydrolysis\n");
    printf("  Gfc=    log concentration of flakes (otherwise no depletion)\n");
+   printf("  stoic=n[s]            set stoichiometry of tile n to relative value s\n");
 /* printf("  anneal=g/t            anneal Gse to g with time constant t\n"); */
    printf("  seed=i,j,n            seed tile type n at position i,j\n");
    printf("  addflakes=i,j,n:N@Gfc simulate N separate flakes\n");
