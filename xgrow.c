@@ -949,7 +949,7 @@ void closeargs()
 
   // free memory
   for (i=0;i<=tp->N;i++) free(tileb[i]); free(tileb);
-  for (i=0;i<=tp->num_bindings+1;i++) free(glue[i]); free(glue);
+  for (i=0;i<=tp->num_bindings;i++) free(glue[i]); free(glue);
   free(strength); free(stoic);
   
   while (fparam!=NULL) { fprm=fparam->next_param; free(fparam); fparam=fprm; }
