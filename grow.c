@@ -132,10 +132,10 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
   tp->P = P; tp->N = N; tp->num_bindings = num_bindings;
   tp->hydro=0;  tp->num_flakes=0;
 
-  tp->units = (int**) calloc(sizeof(int*),N+1);
+  tp->tilet = (int**) calloc(sizeof(int*),N+1);
   for (i=0;i<=N;i++) {
-   tp->units[i] = (int*) calloc(sizeof(int),4);
-   for (j=0;j<4;j++) tp->units[i][j]=0;
+   tp->tilet[i] = (int*) calloc(sizeof(int),4);
+   for (j=0;j<4;j++) tp->tilet[i][j]=0;
   }
   tp->strength = (double*) calloc(sizeof(double),num_bindings+1);
   tp->glue = (double **) calloc(sizeof(double*),num_bindings+1);
@@ -183,7 +183,7 @@ void free_tube(tube *tp)
 
   free(tp->rv); free(tp->Fgroup); free(tp->Fnext);
   
-  for (n=0;n<tp->N+1;n++) free(tp->units[n]); free(tp->units);
+  for (n=0;n<tp->N+1;n++) free(tp->tilet[n]); free(tp->tilet);
   for (i=0;i<tp->num_bindings+1;i++) free(tp->glue[i]); free(tp->glue);
   free(tp->strength); 
 
@@ -199,7 +199,7 @@ void free_tube(tube *tp)
 
 /* set up info for tile set, in flake data struc  */
 /* fp->seed_n should have a defined value before entering set_params */
-void set_params(tube *tp, int** units, double* strength, double **glue, double* stoic,
+void set_params(tube *tp, int** tilet, double* strength, double **glue, double* stoic,
  int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao, double T)
@@ -207,8 +207,8 @@ void set_params(tube *tp, int** units, double* strength, double **glue, double* 
    int i,j,n,m;
 
    /* make our own copy of tile set and strengths, so the calling program
-      can do as it pleases with it's units & strength information */
-   for (i=0;i<=tp->N;i++) for (j=0;j<4;j++) tp->units[i][j] = units[i][j];
+      can do as it pleases with it's tilet & strength information */
+   for (i=0;i<=tp->N;i++) for (j=0;j<4;j++) tp->tilet[i][j] = tilet[i][j];
    for (i=0;i<=tp->num_bindings;i++) tp->strength[i] = strength[i]; 
    for (i=0;i<=tp->num_bindings;i++) {
      for (j=0;j<=tp->num_bindings;j++) {
@@ -234,17 +234,17 @@ void set_params(tube *tp, int** units, double* strength, double **glue, double* 
    if (tp->hydro) for (n=tp->N/2+1; n <= tp->N; n++) tp->Gcb[n]=Ghyd;
 
    /* set Gse_EW Gse_NS from Gse, Gseh rules */
-   /* uses (tp->units)[] and tp->strength[] and tp->glue[] */
+   /* uses (tp->tilet)[] and tp->strength[] and tp->glue[] */
    /* XXX We will want to modify this */  /* See also (change also!) reset_params */
    for (n=1; n<=tp->N; n++)
       for (m=1; m<=tp->N; m++) {
-	tp->Gse_EW[n][m] = ((((tp->units)[n][3]==(tp->units)[m][1]) *
-			     (tp->strength)[(tp->units)[m][1]]) +
-			    (tp->glue)[(tp->units)[n][3]][(tp->units)[m][1]])*
+	tp->Gse_EW[n][m] = ((((tp->tilet)[n][3]==(tp->tilet)[m][1]) *
+			     (tp->strength)[(tp->tilet)[m][1]]) +
+			    (tp->glue)[(tp->tilet)[n][3]][(tp->tilet)[m][1]])*
                 (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
-         tp->Gse_NS[n][m] = (((tp->units)[n][2]==(tp->units)[m][0]) *
-			     (tp->strength)[(tp->units)[m][0]] +
-			     (tp->glue)[(tp->units)[n][2]][(tp->units)[m][0]])* 
+         tp->Gse_NS[n][m] = (((tp->tilet)[n][2]==(tp->tilet)[m][0]) *
+			     (tp->strength)[(tp->tilet)[m][0]] +
+			     (tp->glue)[(tp->tilet)[n][2]][(tp->tilet)[m][0]])* 
                 (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
       }
 
@@ -337,14 +337,14 @@ void reset_params(tube *tp, double old_Gmc, double old_Gse,
    /* reset bond strengths for new Gse  (this code same as in set_params) */
    for (n=1; n<=tp->N; n++)
       for (m=1; m<=tp->N; m++) {
-	tp->Gse_EW[n][m] = ((((tp->units)[n][3]==(tp->units)[m][1]) *
-			     (tp->strength)[(tp->units)[m][1]]) +
-			    (tp->glue)[(tp->units)[n][3]][(tp->units)[m][1]])*
-                (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:old_Gse):old_Gse);
-         tp->Gse_NS[n][m] = (((tp->units)[n][2]==(tp->units)[m][0]) *
-			     (tp->strength)[(tp->units)[m][0]] +
-			     (tp->glue)[(tp->units)[n][2]][(tp->units)[m][0]])* 
-                (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:old_Gse):old_Gse);
+	tp->Gse_EW[n][m] = ((((tp->tilet)[n][3]==(tp->tilet)[m][1]) *
+			     (tp->strength)[(tp->tilet)[m][1]]) +
+			    (tp->glue)[(tp->tilet)[n][3]][(tp->tilet)[m][1]])*
+                (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:new_Gse):new_Gse);
+         tp->Gse_NS[n][m] = (((tp->tilet)[n][2]==(tp->tilet)[m][0]) *
+			     (tp->strength)[(tp->tilet)[m][0]] +
+			     (tp->glue)[(tp->tilet)[n][2]][(tp->tilet)[m][0]])* 
+                (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:new_Gse):new_Gse);
       }
 
 
@@ -498,22 +498,22 @@ double calc_rates(flake *fp, int i, int j, double *rv)
     */
     /* empty and mismatched inputs */
     nS=fp->Cell(i+1,j); nE=fp->Cell(i,j+1);
-    ei = ((tp->units)[n][2] != 0 && (tp->units)[nS][0]==0) + 
-         ((tp->units)[n][1] != 0 && (tp->units)[nE][3]==0);
-    mi = ((tp->units)[n][2] != 
-           (tp->units)[nS][0] && (tp->units)[n][2]*(tp->units)[nS][0] !=0) +
-         ((tp->units)[n][1] != 
-           (tp->units)[nE][3] && (tp->units)[n][1]*(tp->units)[nE][3] !=0);
+    ei = ((tp->tilet)[n][2] != 0 && (tp->tilet)[nS][0]==0) + 
+         ((tp->tilet)[n][1] != 0 && (tp->tilet)[nE][3]==0);
+    mi = ((tp->tilet)[n][2] != 
+           (tp->tilet)[nS][0] && (tp->tilet)[n][2]*(tp->tilet)[nS][0] !=0) +
+         ((tp->tilet)[n][1] != 
+           (tp->tilet)[nE][3] && (tp->tilet)[n][1]*(tp->tilet)[nE][3] !=0);
     hi = (nE>N/2) + (nS>N/2);
 
     /* empty and mismatched outputs */
     nN=fp->Cell(i-1,j); nW=fp->Cell(i,j-1);
-    eo = ((tp->units)[n][0] != 0 && (tp->units)[nN][2]==0) + 
-         ((tp->units)[n][3] != 0 && (tp->units)[nW][1]==0);
-    mo = ((tp->units)[n][0] != 
-           (tp->units)[nN][2] && (tp->units)[n][0]*(tp->units)[nN][2] !=0) +
-         ((tp->units)[n][3] != 
-           (tp->units)[nW][1] && (tp->units)[n][3]*(tp->units)[nW][1] !=0);
+    eo = ((tp->tilet)[n][0] != 0 && (tp->tilet)[nN][2]==0) + 
+         ((tp->tilet)[n][3] != 0 && (tp->tilet)[nW][1]==0);
+    mo = ((tp->tilet)[n][0] != 
+           (tp->tilet)[nN][2] && (tp->tilet)[n][0]*(tp->tilet)[nN][2] !=0) +
+         ((tp->tilet)[n][3] != 
+           (tp->tilet)[nW][1] && (tp->tilet)[n][3]*(tp->tilet)[nW][1] !=0);
     ho = (nN>N/2) + (nW>N/2);
 
     r = tp->k * (tp->kas + mi * tp->kam + ei * tp->kae + hi * tp->kah +
@@ -787,13 +787,13 @@ flake *choose_flake(tube *tp)
 /* This is hypothetical on i,j being tile n != 0.                       */
 /* CONNECTED is the non-hypothetical version.                           */
 #define HCONNECTED_N(fp,i,j,n) \
-    ((fp->tube->units)[n][0]!=0 && (fp->tube->units)[fp->Cell((i)-1,j)][2]!=0)
+    ((fp->tube->tilet)[n][0]!=0 && (fp->tube->tilet)[fp->Cell((i)-1,j)][2]!=0)
 #define HCONNECTED_E(fp,i,j,n) \
-    ((fp->tube->units)[n][1]!=0 && (fp->tube->units)[fp->Cell(i,(j)+1)][3]!=0)
+    ((fp->tube->tilet)[n][1]!=0 && (fp->tube->tilet)[fp->Cell(i,(j)+1)][3]!=0)
 #define HCONNECTED_S(fp,i,j,n) \
-    ((fp->tube->units)[n][2]!=0 && (fp->tube->units)[fp->Cell((i)+1,j)][0]!=0)
+    ((fp->tube->tilet)[n][2]!=0 && (fp->tube->tilet)[fp->Cell((i)+1,j)][0]!=0)
 #define HCONNECTED_W(fp,i,j,n) \
-    ((fp->tube->units)[n][3]!=0 && (fp->tube->units)[fp->Cell(i,(j)-1)][1]!=0)
+    ((fp->tube->tilet)[n][3]!=0 && (fp->tube->tilet)[fp->Cell(i,(j)-1)][1]!=0)
 #define HCONNECTED(fp,i,j,n) \
     ( HCONNECTED_N(fp,i,j,n) || HCONNECTED_E(fp,i,j,n) || \
       HCONNECTED_S(fp,i,j,n) || HCONNECTED_W(fp,i,j,n) )
@@ -1042,11 +1042,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 
      choose_cell(fp, &i, &j, &n); chunk=0;
      if (fission_allowed==2 && n==0) { // must choose either single tile, EW/NS pairs, or block
-        double sum=0, rsum; int c;
+        double sum=0, rsum; 
         sum = calc_rates(fp,i,j,tp->rv); 
-        for (rsum=0,c=0;c<4;c++) rsum+=tp->rv[1+N+c];
-        if (rsum!=sum) 
-            printf("chunk rates don't sum correctly!\n");
         rsum=sum*drand48();
         for (chunk=0; chunk<4; chunk++) 
           if (rsum<tp->rv[1+N+chunk]) break; else rsum-=tp->rv[1+N+chunk];

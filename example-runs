@@ -51,11 +51,18 @@ xgrow sierpinski Gse=7 Gmc=12 block=3
 xgrow sierpinski Gse=10 Gmc=19.8 block=3
 xgrow sierpinksi T=2
 
-% hydrolysis of tiles with mismatched input sticky ends -- helps!
-xgrow sierpinski Gse=7 Gmc=12 block=3 Gam=7 Gseh=3.5
+% hydrolysis of tiles with mismatched input sticky ends -- helps! (but it's unstable)
+xgrow sierpinski Gse=7 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=10
 
 % ...but not if reactions can't distinguish input from output sides
 xgrow sierpinski Gse=7 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=0
+
+% ...(just a little goes a long way, near the melting transition)
+xgrow sierpinski Gse=6.2 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=2
+
+% ...are the proofreading tiles stable to hydrolysis?
+xgrow sierproof2x2RSq Gse=6.2 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=2
+
 
 % transmittable hydrolysis can lead to dynamic instability
 xgrow sierpinski Gse=7 Gmc=13.5 block=3 Gseh=6 Gah=14 Gas=25
@@ -71,7 +78,7 @@ xgrow count Gse=10 Gmc=19.8 block=3
 
 xgrow barseed T=2 block=2 seed=180,180,1
 xgrow barseed T=2 block=2 seed=180,180,5
-xgrow sier3x3 T=2 block=2 seed=180,180,5
+xgrow sier3x3 T=2 block=20 seed=180,180,5
 xgrow lines T=2 block=2 
 xgrow lines2 T=2 block=2
 xgrow lines T=1 block=2

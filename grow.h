@@ -76,14 +76,14 @@ double exp(); double log();
 /* the tile at i,j is being added, then it counts each mismatch ONCE.    */
 
 #define Mism(fp,i,j,n) (                                                   \
- ((fp->tube->units)[n][1] != (fp->tube->units)[fp->Cell(i,(j)+1)][3] &&    \
-  (fp->tube->units)[n][1]*(fp->tube->units)[fp->Cell(i,(j)+1)][3] > 0) +   \
- ((fp->tube->units)[n][3] != (fp->tube->units)[fp->Cell(i,(j)-1)][1] &&    \
-  (fp->tube->units)[n][3]*(fp->tube->units)[fp->Cell(i,(j)-1)][1] > 0) +   \
- ((fp->tube->units)[n][2] != (fp->tube->units)[fp->Cell((i)+1,j)][0] &&    \
-  (fp->tube->units)[n][2]*(fp->tube->units)[fp->Cell((i)+1,j)][0] > 0) +   \
- ((fp->tube->units)[n][0] != (fp->tube->units)[fp->Cell((i)-1,j)][2] &&    \
-  (fp->tube->units)[n][0]*(fp->tube->units)[fp->Cell((i)-1,j)][2] > 0) )
+ ((fp->tube->tilet)[n][1] != (fp->tube->tilet)[fp->Cell(i,(j)+1)][3] &&    \
+  (fp->tube->tilet)[n][1]*(fp->tube->tilet)[fp->Cell(i,(j)+1)][3] > 0) +   \
+ ((fp->tube->tilet)[n][3] != (fp->tube->tilet)[fp->Cell(i,(j)-1)][1] &&    \
+  (fp->tube->tilet)[n][3]*(fp->tube->tilet)[fp->Cell(i,(j)-1)][1] > 0) +   \
+ ((fp->tube->tilet)[n][2] != (fp->tube->tilet)[fp->Cell((i)+1,j)][0] &&    \
+  (fp->tube->tilet)[n][2]*(fp->tube->tilet)[fp->Cell((i)+1,j)][0] > 0) +   \
+ ((fp->tube->tilet)[n][0] != (fp->tube->tilet)[fp->Cell((i)-1,j)][2] &&    \
+  (fp->tube->tilet)[n][0]*(fp->tube->tilet)[fp->Cell((i)-1,j)][2] > 0) )
 
 
 
@@ -126,11 +126,11 @@ typedef struct flake_tree_struct {
 
 
 typedef struct tube_struct {
-  int **units;         /* tile types */
+  int **tilet;         /* tile types */
   double *strength;    /* bond strengths.  assumes tile types stick to
 			  each other and not other types of tiles          */
   double **glue;       /* A generalized version of the strength function:
-			  The level of "glue" between various tile types   */
+			  The level of "glue" between various bond types   */
   int num_bindings;    /* length of strength */
   
   unsigned char N, P;  /* # non-empty tile types; 2^P active cell grid     */
@@ -184,7 +184,7 @@ void free_tube(tube *tp);
 void insert_flake(flake *fp, tube *tp);
 void print_tree(flake_tree *ftp, int L, char s);
 void clean_flake(flake *fp, double X, int iters);
-void set_params(tube *tp, int** units, double* strength, double **glue, 
+void set_params(tube *tp, int** tilet, double* strength, double **glue, 
  double* stoic,int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao, double T);
@@ -196,6 +196,8 @@ int calc_perimeter(flake *fp);
 void update_rates(flake *fp, int ii, int jj);
 void update_tube_rates(flake *fp);
 void change_cell(flake *fp, int i, int j, unsigned char n);
+void change_seed(flake *fp, int new_i, int new_j);
+int flake_fission(flake *fp, int i, int j);
 void simulate(tube *tp, int events, double tmax, int emax, int smax);
 void linear_simulate( double ratek, double Gmc, double Gse,
                       double tmax, int emax, int smax);
