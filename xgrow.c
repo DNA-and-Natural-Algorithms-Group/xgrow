@@ -559,8 +559,8 @@ void getargs(int argc, char **argv)
    printf("  fill_X=               for filling, minimal ratio of off-rate to on-rate [default=1.0]\n");
    printf("  error_radius=         when writing to file, #mismatches counts only those for which \n"
           "                        all surounding tiles are present (after clean/fill) [default=0]\n");
-   printf("  repair_unique_T=      alternative clean/fill: remove mismatches, fill in interior sites \n"
-          "                        if there is a unique strength-T tile, then fill in by strongest tile]n");
+   printf("  repair_unique_T=      alternative clean/fill, called Rx: remove mismatches, fill in interior sites \n"
+          "                        if there is a unique strength-T tile, then fill in by strongest tile\n");
    printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events, perimeter, dG, dG_bonds\n");
    printf("  arrayfile=            output MATLAB-format flake array information on exit (after cleaning)\n");
    printf("  exportfile=           on-request output of MATLAB-format flake array information\n");
@@ -965,16 +965,16 @@ void closeargs()
   for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
     fill_flake(fpp,fill_X,fill_cycles); 
 
-  // recalc's all mismatch #'s if error_radius is given
+  // alternative fix-up routine; redundant with clean/fill, but supposedly more reliable
+  if (repair_unique) 
+    for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
+      repair_flake(fpp,repair_unique_T,Gse); 
+
+  // recalc's all mismatch #'s if error_radius is given -- keep only those not near an empty cell.
   if (error_radius>.5) {
     for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
       error_radius_flake(fpp,error_radius); 
   }
-
-  // alternative fix-up routine (not compatible with error_radius; redundant with clean/fill)
-  if (repair_unique) 
-    for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
-      repair_flake(fpp,repair_unique_T,Gse); 
 
   /* output information for *all* flakes */
   if (datafp!=NULL) {
