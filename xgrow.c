@@ -116,6 +116,10 @@
     1/6/04  Added error_radius option.  I am worried that major counted error rates
             are temporary growth front mishaps, when internal errors are very very small.
             Testing...
+    1/9/04  Added display option to show tile sides in null/weak/strong colors (if block>4)
+            null:   Gse_EW with EW neighbor is < .5 Gse            (e.g. mismatch or null neighbor)
+            weak:   Gse_EW with EW neighbor is > .5 and < 1.5 Gse  (e.g. regular strength-1 bond)
+            strong: Gse_EW with EW neighbor is > 1.5 Gse           (e.g. strength-2 bond)
 
   TO DO List:
   
@@ -139,7 +143,7 @@
   * Event counter should simply have more bits!
   * In no-fission mode, one can get caught up on very fast -- but disallowed --
     dissociations, which must be rejected.  This is not good. 
-    (not sure if this is still true.  EW 11/10/03)
+    (not sure if this is still true.  EW 11/10/03  I think it's fixed. EW 1/9/04)
   * rubberbanding for "puncture"
   * green dot (current value), red dot (selection cursor) for Gse/Gmc mouse choice
   * fp->G nan and other discrepencies should be tracked down.
@@ -191,7 +195,7 @@ gcc -O -Wall -g -o xgrow xgrow.c grow.c -I/usr/X11R6/include -L/usr/X11R6/lib -l
 # define MAXTILETYPES 256
 
 long int translate[MAXTILETYPES]; /* for converting colors */
-int paused=0, errorc=0, sampling=0;
+int paused=0, errorc=0, errors=0, sampling=0;
 int export_mode=0, export_flake_n=1, export_movie_n=1, export_movie=0; 
 FILE *export_fp=NULL;
 int update_rate=10000;
@@ -203,7 +207,7 @@ char tileset_name[256];
 Display *display;
 int screen;
 Window window,quitbutton,pausebutton,playground,
-        restartbutton,colorbutton,flakebutton,seedbutton,tempbutton, 
+        restartbutton,colorbutton,sidebutton,flakebutton,seedbutton,tempbutton, 
         fissionbutton, samplebutton, exportbutton,cleanbutton;
 GC gc, gcr, gccolor;
 XImage *spinimage=NULL;
@@ -212,7 +216,8 @@ int font_height;
 XSizeHints size_hints;
 long event_mask;
 int depth;
-long int darkcolor,lightcolor,black,white,errorcolor,goodcolor,hydrocolor,hydroerrcolor;
+long int darkcolor,lightcolor,black,white,
+         errorcolor,goodcolor,hydrocolor,hydroerrcolor,strongcolor,weakcolor,nullcolor;
 char *tile_colors[MAXTILETYPES]={ "black",
   "blue",      "red",      "green",      "yellow", "gold",   "purple", "white", 
   "dark blue", "dark red", "dark green", "wheat",  "orange", "cyan",   "light grey"};
@@ -987,9 +992,12 @@ void closeargs()
          translate[fp->Cell(i,j)] ) ) )
 
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
-void showpic(flake *fp, int err) /* display the field */
+void showpic(flake *fp, int err) /* display the field */  // err param is ignored!
 {int row,col,i1,i2,color,j,j1,j2,blocktop=block;
- char *picture=(*spinimage).data;
+ char *picture=(*spinimage).data; static int last_display_type=0;
+ int new_display=(last_display_type!=(10*errors+errorc)); 
+ last_display_type=(10*errors+errorc); // re-draw everything when colormap changes
+
  if (block>4) blocktop=block-1;  
  if (8==(*spinimage).depth) {
   if (block>1) /* I wish I knew how to do this faster */
@@ -997,21 +1005,36 @@ void showpic(flake *fp, int err) /* display the field */
       for (col=0;col<size;col++) {
         color = getcolor(row,col);
         j=block*((col+NBDY)+block*NCOLS*(row+NBDY));
-        if (color!=picture[j]) {
+        if (color!=picture[j] || new_display) {
 	  for (i1=0;i1<blocktop;i1++) {
             j1=i1*block*NCOLS+j;
             for (i2=0;i2<blocktop;i2++)
                picture[j1+i2]=color;
           }
           if (block>4 && fp->Cell(row,col)!=0) {
+	       int Ccolm=lightcolor,Ccolp=lightcolor,Crowp=lightcolor,Crowm=lightcolor;
+               if (errors==1) {
+                 int n=fp->Cell(row,col);
+                 int ncolm=fp->Cell(row,col-1),  ncolp=fp->Cell(row,col+1);  
+                 int nrowm=fp->Cell(row-1,col),  nrowp=fp->Cell(row+1,col);  
+	         Ccolm=weakcolor; Ccolp=weakcolor; Crowp=weakcolor; Crowm=weakcolor;
+                 if (fp->tube->Gse_EW[ n ] [ ncolm ] > 1.5*Gse) Ccolm=strongcolor;
+                 if (fp->tube->Gse_EW[ ncolp ] [ n ] > 1.5*Gse) Ccolp=strongcolor;
+                 if (fp->tube->Gse_NS[ n ] [ nrowp ] > 1.5*Gse) Crowp=strongcolor;
+                 if (fp->tube->Gse_NS[ nrowm ] [ n ] > 1.5*Gse) Crowm=strongcolor;
+                 if (fp->tube->Gse_EW[ n ] [ ncolm ] < 0.5*Gse) Ccolm=nullcolor;
+                 if (fp->tube->Gse_EW[ ncolp ] [ n ] < 0.5*Gse) Ccolp=nullcolor;
+                 if (fp->tube->Gse_NS[ n ] [ nrowp ] < 0.5*Gse) Crowp=nullcolor;
+                 if (fp->tube->Gse_NS[ nrowm ] [ n ] < 0.5*Gse) Crowm=nullcolor;
+               }
             for (i1=0;i1<blocktop;i1++) // col-1 side
-               picture[i1*block*NCOLS+j-1]=lightcolor;
+               picture[i1*block*NCOLS+j-1]=Ccolm;
             for (i1=0;i1<blocktop;i1++) // col+1 side
-               picture[i1*block*NCOLS+j+blocktop]=lightcolor;
+               picture[i1*block*NCOLS+j+blocktop]=Ccolp;
             for (i1=0;i1<blocktop;i1++) // row+1 side
-               picture[blocktop*block*NCOLS+j+i1]=lightcolor;
+	      picture[blocktop*block*NCOLS+j+i1]=Crowp;
             for (i1=0;i1<blocktop;i1++) // row-1 side
-               picture[-block*NCOLS+j+i1]=lightcolor;
+               picture[-block*NCOLS+j+i1]=Crowm;
 	  }
           if (block>4 && fp->Cell(row,col)==0) {
             if (fp->Cell(row,col-1)==0) for (i1=0;i1<blocktop;i1++) // col-1 side
@@ -1035,16 +1058,32 @@ void showpic(flake *fp, int err) /* display the field */
     for (row=0;row<size;row++)
      for (col=0;col<size;col++) {
        color=getcolor(row,col);
-       if (color!=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY))) {
+       if (color!=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY)) 
+           || new_display) {
          for (i2=0;i2<blocktop;i2++)
            for (i1=0;i1<blocktop;i1++)
             XPutPixel(spinimage,j1+i1,j2+i2,color);
           if (block>4 && fp->Cell(row,col)!=0) {
             for (i1=0;i1<blocktop;i1++) {
-               XPutPixel(spinimage,j1-1,j2+i1,lightcolor); // col-1 side
-               XPutPixel(spinimage,j1+blocktop,j2+i1,lightcolor); // col+1 side
-               XPutPixel(spinimage,j1+i1,j2+blocktop,lightcolor); // row+1 side
-               XPutPixel(spinimage,j1+i1,j2-1,lightcolor); // row-1 side
+	       int Ccolm=lightcolor,Ccolp=lightcolor,Crowp=lightcolor,Crowm=lightcolor;
+               if (errors==1) {
+                 int n=fp->Cell(row,col);
+                 int ncolm=fp->Cell(row,col-1),  ncolp=fp->Cell(row,col+1);  
+                 int nrowm=fp->Cell(row-1,col),  nrowp=fp->Cell(row+1,col);  
+	         Ccolm=weakcolor; Ccolp=weakcolor; Crowp=weakcolor; Crowm=weakcolor;
+                 if (fp->tube->Gse_EW[ n ] [ ncolm ] > 1.5*Gse) Ccolm=strongcolor;
+                 if (fp->tube->Gse_EW[ ncolp ] [ n ] > 1.5*Gse) Ccolp=strongcolor;
+                 if (fp->tube->Gse_NS[ n ] [ nrowp ] > 1.5*Gse) Crowp=strongcolor;
+                 if (fp->tube->Gse_NS[ nrowm ] [ n ] > 1.5*Gse) Crowm=strongcolor;
+                 if (fp->tube->Gse_EW[ n ] [ ncolm ] < 0.5*Gse) Ccolm=nullcolor;
+                 if (fp->tube->Gse_EW[ ncolp ] [ n ] < 0.5*Gse) Ccolp=nullcolor;
+                 if (fp->tube->Gse_NS[ n ] [ nrowp ] < 0.5*Gse) Crowp=nullcolor;
+                 if (fp->tube->Gse_NS[ nrowm ] [ n ] < 0.5*Gse) Crowm=nullcolor;
+               }
+               XPutPixel(spinimage,j1-1,j2+i1,Ccolm); // col-1 side
+               XPutPixel(spinimage,j1+blocktop,j2+i1,Ccolp); // col+1 side
+               XPutPixel(spinimage,j1+i1,j2+blocktop,Crowp); // row+1 side
+               XPutPixel(spinimage,j1+i1,j2-1,Crowm); // row-1 side
 	    }
 	  }
           if (block>4 && fp->Cell(row,col)==0) {
@@ -1160,7 +1199,7 @@ void setpause(int value)
 }
 
 /* fix up the colors button */
-void setcolor(int value)
+void settilecolor(int value)
 {errorc=value;
  if (hydro) {
   if (errorc==2) 
@@ -1175,6 +1214,14 @@ void setcolor(int value)
   else if (errorc==0)
    XDrawImageString(display,colorbutton,gcr,0,font_height,"  TILE/err  ",12);
  }
+}
+
+void setsidecolor(int value)
+{errors=value;
+  if (errors==1) 
+   XDrawImageString(display,sidebutton,gcr,0,font_height,"  box/BONDS ",12);
+  else if (errors==0)
+   XDrawImageString(display,sidebutton,gcr,0,font_height,"  BOX/bonds ",12);
 }
 
 /* fix up the export button */
@@ -1235,7 +1282,7 @@ void repaint()
  XDrawString(display,tempbutton,    gcr,0,font_height," cool   heat ",13);
  setexport(export_mode);
  setpause(paused);
- setcolor(errorc);
+ settilecolor(errorc); setsidecolor(errors);
  setwander(wander);
  setfission(fission_allowed);
 
@@ -1350,6 +1397,12 @@ void openwindow(int argc, char **argv)
  if (XAllocNamedColor(display,cmap,"wheat",&colorcell,&xcolor))
               lightcolor=colorcell.pixel;
  if (XAllocNamedColor(display,cmap,"red",&colorcell,&xcolor))
+              nullcolor=colorcell.pixel;
+ if (XAllocNamedColor(display,cmap,"wheat",&colorcell,&xcolor))
+              weakcolor=colorcell.pixel;
+ if (XAllocNamedColor(display,cmap,"green",&colorcell,&xcolor))
+              strongcolor=colorcell.pixel;
+ if (XAllocNamedColor(display,cmap,"red",&colorcell,&xcolor))
               errorcolor=colorcell.pixel;
  if (XAllocNamedColor(display,cmap,"green",&colorcell,&xcolor))
               goodcolor=colorcell.pixel;
@@ -1418,20 +1471,22 @@ void openwindow(int argc, char **argv)
     WINDOWWIDTH-140,WINDOWHEIGHT-176,120,20,2,black,darkcolor);
  cleanbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-202,120,20,2,black,darkcolor);
- colorbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-228,120,20,2,black,darkcolor);
  seedbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-254,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-228,120,20,2,black,darkcolor);
  fissionbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-280,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-254,120,20,2,black,darkcolor);
  tempbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-306,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-280,120,20,2,black,darkcolor);
  flakebutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-332,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-306,120,20,2,black,darkcolor);
  samplebutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-358,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-332,120,20,2,black,darkcolor);
  exportbutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-358,120,20,2,black,darkcolor);
+ colorbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-384,120,20,2,black,darkcolor);
+ sidebutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-410,120,20,2,black,darkcolor);
  playground=XCreateSimpleWindow(display,window,
     PLAYLEFT,PLAYTOP,block*NCOLS,block*NROWS,2,translate[4],white);
 
@@ -1447,6 +1502,7 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XSelectInput(display,restartbutton,event_mask);
  XSelectInput(display,cleanbutton,event_mask);
  XSelectInput(display,colorbutton,event_mask);
+ XSelectInput(display,sidebutton,event_mask);
  XSelectInput(display,flakebutton,event_mask);
  XSelectInput(display,seedbutton,event_mask);
  XSelectInput(display,fissionbutton,event_mask);
@@ -1494,6 +1550,7 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XMapWindow(display,restartbutton);
  XMapWindow(display,cleanbutton);
  XMapWindow(display,colorbutton);
+ if (block>4) XMapWindow(display,sidebutton);
  if (~(fparam->N==1 && fparam->next_param==NULL))  
    XMapWindow(display,flakebutton); 
  XMapWindow(display,seedbutton);
@@ -1793,7 +1850,9 @@ int main(int argc, char **argv)
             } 
             repaint();
         } else if (report.xbutton.window==colorbutton) { // show tiles or error or hyd
-	  setcolor(hydro ? (errorc+1)%3 : (errorc+1)%2); repaint(); 
+	  settilecolor(hydro ? (errorc+1)%3 : (errorc+1)%2); repaint(); 
+        } else if (report.xbutton.window==sidebutton) { // show box or null/weak/strong
+	  setsidecolor((errors+1)%2); repaint(); 
         } else if (report.xbutton.window==seedbutton) {
             setwander(1-wander); repaint(); 
         } else if (report.xbutton.window==fissionbutton) {
