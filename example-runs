@@ -26,21 +26,21 @@ xgrow barseed Gse=11 Gmc=21.8 block=3 seed=180,180,5
 xgrow barseed T=2 block=3 seed=180,180,5
 
 % a variant of the same idea...
-xgrow lines Gse=7 Gmc=13.9 block=3
+xgrow lines1 Gse=7 Gmc=13.9 block=3
 xgrow lines2 Gse=7 Gmc=13.9 block=3
 
 % small squares, large squares
-xgrow unary Gse=11 Gmc=21.8 block=10 seed=130,130,1
-xgrow comb Gse=11 Gmc=21.8 block=10 seed=130,130,1
-xgrow binary Gse=11 Gmc=21.8 block=10 seed=130,130,1
-xgrow binary Gse=15 Gmc=29 block=10 seed=130,130,1
-xgrow binary T=2
+xgrow UnarySquare Gse=11 Gmc=21.8 block=10 seed=130,130,1
+xgrow CombSquare Gse=11 Gmc=21.8 block=10 seed=130,130,1
+xgrow BinaryCounterSquare Gse=11 Gmc=21.8 block=10 seed=130,130,1
+xgrow BinaryCounterSquare Gse=15 Gmc=29 block=10 seed=130,130,1
+xgrow BinaryCounterSquare T=2
 
 % unseeded growth (compare different seeds)
 
-xgrow unary T=2 addflakes=10,10,1:1@0 addflakes=10,15,2:1@0 addflakes=10,20,3:1@0 addflakes=15,10,4:1@0 addflakes=15,15,5:1@0 addflakes=15,20,6:1@0 addflakes=20,10,7:1@0 addflakes=20,15,8:1@0 addflakes=20,20,9:1@0
+xgrow UnarySquare T=2 addflakes=10,10,1:1@0 addflakes=10,15,2:1@0 addflakes=10,20,3:1@0 addflakes=15,10,4:1@0 addflakes=15,15,5:1@0 addflakes=15,20,6:1@0 addflakes=20,10,7:1@0 addflakes=20,15,8:1@0 addflakes=20,20,9:1@0
 
-xgrow unary addflakes=10,10,1:1@0 addflakes=10,15,2:1@0 addflakes=10,20,3:1@0 addflakes=15,10,4:1@0 addflakes=15,15,5:1@0 addflakes=15,20,6:1@0 addflakes=20,10,7:1@0 addflakes=20,15,8:1@0 addflakes=20,20,9:1@0
+xgrow UnarySquare addflakes=10,10,1:1@0 addflakes=10,15,2:1@0 addflakes=10,20,3:1@0 addflakes=15,10,4:1@0 addflakes=15,15,5:1@0 addflakes=15,20,6:1@0 addflakes=20,10,7:1@0 addflakes=20,15,8:1@0 addflakes=20,20,9:1@0
 
 % Sierpinski XOR rule tiles by themselves
 xgrow XOR Gse=7 Gmc=12 block=3 seed=130,130,1
@@ -61,7 +61,7 @@ xgrow sierpinski Gse=7 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=0
 xgrow sierpinski Gse=6.2 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=2
 
 % ...are the proofreading tiles stable to hydrolysis?
-xgrow sierproof2x2RSq Gse=6.2 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=2
+xgrow sierpinski2x2 Gse=6.2 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=2
 
 
 % transmittable hydrolysis can lead to dynamic instability
@@ -71,23 +71,22 @@ xgrow sierpinski Gse=7 Gmc=13.5 block=3 Gseh=6 Gah=14 Gas=25
 xgrow sierpinski Gse=7 Gmc=12 block=3 Gseh=5 Gah=14
 
 % infinite binary counter
-xgrow count Gse=10 Gmc=19.8 block=3
+xgrow BinaryCounter Gse=10 Gmc=19.8 block=3
 
 
 %%% irreversible Tile Assembly Model
 
 xgrow barseed T=2 block=2 seed=180,180,1
 xgrow barseed T=2 block=2 seed=180,180,5
-xgrow sier3x3 T=2 block=20 seed=180,180,5
-xgrow lines T=2 block=2 
+xgrow lines1 T=2 block=2 
 xgrow lines2 T=2 block=2
-xgrow lines T=1 block=2
-xgrow count T=2 block=2
+xgrow lines1 T=1 block=2
+xgrow BinaryCounter T=2 block=2
 xgrow sierpinski T=2
 xgrow AB T=1 seed=130,130,1
 xgrow barcode T=1 seed=130,130,1
 
-%%%%% multiples flakes
+%%%%% multiple flakes
 
 xgrow barcode block=3 Gmc=15 Gse=10 addflakes=130,130,1:100@24
 
