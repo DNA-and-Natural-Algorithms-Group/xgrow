@@ -760,7 +760,7 @@ int flake_fission(flake *fp, int ii, int jj)
   for (g=0;g<5;g++) { head[g]=tail[g]=-1; ming[g]=-1; seeded[g]=0; }
   ming[0]=0;
 
-  if (1 || DEBUG==2) { int n; 
+  if (DEBUG==2) { int n; 
      for (i=j=n=0;n<size*size;n++) 
          { i+=(tp->Fgroup[n] != 0); j+=(tp->Fnext[n] != -1); }
      if (i>0 || j>0) printf("FILL: %d groupies and %d wannabies on entry\n",i,j);

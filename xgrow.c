@@ -41,7 +41,7 @@
                dissociate is the seed, then move the seed to its neighbor.
                although 'wander' is the "right" model, it sometimes looks
                strange, so I won't make it the default (yet).
-
+            nice little boxes drawn around blocks, if blocks>4
 
   TO DO List:
   * Something like "multiflakes=100@27" argument does "the right thing"
