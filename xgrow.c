@@ -84,7 +84,7 @@ char tileset_name[256];
 Display *display;
 int screen;
 Window window,quitbutton,pausebutton,playground,
-        fillbutton,colorbutton,flakebutton,seedbutton,tempbutton;
+        fillbutton,colorbutton,flakebutton,seedbutton,tempbutton, holebutton;
 GC gc, gcr, gccolor;
 XImage *spinimage=NULL;
 XFontStruct *font=NULL;
@@ -504,6 +504,7 @@ void repaint()
 {int i=0;
  XDrawString(display,quitbutton,  gcr,0,font_height,"    quit     ",13);
  XDrawString(display,fillbutton,  gcr,0,font_height,"    clear    ",13);
+ XDrawString(display,holebutton,  gcr,0,font_height,"   puncture  ",13);
  XDrawString(display,flakebutton, gcr,0,font_height,"next/big/prev",13);
  XDrawString(display,tempbutton,  gcr,0,font_height," cool   heat ",13);
  setpause(paused);
@@ -703,6 +704,8 @@ void openwindow(int argc, char **argv)
     WINDOWWIDTH-140,WINDOWHEIGHT-180,120,20,2,black,darkcolor);
  tempbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-206,120,20,2,black,darkcolor);
+ holebutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-232,120,20,2,black,darkcolor);
  playground=XCreateSimpleWindow(display,window,
     PLAYLEFT,PLAYTOP,block*NCOLS,block*NROWS,2,translate[4],white);
 
@@ -720,6 +723,7 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XSelectInput(display,flakebutton,event_mask);
  XSelectInput(display,seedbutton,event_mask);
  XSelectInput(display,tempbutton,event_mask);
+ XSelectInput(display,holebutton,event_mask);
  event_mask=ButtonReleaseMask|ButtonPressMask|PointerMotionHintMask
                    |ButtonMotionMask; 
  XSelectInput(display,playground,event_mask);
@@ -764,6 +768,7 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
    XMapWindow(display,flakebutton); 
  XMapWindow(display,seedbutton);
  XMapWindow(display,tempbutton);
+ XMapWindow(display,holebutton);
  XMapWindow(display,playground);
 
 /* make image structure */
@@ -811,7 +816,7 @@ void cleanup()
 
 int main(int argc, char **argv)
 {unsigned int width, height;
- int x,y,b,i,j;
+ int x,y,b,i,j;    int clear_x=0,clear_y=0;
  int mousing=0; int stat=0;
  double new_Gse, new_Gmc;
  XEvent report;
@@ -932,41 +937,53 @@ int main(int argc, char **argv)
         break; 
        case MotionNotify:
         if (report.xbutton.window==playground) {
+               int newx,newy;
+               Window root,child;
+               unsigned int keys_buttons;
+               int window_x,window_y;
              if (tp->hydro) break; /* don't know how to reset params */
              x=report.xbutton.x/block;
              y=report.xbutton.y/block;
              b=report.xbutton.button;
-             /* was sketch(x,y,b); now change Gse & Gmc */
-             new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
-             /* draw current Gse, Gmc values */
-             sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
-               Gmc,new_Gmc,Gse,new_Gse);
-             XDrawImageString(display,window,gc,5,3*font_height,
-               stringbuffer,strlen(stringbuffer));
-
-	     {
-             int newx,newy;
-             Window root,child;
-             unsigned int keys_buttons;
-             int window_x,window_y;
-             /* this is necessary in order to get more than one MotionNotify
-                event; I don't know why. */
-             if (!XQueryPointer(display,playground,
-              &root,&child,&window_x,&window_y,
-              &newx,&newy,&keys_buttons))
-              {mousing=0; }
+             if (mousing==3) {
+               /* was sketch(x,y,b); now change Gse & Gmc */
+               new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
+               /* draw current Gse, Gmc values */
+               sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
+                 Gmc,new_Gmc,Gse,new_Gse);
+               XDrawImageString(display,window,gc,5,3*font_height,
+                 stringbuffer,strlen(stringbuffer));
+               /* this is necessary in order to get more than one MotionNotify
+                  event; I don't know why. */
 	     }
+             if (!XQueryPointer(display,playground,
+                &root,&child,&window_x,&window_y,
+                &newx,&newy,&keys_buttons))
+                {mousing=0; }
 	}
         break;
        case ButtonRelease:
-        reset_params(tp, Gmc, Gse, new_Gmc, new_Gse);
-        if (Gfc>0) Gfc+=(new_Gmc-Gmc); 
-        fprm=fparam;
-        while (fprm!=NULL) {  /* fix up all flake info, for restarting */
-           fprm->Gfc += (new_Gmc-Gmc); fprm=fprm->next_param;
-        } 
-        Gse=new_Gse; Gmc=new_Gmc; 
-        showpic(fp,errorc); 
+	 if (mousing==3) {
+           reset_params(tp, Gmc, Gse, new_Gmc, new_Gse);
+           if (Gfc>0) Gfc+=(new_Gmc-Gmc); 
+           fprm=fparam;
+           while (fprm!=NULL) {  /* fix up all flake info, for restarting */
+              fprm->Gfc += (new_Gmc-Gmc); fprm=fprm->next_param;
+           } 
+           Gse=new_Gse; Gmc=new_Gmc; 
+           showpic(fp,errorc); 
+	 } else if (mousing==1) {
+           /* clear a region */
+	   flake *tfp=tp->flake_list; int i,j;
+             x=report.xbutton.x/block;
+             y=report.xbutton.y/block;
+             b=report.xbutton.button;
+           if (clear_x != x && clear_y != y) {
+             for (i=MIN(clear_y,y); i<MAX(clear_y,y); i++)
+               for (j=MIN(clear_x,x); j<MAX(clear_x,x); j++)
+                  change_cell(tfp, (i+size)%size, (j+size)%size, 0);
+	   }
+	 }
         mousing=0; 
         break;
        case ButtonPress:
@@ -974,6 +991,8 @@ int main(int argc, char **argv)
             cleanup();  
         } else if (report.xbutton.window==pausebutton) {
             setpause(1-paused); repaint(); 
+        } else if (report.xbutton.window==holebutton) {
+            repaint(); 
         } else if (report.xbutton.window==fillbutton) {
             free_tube(tp); 
             tp = init_tube(size_P,N,num_bindings);   
@@ -1027,15 +1046,19 @@ int main(int argc, char **argv)
             {x=report.xbutton.x/block;
              y=report.xbutton.y/block;
              b=report.xbutton.button;
-             if (tp->hydro) break; /* don't know how to reset params */
-             new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
-             /* draw current Gse, Gmc values */
-             sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
-               Gmc,new_Gmc,Gse,new_Gse);
-             XDrawImageString(display,window,gc,5,3*font_height,
-               stringbuffer,strlen(stringbuffer));
-             /* later: if down button, draw T=1/T=2 diagram */
-             mousing=1; showphase();
+             if (b==3) {
+               if (tp->hydro) break; /* don't know how to reset params */
+               new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
+               /* draw current Gse, Gmc values */
+               sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
+                 Gmc,new_Gmc,Gse,new_Gse);
+               XDrawImageString(display,window,gc,5,3*font_height,
+                 stringbuffer,strlen(stringbuffer));
+               /* later: if down button, draw T=1/T=2 diagram */
+               mousing=3; showphase();
+	     } else if (b==1) {
+               mousing=1; clear_x=x; clear_y=y;  /* prepare to clear a region */
+	     }
             }
         else {
 	  /*  what here ?  */
