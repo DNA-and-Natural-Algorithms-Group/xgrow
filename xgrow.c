@@ -289,6 +289,7 @@ double blast_rate=0;
 int first_tile, second_tile;
 int double_tiles=0;
 
+
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
 int block=1; /* default to small blocks; calling with argument changes this */
