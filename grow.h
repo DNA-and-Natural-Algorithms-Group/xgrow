@@ -33,6 +33,28 @@ double exp(); double log();
         fp->tube->Gse_NS[ n ] [ fp->Cell((i)+1,j) ] +  \
         fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] )
 
+/* definition for total sticky-end strength around a pair or a 2x2 chunk */
+/* -- note that if some site is empty, this still gives the correct      */
+/*    energy for dissociation                                            */
+#define chunk_Gse_EW(fp,i,j) ( \
+        Gse(fp,i,j,fp->Cell(i,j)) +                                             \
+        Gse(fp,i,((j)%size)+1,fp->Cell(i,((j)%size)+1)) -                       \
+        fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ fp->Cell(i,j) ] ) 
+#define chunk_Gse_NS(fp,i,j) ( \
+        Gse(fp,i,j,fp->Cell(i,j)) +                                             \
+        Gse(fp,((i)%size)+1,j,fp->Cell(((i)%size)+1,j)) -                       \
+        fp->tube->Gse_NS[ fp->Cell(i,j) ] [ fp->Cell((i)+1,j) ] ) 
+#define chunk_Gse_2x2(fp,i,j) ( \
+        Gse(fp,i,j,fp->Cell(i,j)) +                                             \
+        Gse(fp,i,((j)%size)+1,fp->Cell(i,((j)%size)+1)) +                       \
+        Gse(fp,((i)%size)+1,j,fp->Cell(((i)%size)+1,j)) +                       \
+        Gse(fp,((i)%size)+1,((j)%size)+1,fp->Cell(((i)%size)+1,((j)%size)+1)) - \
+        fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ fp->Cell(i,j) ] -               \
+        fp->tube->Gse_NS[ fp->Cell(i,j) ] [ fp->Cell((i)+1,j) ] -               \
+        fp->tube->Gse_EW[ fp->Cell((i)+1,(j)+1) ] [ fp->Cell((i)+1,j) ] -       \
+        fp->tube->Gse_NS[ fp->Cell(i,(j)+1) ] [ fp->Cell((i)+1,(j)+1) ]  ) 
+
+
 /* similar definition to count the number of sides that are mismatched   */
 /* also,  n != 0   and assumes 0 <= i,j < (1<<fp->P).                    */
 /* this gives the number of mismatched bonds (not null bonds, not equal) */
@@ -134,7 +156,7 @@ typedef struct tube_struct {
   long int stat_a,stat_d,/* tally of number of association, dissociation,  */
       stat_h,stat_f;   /* "hydrolysis", and "fission" events               */
   int ewrapped;        /* has the event counter wrapped around?            */
-  double *rv;          /* scratch space, size fp->N+1                      */
+  double *rv;          /* scratch space, size fp->1+N+4 (for chunk_fission)*/
   int *Fnext, *Fgroup; /* size x size array for fill scratch space         */
 } tube;          
 
@@ -155,7 +177,7 @@ void set_params(tube *tp, int** units, double* strength, double **glue,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao, double T);
 void reset_params(tube *tp, double old_Gmc, double old_Gse,
- double new_Gmc, double new_Gse);
+ double new_Gmc, double new_Gse, double Gseh);
 void recalc_G(flake *fp);
 double calc_dG_bonds(flake *fp);
 int calc_perimeter(flake *fp);

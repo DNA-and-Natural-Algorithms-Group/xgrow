@@ -131,8 +131,9 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
   }
   tp->strength = (double*) calloc(sizeof(double),num_bindings+1);
   tp->glue = (double **) calloc(sizeof(double*),num_bindings+1);
-  for (n=0;n<N+1;n++) {
-    tp->glue[n] = (double*) calloc(sizeof(double),num_bindings+1);
+  for (i=0;i<=num_bindings+1;i++) {
+    tp->glue[i] = (double*) calloc(sizeof(double),num_bindings+1);
+    for (j=0;j<=num_bindings;j++) { tp->glue[i][j]=0; }  // necessary??  -- EW
   }
 
   tp->conc = (double *)calloc(sizeof(double),N+1);
@@ -149,7 +150,7 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
   tp->events=0; tp->t=0; tp->ewrapped=0;
   tp->stat_a=tp->stat_d=tp->stat_h=tp->stat_f=0;
 
-  tp->rv  = (double *)calloc(sizeof(double),N+1);
+  tp->rv  = (double *)calloc(sizeof(double),1+N+4);
   tp->Fnext = (int *)calloc(sizeof(int),size*size);
   for (n=0;n<size*size;n++) tp->Fnext[n]=-1;
   tp->Fgroup = (int *)calloc(sizeof(int),size*size);
@@ -165,7 +166,7 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
 
 void free_tube(tube *tp)
 {
-  int n; flake *fp;
+  int n,i; flake *fp;
   
   free(tp->conc);
   free(tp->Gcb);
@@ -175,7 +176,7 @@ void free_tube(tube *tp)
   free(tp->rv); free(tp->Fgroup); free(tp->Fnext);
   
   for (n=0;n<tp->N+1;n++) free(tp->units[n]); free(tp->units);
-  for (n=0;n<tp->N+1;n++) free(tp->glue[n]); free(tp->glue);
+  for (i=0;i<tp->num_bindings+1;i++) free(tp->glue[i]); free(tp->glue);
   free(tp->strength); 
 
   free_tree(tp->flake_tree);  
@@ -226,13 +227,13 @@ void set_params(tube *tp, int** units, double* strength, double **glue, double* 
 
    /* set Gse_EW Gse_NS from Gse, Gseh rules */
    /* uses (tp->units)[] and tp->strength[] and tp->glue[] */
-   /* XXX We will want to modify this */
+   /* XXX We will want to modify this */  /* See also (change also!) reset_params */
    for (n=1; n<=tp->N; n++)
       for (m=1; m<=tp->N; m++) {
 	tp->Gse_EW[n][m] = ((((tp->units)[n][3]==(tp->units)[m][1]) *
 			     (tp->strength)[(tp->units)[m][1]]) +
 			    (tp->glue)[(tp->units)[n][3]][(tp->units)[m][1]])*
-	  (tp->hydro?(((n > tp->N/2) || (m > tp->N/2))?Gseh:Gse):Gse);
+                (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
          tp->Gse_NS[n][m] = (((tp->units)[n][2]==(tp->units)[m][0]) *
 			     (tp->strength)[(tp->units)[m][0]] +
 			     (tp->glue)[(tp->units)[n][2]][(tp->units)[m][0]])* 
@@ -319,20 +320,25 @@ int calc_perimeter(flake *fp)
 
 
 void reset_params(tube *tp, double old_Gmc, double old_Gse, 
-		  double new_Gmc, double new_Gse)
+		  double new_Gmc, double new_Gse, double Gseh)
 {  int n,m;
  flake *fp;
 
  if (!(tp->hydro)) {         /* not clear what to do for hydro rules */
 
-   /* reset bond strengths */
+   /* reset bond strengths for new Gse  (this code same as in set_params) */
    for (n=1; n<=tp->N; n++)
       for (m=1; m<=tp->N; m++) {
-         tp->Gse_EW[n][m] = ((tp->units)[n][3]==(tp->units)[m][1]) *
-              (tp->strength)[(tp->units)[m][1]] * new_Gse;
-         tp->Gse_NS[n][m] = ((tp->units)[n][2]==(tp->units)[m][0]) *
-              (tp->strength)[(tp->units)[m][0]] * new_Gse;
+	tp->Gse_EW[n][m] = ((((tp->units)[n][3]==(tp->units)[m][1]) *
+			     (tp->strength)[(tp->units)[m][1]]) +
+			    (tp->glue)[(tp->units)[n][3]][(tp->units)[m][1]])*
+                (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:old_Gse):old_Gse);
+         tp->Gse_NS[n][m] = (((tp->units)[n][2]==(tp->units)[m][0]) *
+			     (tp->strength)[(tp->units)[m][0]] +
+			     (tp->glue)[(tp->units)[n][2]][(tp->units)[m][0]])* 
+                (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:old_Gse):old_Gse);
       }
+
 
    /* changing Gmc when Gfc>0 indicates either 
       dilution ( in which case all conc including Gfc decrease proportionally )
@@ -423,16 +429,18 @@ void insert_flake(flake *fp, tube *tp)
 /* gives concentration-independent rates                                   */
 /* for non-empty cells i,j, computes rate rv[n] to convert to type n       */
 /*  so rv[0] gives the off-rate  (not the sum)                             */
+/*  for chunk_fission, r=rv[0] gives the total off-rate over single tile,  */
+/*     EW pair, NS pair, & 2x2 block, individually in [1+N+0]...[1+N+3]    */
 /*  n=0 (empty) is the most common case.  the returned value is sum rv[n]  */
 /* for empty cells i,j, returns 0                                          */
-/* rv must already exist, of size fp->N+1                                  */
+/* rv must already exist, of size at least fp->N+1                         */
 /* 0 <= i,j < 2^P                                                          */
 double calc_rates(flake *fp, int i, int j, double *rv)
 {
   int n,mi,ei,hi,mo,eo,ho; double r, sumr; tube *tp=fp->tube;
-  unsigned char N,E,S,W;
+  unsigned char nN,nE,nS,nW; int N=fp->N; int size=(1<<fp->P);
 
-  if (rv!=NULL) for (n=0;n<=fp->N;n++) rv[n]=0;
+  if (rv!=NULL) for (n=0;n<=N;n++) rv[n]=0;
   if (tp==NULL) return 0;
   if (tp->T>0) return 0;   /* no off-rates: irreversible Tile Assembly Model */
   n = fp->Cell(i,j);
@@ -444,8 +452,18 @@ double calc_rates(flake *fp, int i, int j, double *rv)
       fp->Cell(i-1,j)==0 && fp->Cell(i,j-1)==0 &&
       fp->Cell(i+1,j)==0 && fp->Cell(i,j+1)==0) return 0; 
 
-  r = tp->k * exp(-Gse(fp,i,j,n)); 
-  if (rv!=NULL) rv[0]=r; sumr = r;
+  r = tp->k * exp(-Gse(fp,i,j,n)); sumr=r;
+  if (fission_allowed==2) {              // rates for pairs and 2x2 block dissoc
+    if (rv!=NULL) rv[1+N+0]=r;
+    r = tp->k * exp(-chunk_Gse_EW(fp,i,j)) * (fp->Cell(i,j+1)!=0); sumr+=r;
+    if (rv!=NULL) rv[1+N+1]=r; 
+    r = tp->k * exp(-chunk_Gse_NS(fp,i,j)) * (fp->Cell(i+1,j)!=0); sumr+=r;
+    if (rv!=NULL) rv[1+N+2]=r; 
+    r = tp->k * exp(-chunk_Gse_2x2(fp,i,j)) * 
+        (fp->Cell(i+1,j)!=0 && fp->Cell(i,j+1)!=0 && fp->Cell(i+1,j+1)!=0); sumr+=r;
+    if (rv!=NULL) rv[1+N+3]=r; 
+  }
+  if (rv!=NULL) rv[0]=sumr; 
 
   /*  hydrolysis model assumes tiles 1...N/2 non hydrolyzed, N/2+1...N hydro */
   if (n > 0 && tp->hydro) {
@@ -460,33 +478,33 @@ double calc_rates(flake *fp, int i, int j, double *rv)
               empty    => tile input se have types 1..3; output has no se
     */
     /* empty and mismatched inputs */
-    S=fp->Cell(i+1,j); E=fp->Cell(i,j+1);
-    ei = ((tp->units)[n][2] != 0 && (tp->units)[S][0]==0) + 
-         ((tp->units)[n][1] != 0 && (tp->units)[E][3]==0);
+    nS=fp->Cell(i+1,j); nE=fp->Cell(i,j+1);
+    ei = ((tp->units)[n][2] != 0 && (tp->units)[nS][0]==0) + 
+         ((tp->units)[n][1] != 0 && (tp->units)[nE][3]==0);
     mi = ((tp->units)[n][2] != 
-           (tp->units)[S][0] && (tp->units)[n][2]*(tp->units)[S][0] !=0) +
+           (tp->units)[nS][0] && (tp->units)[n][2]*(tp->units)[nS][0] !=0) +
          ((tp->units)[n][1] != 
-           (tp->units)[E][3] && (tp->units)[n][1]*(tp->units)[E][3] !=0);
-    hi = (E>fp->N/2) + (S>fp->N/2);
+           (tp->units)[nE][3] && (tp->units)[n][1]*(tp->units)[nE][3] !=0);
+    hi = (nE>N/2) + (nS>N/2);
 
     /* empty and mismatched outputs */
-    N=fp->Cell(i-1,j); W=fp->Cell(i,j-1);
-    eo = ((tp->units)[n][0] != 0 && (tp->units)[N][2]==0) + 
-         ((tp->units)[n][3] != 0 && (tp->units)[W][1]==0);
+    nN=fp->Cell(i-1,j); nW=fp->Cell(i,j-1);
+    eo = ((tp->units)[n][0] != 0 && (tp->units)[nN][2]==0) + 
+         ((tp->units)[n][3] != 0 && (tp->units)[nW][1]==0);
     mo = ((tp->units)[n][0] != 
-           (tp->units)[N][2] && (tp->units)[n][0]*(tp->units)[N][2] !=0) +
+           (tp->units)[nN][2] && (tp->units)[n][0]*(tp->units)[nN][2] !=0) +
          ((tp->units)[n][3] != 
-           (tp->units)[W][1] && (tp->units)[n][3]*(tp->units)[W][1] !=0);
-    ho = (N>fp->N/2) + (W>fp->N/2);
+           (tp->units)[nW][1] && (tp->units)[n][3]*(tp->units)[nW][1] !=0);
+    ho = (nN>N/2) + (nW>N/2);
 
     r = tp->k * (tp->kas + mi * tp->kam + ei * tp->kae + hi * tp->kah +
                 tp->kao * (mo * tp->kam + eo * tp->kae + ho * tp->kah));
-    if (n<=fp->N/2) {
-      if (rv!=NULL) rv[n+fp->N/2]=r; sumr += r;
+    if (n<=N/2) {
+      if (rv!=NULL) rv[n+N/2]=r; sumr += r;
     } else {
-      r = r * exp(-tp->Gcb[n]+tp->Gcb[n-fp->N/2]
-                  -Gse(fp,i,j,n)+Gse(fp,i,j,n-fp->N/2));
-      if (rv!=NULL) rv[n-fp->N/2]=r; sumr += r;
+      r = r * exp(-tp->Gcb[n]+tp->Gcb[n-N/2]
+                  -Gse(fp,i,j,n)+Gse(fp,i,j,n-N/2));
+      if (rv!=NULL) rv[n-N/2]=r; sumr += r;
     }
   } 
 
@@ -621,6 +639,15 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
    update_rates(fp,i-1,j);
    update_rates(fp,i,j+1);
    update_rates(fp,i,j-1);
+   if (fission_allowed==2) {
+    update_rates(fp,i-1,j+1);
+    update_rates(fp,i+1,j-1);
+    update_rates(fp,i-1,j-1);
+    update_rates(fp,((i-3+size)%size)+1,j);
+    update_rates(fp,i,((j-3+size)%size)+1);
+    update_rates(fp,((i-3+size)%size)+1,((j-2+size)%size)+1);
+    update_rates(fp,((i-2+size)%size)+1,((j-3+size)%size)+1);
+   }
 
    if (tp!=NULL) update_tube_rates(fp);
 }
@@ -668,7 +695,7 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
        r = r * tp->conc[0];  cum = 0;  oops=0;
        for (n=1; n<=fp->N; n++) if (r < (cum += tp->conc[n])) break; 
        if (n>fp->N) { // apparently conc[0] is not the sum of conc[n], oops
-	 printf("Eye of the needle!!! %f =!= %f\n",tp->conc[0],cum); 
+	 printf("Concentration sum error!!! %f =!= %f\n",tp->conc[0],cum); 
          r=drand48(); oops=1; 
          tp->conc[0]=0; for (n=1; n <= tp->N; n++) tp->conc[0]+=tp->conc[n];
        }
@@ -676,10 +703,10 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
   } else {                    /* choose off-event 0 or conversion to 1...N */
     if (tp->hydro) {
        sum = calc_rates(fp,i,j,tp->rv);
-       if (sum==0) printf("Zero-sum game!!!\n");
+       if (sum==0) printf("Zero-sum hydro rate was chosen!!!\n");
        r = r * sum;  cum = 0;
        for (n=0; n<=fp->N; n++) if (r < (cum += tp->rv[n])) break; 
-       if (n>fp->N) { printf("A rose is not a rose!!!\n"); n=0; }
+       if (n>fp->N) { printf("Hydro failed to choose anyone!!!\n"); n=0; }
     } else {
        n=0;  // always an off-event, unless hydrolysis rules are used.
     }
@@ -884,7 +911,7 @@ int flake_fission(flake *fp, int ii, int jj)
      if (tp->Fgroup[Qn(i-1,j)]>0) { Fpush(0,i-1,j) }
   }
   /* now tp->Fnext is all -1 and tp->Fgroup is all 0 */
-  if (fission_allowed) tp->stat_f += ngroups-1;
+  if (fission_allowed>0) tp->stat_f += ngroups-1;
   return (ngroups != 1); // would fission occur w/o this tile?
 }
 
@@ -918,8 +945,9 @@ void clean_flake(flake *fp, double X, int iters)
 /* simulates 'events' events */
 void simulate(tube *tp, int events, double tmax, int emax, int smax)
 {
-  int i,j,n,oldn; double dt; flake *fp;
+  int i,j,n,oldn; double dt; flake *fp; int chunk, seedchunk[4];
   unsigned char ringi;  double total_rate; long int emaxL;
+  int size=(1<<tp->P), N=tp->N;  
 
   if (tp->flake_list==NULL) return;  /* no flakes! */
 
@@ -956,7 +984,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
      /* let the designated seed site wander around */
      /* must do this very frequently, else treadmilling would get stuck */
      if (wander) {  
-      int new_i, new_j, new_n, size=(1<<tp->P);
+      int new_i, new_j, new_n;
       new_i = fp->seed_i-1+random()%3;
       new_j = fp->seed_j-1+random()%3;
       if (periodic  || (new_i>=0 && new_i<size && new_j>=0 && new_j<size)) {
@@ -967,13 +995,24 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
       }
       // 
       if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) {
-	change_cell(fp,fp->seed_i,fp->seed_j,(random()%tp->N)+1); 
+	change_cell(fp,fp->seed_i,fp->seed_j,(random()%N)+1); 
         fp->seed_n=fp->Cell(fp->seed_i,fp->seed_j);
       }
      }
 
-     choose_cell(fp, &i, &j, &n); 
-     if (wander && (i == fp->seed_i && j == fp->seed_j)) {
+     choose_cell(fp, &i, &j, &n); chunk=0;
+     if (fission_allowed==2 && n==0) { // must choose either single tile, EW/NS pairs, or block
+        double sum=0, rsum;
+        sum = calc_rates(fp,i,j,tp->rv); rsum=sum*drand48();
+        while (rsum>0) { rsum-=tp->rv[1+N+chunk]; chunk++; } chunk--;
+        if (chunk<0 || chunk>3) printf("impossible chunk chosen!!!\n");
+     }
+     seedchunk[0] = (i   == fp->seed_i && j   == fp->seed_j);
+     seedchunk[1] = (i   == fp->seed_i && j+1 == fp->seed_j);
+     seedchunk[2] = (i+1 == fp->seed_i && j+1 == fp->seed_j);
+     seedchunk[3] = (i+1 == fp->seed_i && j+1 == fp->seed_j);
+     if (wander && n==0) {
+      if (seedchunk[0]) {
        // looks like we're trying to dissociate the seed tile.
        // if 'wander' is set, this can happen -- if there is a neighboring
        // tile to move the seed to.
@@ -982,11 +1021,45 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
        else if (fp->Cell(i,j-mj)!=0) fp->seed_j=j-mj;
        else if (fp->Cell(i+mi,j)!=0) fp->seed_i=i+mi;
        else if (fp->Cell(i,j+mj)!=0) fp->seed_j=j+mj;
-       fp->seed_n=fp->Cell(fp->seed_i,fp->seed_j);
+     }
+     if (seedchunk[1] && fission_allowed==2) {
+       int mi,mj,mk; mi=((random()/17)%2)*2-1; mj=((random()/17)%2)*3-1; mk=(random()/17)%2;
+       if      (fp->Cell(i-mi,j+mk)!=0)   { fp->seed_i=i-mi; fp->seed_j=j+mk; }
+       else if (fp->Cell(i+mi,j+mk)!=0)   { fp->seed_i=i+mi; fp->seed_j=j+mk; }
+       else if (fp->Cell(i-mi,j+1-mk)!=0) { fp->seed_i=i-mi; fp->seed_j=j+1-mk; }
+       else if (fp->Cell(i+mi,j+1-mk)!=0) { fp->seed_i=i+mi; fp->seed_j=j+1-mk; }
+       else if (fp->Cell(i,j-mj)!=0) fp->seed_j=j-mj;
+       else if (fp->Cell(i,j+mj)!=0) fp->seed_j=j+mj;
+     }
+     if (seedchunk[2] && fission_allowed==2) {
+       int mi,mj,mk; mi=((random()/17)%2)*2-1; mj=((random()/17)%2)*2-1; mk=(random()/17)%2;
+       if      (fp->Cell(i+mk,j+mj)!=0)   { fp->seed_i=i+mk; fp->seed_j=j+mj; }
+       else if (fp->Cell(i+mk,j-mj)!=0)   { fp->seed_i=i+mk; fp->seed_j=j-mj; }
+       else if (fp->Cell(i+1-mk,j+mj)!=0) { fp->seed_i=i+1-mk; fp->seed_j=j+mj; }
+       else if (fp->Cell(i+1-mk,j-mk)!=0) { fp->seed_i=i+1-mk; fp->seed_j=j-mj; }
+       else if (fp->Cell(i-mi,j)!=0) fp->seed_i=i-mi;
+       else if (fp->Cell(i+mi,j)!=0) fp->seed_i=i+mi;
+      }
+      if (seedchunk[3] && fission_allowed==2) {
+       int mi,mj,mk; mi=((random()/17)%2)*3-1; mj=((random()/17)%2)*3-1; mk=(random()/17)%2;
+       if      (fp->Cell(i-mi,j+mk)!=0)   { fp->seed_i=i-mi; fp->seed_j=j+mk; }
+       else if (fp->Cell(i+mi,j+mk)!=0)   { fp->seed_i=i+mi; fp->seed_j=j+mk; }
+       else if (fp->Cell(i-mi,j+1-mk)!=0) { fp->seed_i=i-mi; fp->seed_j=j+1-mk; }
+       else if (fp->Cell(i+mi,j+1-mk)!=0) { fp->seed_i=i+mi; fp->seed_j=j+1-mk; }
+       else if (fp->Cell(i+mk,j+mj)!=0)   { fp->seed_i=i+mk; fp->seed_j=j+mj; }
+       else if (fp->Cell(i+mk,j-mj)!=0)   { fp->seed_i=i+mk; fp->seed_j=j-mj; }
+       else if (fp->Cell(i+1-mk,j+mj)!=0) { fp->seed_i=i+1-mk; fp->seed_j=j+mj; }
+       else if (fp->Cell(i+1-mk,j-mj)!=0) { fp->seed_i=i+1-mk; fp->seed_j=j-mj; }
+      }
+      fp->seed_n=fp->Cell(fp->seed_i,fp->seed_j);
+      seedchunk[0] = (i   == fp->seed_i && j   == fp->seed_j);
+      seedchunk[1] = (i   == fp->seed_i && j+1 == fp->seed_j);
+      seedchunk[2] = (i+1 == fp->seed_i && j+1 == fp->seed_j);
+      seedchunk[3] = (i+1 == fp->seed_i && j+1 == fp->seed_j);
      }
      oldn = fp->Cell(i,j);
      tp->t += dt;  // increment time whether or not seed tile event is effective
-     if (i != fp->seed_i || j != fp->seed_j) { /* can't change seed tile */
+     if (!seedchunk[chunk]) { /* can't change seed tile */
        if (tp->T>0) { /* irreversible Tile Assembly Model */
         if (n>0 && Gse(fp,i,j,n)>=tp->T) change_cell(fp,i,j,n);
         else { tp->stat_a++; tp->stat_d++; tp->events+=2; fp->events+=2; } 
@@ -1010,6 +1083,14 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
         if (oldn==0 && ~HCONNECTED(fp,i,j,n)) 
            { tp->stat_a++; tp->stat_d++; tp->events+=2; fp->events+=2; } 
         if (n==0) {  /* dissociation: check connectedness */
+          int d, dn, di[4], dj[4];
+          if      (chunk==0) { dn=1; di[0]=i; dj[0]=j; }
+          else if (chunk==1) { dn=2; di[0]=i; dj[0]=j; di[1]=i; dj[1]=(j%size)+1; }
+          else if (chunk==2) { dn=2; di[0]=i; dj[0]=j; di[1]=(i%size)+1; dj[1]=j; }
+          else { dn=4; di[0]=i; dj[0]=j;          di[1]=(i%size)+1; dj[1]=j; 
+                       di[2]=i; dj[2]=(j%size)+1; di[3]=(i%size)+1; dj[3]=(j%size)+1; }
+          for (d=0; d<dn; d++) { // delete each tile to be removed
+           i=di[d]; j=dj[d];
            ringi = ((fp->Cell(i-1,j)!=0)<<7) +
              ((CONNECTED_W(fp,i-1,j+1) && CONNECTED_S(fp,i-1,j+1))<<6) +
                    ((fp->Cell(i,j+1)!=0)<<5) +
@@ -1026,6 +1107,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
                 // cause fission. (note that flake_fission calculates but
                 // doesn't remove cells if fission_allowed==0.)
            }
+          } i=di[0]; j=dj[0];
 	} 
        }
      } // else dprintf("can't move seed!\n"); NEW: no error, since this event exists

@@ -67,7 +67,9 @@
    summer 03 Added command-line option to read in initial tile assembly.  (Shaun Lee)
    10/14/03 Changed format of input file to allow a generalized strength function of the form
               g(a,b) = c where a and b are tile types, and c is the floating point strength.
-	      (Rebecca Schulman)
+	      (Rebecca Schulma)
+   11/7/03 Adding chunk_fission option.  
+
              
             
 
@@ -211,7 +213,9 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
    if (strncmp(arg,"periodic",8)==0) periodic=!periodic;
    if (strncmp(arg,"wander",6)==0) wander=!wander;
-   if (strncmp(arg,"fission",7)==0) fission_allowed=!fission_allowed;
+   if (strncmp(arg,"no_fission",10)==0) fission_allowed=0;
+   if (strncmp(arg,"fission",7)==0) fission_allowed=1;
+   if (strncmp(arg,"chunk_fission",13)==0) fission_allowed=2;
    if (strncmp(arg,"seed=",5)==0) {
       char *p=(&arg[5]);
       seed_i=atoi(p);
@@ -356,8 +360,9 @@ void read_tilefile(FILE *tilefp)
  fscanf(tilefp,"}\n"); rsc;
 
  glue = (double **) calloc(sizeof (double *),num_bindings + 1);
- for (i=0;i<=num_bindings;i++) {
+ for (i=0;i<=num_bindings;i++) { int j;
    glue[i] = (double *) calloc(sizeof (double),num_bindings + 1);
+   for (j=0;j<=num_bindings;j++) { glue[i][j]=0; }  // necessary??  -- EW
  }
  strength = (double*) calloc(sizeof(double),num_bindings+1); 
 
@@ -425,6 +430,8 @@ void getargs(int argc, char **argv)
    printf("  stripe=o[:p,w]*       width w stripe with p errors, offset o\n");
    printf("  wander                wandering `seed' designation\n");
    printf("  fission               can tile be removed if two flakes result?\n");
+   printf("  no_fission             the answer is no\n");
+   printf("  chunk_fission         allow pairs & 2x2 blocks to dissociate as one (implies fission)\n");
    printf("  periodic              periodic boundary conditions\n");
    printf("  -linear               simulate linear A B tiles, write errs > stdout \n");
    printf("  -nw                   no X window (only if ?max set)\n");
@@ -447,7 +454,7 @@ void getargs(int argc, char **argv)
  }
 
  tmax=0; emax=0; smax=0;
- wander=0; periodic=0; linear=0; fission_allowed=0;
+ wander=0; periodic=0; linear=0; fission_allowed=0; 
  Gfc=0; datafp=NULL; arrayfp=NULL; 
  Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
  Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
@@ -1088,8 +1095,11 @@ void setwander(int value)
 /* fix up the fission mode button */
 void setfission(int value)
 {fission_allowed=value;
- if (fission_allowed) 
-   XDrawImageString(display,fissionbutton,gcr,0,font_height," fission OK ",12);
+ if (fission_allowed>0) 
+   if (fission_allowed==1)
+     XDrawImageString(display,fissionbutton,gcr,0,font_height," fission OK ",12);
+   else
+     XDrawImageString(display,fissionbutton,gcr,0,font_height,"chunkfission",12);
  else
    XDrawImageString(display,fissionbutton,gcr,0,font_height," NO fission ",12);
 }
@@ -1576,7 +1586,7 @@ int main(int argc, char **argv)
         break;
        case ButtonRelease:
 	 if (mousing==3) {
-           reset_params(tp, Gmc, Gse, new_Gmc, new_Gse);
+           reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);
            if (Gfc>0) Gfc+=(new_Gmc-Gmc); 
            fprm=fparam;
            while (fprm!=NULL) {  /* fix up all flake info, for restarting */
@@ -1623,7 +1633,8 @@ int main(int argc, char **argv)
         } else if (report.xbutton.window==seedbutton) {
             setwander(1-wander); repaint(); 
         } else if (report.xbutton.window==fissionbutton) {
-            setfission(1-fission_allowed); repaint(); 
+	  fission_allowed = (fission_allowed+1)%3;
+            setfission(fission_allowed); repaint(); 
         } else if (report.xbutton.window==exportbutton) {
              x=report.xbutton.x;
              y=report.xbutton.y;
@@ -1692,7 +1703,7 @@ int main(int argc, char **argv)
              b=report.xbutton.button;
              if (tp->hydro) break; /* don't know how to reset params */
              if (x>60) new_Gse=Gse-0.1; else new_Gse=Gse+0.1;
-             reset_params(tp, Gmc, Gse, new_Gmc, new_Gse);
+             reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);
              Gse=new_Gse; Gmc=new_Gmc; repaint();
         } else if (report.xbutton.window==playground) 
             {x=report.xbutton.x/block;
