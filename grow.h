@@ -144,7 +144,7 @@ flake *free_flake(flake *fp);
 void free_tube(tube *tp);
 void insert_flake(flake *fp, tube *tp);
 void print_tree(flake_tree *ftp, int L, char s);
-void clean_flake(flake *fp);
+void clean_flake(flake *fp, double X, int iters);
 void set_params(tube *tp, int** units, double* strength, double* stoic,
  int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 

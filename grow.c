@@ -822,25 +822,29 @@ void flake_fission(flake *fp, int ii, int jj)
 
 
 
-/* remove all tiles whose off-rate is faster than the on-rate */
-void clean_flake(flake *fp)
+/* remove all tiles whose off-rate is 'X' times faster than its on-rate. */
+/* repeat 'iters' times. */
+void clean_flake(flake *fp, double X, int iters)
 {
-  int i,j; double kc;  tube * tp=fp->tube;
-  int size = (1<<fp->P);
+  int i,j; double kc;  tube *tp=fp->tube;
+  int size = (1<<fp->P); int it;
 
   kc = tp->k*tp->conc[0]; /* on-rate */
 
   /* first memorize, then remove, to avoid changing rates during removal */
-  for (i=0; i<size; i++)
-    for (j=0; j<size; j++)
-      tp->Fgroup[i+size*j] = (fp->rate[fp->P][i][j] > kc);
-  for (i=0; i<size; i++)
-    for (j=0; j<size; j++)
-      if (tp->Fgroup[i+size*j]) change_cell(fp, i, j, 0);
-  for (i=0; i<size; i++)
-    for (j=0; j<size; j++)
-      tp->Fgroup[i+size*j] = 0;
-  
+  for (it=0; it<iters; it++) {
+    for (i=0; i<size; i++)
+      for (j=0; j<size; j++)
+        tp->Fgroup[i+size*j] = 
+          (fp->rate[fp->P][i][j] > X * tp->k * tp->conc[fp->Cell(i,j)]);
+    for (i=0; i<size; i++)
+      for (j=0; j<size; j++)
+        if (tp->Fgroup[i+size*j]) change_cell(fp, i, j, 0);
+    for (i=0; i<size; i++)
+      for (j=0; j<size; j++)
+        tp->Fgroup[i+size*j] = 0;
+  }
+
 }
 
 /* simulates 'events' events */

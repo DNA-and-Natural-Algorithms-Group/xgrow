@@ -108,7 +108,7 @@ FILE *datafp, *arrayfp, *tilefp;
 double *strength;
 int N, num_bindings, units_length;
 int **units; double *stoic;
-int hydro;
+int hydro; int clean_cycles=1; double clean_X=1.0;
 double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
 char *stripe_args=NULL;
@@ -179,6 +179,8 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
    if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
    if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
+   if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
+   if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
    if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
    if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
 }
@@ -275,6 +277,8 @@ void getargs(int argc, char **argv)
    printf("  tmax=                 quit after time t has passed\n");
    printf("  emax=                 quit after e events have occurred\n");
    printf("  smax=                 quit when the fragment is size s\n");
+   printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles? [default=1]\n");
+   printf("  clean_X=              for cleaning, minimal ratio of off-rate to on-rate [default=1.0]\n");
    printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events\n");
    printf("  arrayfile=            output matrix of final tiles (after cleaning)\n");
    exit (0);
@@ -303,13 +307,7 @@ void getargs(int argc, char **argv)
  size=(1<<size_P); 
  if (XXX) {
    if (size*block > 800) block=800/size;
-   if (block==0) { size=512; block=1; }
- }
- while (seed_i>=size) seed_i/=2;
- while (seed_j>=size) seed_j/=2;
- if (!XXX) {
-   printf(" Starting simulation (seed=%d,%d,%d) on %d x %d board.\n",
-	  seed_i, seed_j, seed_n, size, size);
+   if (block==0) { size=512; block=1; size_P=9; }
  }
 
  NROWS=(size+NBDY*2);
@@ -329,36 +327,56 @@ void getargs(int argc, char **argv)
    fprm->next_param=fparam;
    fparam=fprm;
  }
+
+ // make sure all seed tiles are on the board
+ for (fprm=fparam; fprm!=NULL; fprm=fprm->next_param) {
+    while (fprm->seed_i>=size) fprm->seed_i/=2;
+    while (fprm->seed_j>=size) fprm->seed_j/=2;
+ }
+ seed_i=fparam->seed_i; seed_j=fparam->seed_j;
+
+ if (!XXX) {
+   printf(" Starting simulation (1st seed=%d,%d,%d) on %d x %d board.\n",
+	  seed_i, seed_j, seed_n, size, size);
+ }
+
  
 }
 
 void closeargs()
 { 
-  int row,col,i; 
+  int row,col,i;  flake *fpp;
 
-  clean_flake(fp);  // cleans only the currently displayed flake
+  // cleans all flakes  (removes "temporary" tiles on growth edge)
+  for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
+    clean_flake(fpp,clean_X,clean_cycles); 
 
-  for (i=0;i<=tp->N;i++) free(units[i]); free(units);
-  free(strength); free(stoic);
-  while (fparam!=NULL) { fprm=fparam->next_param; free(fparam); fparam=fprm; }
-
-  /* output information for the first flake only */
+  /* output information for *all* flakes */
   if (datafp!=NULL) {
+    for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
      if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
        Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
      fprintf(datafp, " %f %f %f %f %d %d %ld\n",
-       Gmc,Gse,ratek,tp->t,fp->tiles,fp->mismatches,tp->events);
-     fclose(datafp);
+       Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events);
+    }
+    fclose(datafp);
   } 
   if (arrayfp!=NULL) {
+    for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
      fprintf(arrayfp,"\n");
      for (row=0; row<size; row++) {
         for (col=0; col<size; col++)
-           fprintf(arrayfp, " %d", fp->Cell(row,col));
+           fprintf(arrayfp, " %d", fpp->Cell(row,col));
         fprintf(arrayfp, "\n");
      }
-     fclose(arrayfp);
+    }
+    fclose(arrayfp);
   }
+
+  // free memory
+  for (i=0;i<=tp->N;i++) free(units[i]); free(units);
+  free(strength); free(stoic);
+  while (fparam!=NULL) { fprm=fparam->next_param; free(fparam); fparam=fprm; }
 
   free_tube(tp);  // this frees all the flakes too
 }
