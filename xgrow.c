@@ -29,6 +29,26 @@
                (from thesis pg 63, "Simulations" (1998) pg 10)
    7/19/02  Major revision for multiple flakes.  
             Created "tube" structure to keep sim params.
+   5/2/03   minor enhancements by EW: 
+            comments in tile file are allowed
+   5/3/03   added buttons for producing a "sample" AFM deposition image,
+               drawn from the distribution of flakes being simulated
+            and for exporting array information for MATLAB reading.
+            added 'fission_allowed' option, so as to disable
+               fission-causing dissociations.  this is now the default!
+            when considering flake_fission: 
+               if 'wander' is set, and the cell chosen to 
+               dissociate is the seed, then move the seed to its neighbor.
+               although 'wander' is the "right" model, it sometimes looks
+               strange, so I won't make it the default (yet).
+
+
+  TO DO List:
+  * Something like "multiflakes=100@27" argument does "the right thing"
+       by adding 100 flakes for each tile type, at Gfc=27+stoich,
+           with each seed centered in the field,
+       defaults to "wander"
+
 
   Compiling:  see makecc and makeccprof
     
@@ -74,7 +94,9 @@
 # define MAXTILETYPES 256
 
 long int translate[MAXTILETYPES]; /* for converting colors */
-int paused=0, errorc=0;
+int paused=0, errorc=0, sampling=0;
+int export_mode=0, export_flake_n=1, export_movie_n=1, export_movie=0; 
+FILE *export_fp=NULL;
 int update_rate=10000;
 static char *progname;
 char stringbuffer[256];
@@ -84,7 +106,8 @@ char tileset_name[256];
 Display *display;
 int screen;
 Window window,quitbutton,pausebutton,playground,
-        fillbutton,colorbutton,flakebutton,seedbutton,tempbutton, holebutton;
+        fillbutton,colorbutton,flakebutton,seedbutton,tempbutton, 
+        fissionbutton, samplebutton, exportbutton;
 GC gc, gcr, gccolor;
 XImage *spinimage=NULL;
 XFontStruct *font=NULL;
@@ -104,7 +127,7 @@ double Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc;
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
 int block=1; /* default to small blocks; calling with argument changes this */
-int wander, periodic, linear; 
+int wander, periodic, linear, fission_allowed; 
 FILE *tracefp, *datafp, *arrayfp, *tilefp;
 double *strength;
 int N, num_bindings, units_length;
@@ -143,6 +166,7 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
    if (strcmp(arg,"periodic")==0) periodic=!periodic;
    if (strcmp(arg,"wander")==0) wander=!wander;
+   if (strcmp(arg,"fission")==0) fission_allowed=!fission_allowed;
    if (strncmp(arg,"seed=",5)==0) {
       char *p=(&arg[5]);
       seed_i=atoi(p);
@@ -178,6 +202,7 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"update_rate=",12)==0) 
       update_rate=MAX(1,MIN(atoi(&arg[12]),100000));
    if (strncmp(arg,"tracefile=",10)==0) tracefp=fopen(&arg[10], "a");
+   if (strncmp(arg,"movie",5)==0) { export_mode=2; export_movie=1; }
    if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
    if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
    if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
@@ -185,6 +210,7 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
    if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
    if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
+   if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
 }
 
 #define rsc read_skip_comment(tilefp)
@@ -286,23 +312,27 @@ void getargs(int argc, char **argv)
    printf("  addflakes=i,j,n:N@Gfc simulate N separate flakes\n");
    printf("  stripe=o[:p,w]*       width w stripe with p errors, offset o\n");
    printf("  wander                wandering `seed' designation\n");
+   printf("  fission               can tile be removed if two flakes result?\n");
    printf("  periodic              periodic boundary conditions\n");
    printf("  -linear               simulate linear A B tiles, write errs > stdout \n");
    printf("  -nw                   no X window (only if ?max set)\n");
    printf("  update_rate=          update display every so-many events\n");
    printf("  tracefile=            append datafile info (see below) EVERY so-many events\n");
+   printf("  movie                 export MATLAB-format flake array information EVERY so-many events\n");
    printf("  tmax=                 quit after time t has passed\n");
    printf("  emax=                 quit after e events have occurred\n");
    printf("  smax=                 quit when the fragment is size s\n");
    printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles? [default=1]\n");
    printf("  clean_X=              for cleaning, minimal ratio of off-rate to on-rate [default=1.0]\n");
    printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events, perimeter, dG, dG_bonds\n");
-   printf("  arrayfile=            output matrix of final tiles (after cleaning)\n");
+   printf("  arrayfile=            output MATLAB-format flake array information on exit (after cleaning)\n");
+   printf("  exportfile=           on-request output of MATLAB-format flake array information\n");
+   printf("                        [defaults to 'xgrow_export_output']\n");
    exit (0);
  }
 
  tmax=0; emax=0; smax=0;
- wander=0; periodic=0; linear=0;
+ wander=0; periodic=0; linear=0; fission_allowed=0;
  Gfc=0; datafp=NULL; arrayfp=NULL; 
  Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
  Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
@@ -363,23 +393,55 @@ void getargs(int argc, char **argv)
  
 }
 
-void write_datalines(FILE *out)
+void write_datalines(FILE *out, char *text)
 { flake *fpp; int perimeter; double dG_bonds;  
 
     for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
+     if (strcmp(text,"")==0) fpp=fp;
      perimeter=calc_perimeter(fpp);
      dG_bonds = calc_dG_bonds(fpp);
      if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
        Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
-     fprintf(out, " %f %f %f %f %d %d %ld %d %f %f\n",
+     fprintf(out, " %f %f %f %f %d %d %ld %d %f %f%s",
        Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events,
-       perimeter, fpp->G, dG_bonds);
+       perimeter, fpp->G, dG_bonds,text);
+     if (strcmp(text,"")==0) break;
     }
 }
 
+
+void write_flake(FILE *filep, char *mode, flake *fp)
+{ int n, row, col, tl; 
+
+  if (filep!=NULL) {
+     if (strcmp(mode,"flake")==0) n=export_flake_n++;
+     else if (strcmp(mode,"movie")==0) n=export_movie_n++;
+     else n=1;
+     fprintf(filep,"\n%s{%d}={ ...\n",mode,n);
+     fprintf(filep,"[ "); write_datalines(filep,"");
+     fprintf(filep," ],...\n  [");
+     for (tl=1; tl<=tp->N; tl++) 
+       fprintf(filep," %8.5f", (tp->conc[tl]>0)?-log(tp->conc[tl]):0 );
+     fprintf(filep," ],...\n  [");
+     for (row=0; row<size; row++) {
+        for (col=0; col<size; col++)
+           fprintf(filep, " %d", fp->Cell(row,col));
+        fprintf(filep, "; ...\n");
+     }
+     fprintf(filep," ] };\n\n");
+  }
+}  
+
+void export_flake(char *mode, flake *fp)
+{
+  if (export_fp==NULL) export_fp=fopen("xgrow_export_output","a+");
+  write_flake(export_fp, mode, fp);
+}
+
+
 void closeargs()
 { 
-  int row,col,i;  flake *fpp;
+  int i;  flake *fpp;
 
   // cleans all flakes  (removes "temporary" tiles on growth edge)
   for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
@@ -387,19 +449,16 @@ void closeargs()
 
   /* output information for *all* flakes */
   if (datafp!=NULL) {
-    write_datalines(datafp); fclose(datafp);
+    write_datalines(datafp,"\n"); fclose(datafp);
   } 
   if (arrayfp!=NULL) {
+    export_flake_n=1;
     for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
-     fprintf(arrayfp,"\n");
-     for (row=0; row<size; row++) {
-        for (col=0; col<size; col++)
-           fprintf(arrayfp, " %d", fpp->Cell(row,col));
-        fprintf(arrayfp, "\n");
+      write_flake(arrayfp, "flake", fpp);
      }
-    }
     fclose(arrayfp);
   }
+  if (export_fp!=NULL) fclose(export_fp);
 
   // free memory
   for (i=0;i<=tp->N;i++) free(units[i]); free(units);
@@ -408,8 +467,6 @@ void closeargs()
 
   free_tube(tp);  // this frees all the flakes too
 }
-  
-  
 
 #define errortile(i,j) ((fp->Cell(i,j)==0) ? 0: (                    \
          (units[fp->Cell(i,j)][1] != units[fp->Cell(i,(j)+1)][3] ||  \
@@ -465,6 +522,59 @@ void showpic(flake *fp, int err) /* display the field */
  return;
 }
 
+#define getcolordij(row,col,di,dj) \
+ (((row+(di))>=0 && (row+(di))<size && (col+(dj))>=0 && (col+(dj))<size) ? \
+   getcolor(row+di,col+dj) : 0)
+
+/* NOTE: requires 2^P < NCOLS+2*NBDY */
+void add_sample_pic(flake *fp, int err) /* add sample the field */
+{int row,col,i1,i2,di=0,ddi,j1,j2,dj=0,ddj,blocktop=block, m;
+ int color, oldcolor, n_tries=10000,n, collision=0, anything=0;
+ m= 2*(err>1); // used in getcolor macro
+
+ // we will try n_tries random offsets before giving up on 
+ // avoiding collision.
+ // this gets a di, dj
+ XDrawImageString(display,samplebutton,gcr,0,font_height,"  SAMPLING   ",13);
+ XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
+
+ for (n=1; n<n_tries && (collision==1 || anything==0); n++) {
+   di= random()%(2*size-1) - size;
+   dj= random()%(2*size-1) - size;
+   //   printf("trying to place flake %d at %d %d\n", fp, di, dj);
+   collision=0; anything=0;
+   for (row=0;row<size;row++)
+     for (col=0;col<size;col++) { 
+       color = 0;
+       for (ddi=-1; ddi<=1; ddi++) for (ddj=-1; ddj<=1; ddj++)
+         color = MAX( getcolordij(row,col,di+ddi,dj+ddj), color ); 
+       oldcolor=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY));
+       if (oldcolor>0 && color>0) collision=1;   
+       if (getcolordij(row,col,di,dj) >0) anything++;
+     }
+   anything = anything && (anything==fp->tiles);
+ }
+ // if (n==n_tries)  printf("---GAVE UP---\n"); else printf("!!!SUCCESS!!!\n");
+
+ if ( collision==0 ) {
+    if (block>4) blocktop=block-1;  
+    // always do this the slow way!
+    for (row=0;row<size;row++)
+     for (col=0;col<size;col++) { 
+       oldcolor=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY));
+       color = MAX( getcolordij(row,col,di,dj), oldcolor ); 
+       if (color!=oldcolor)
+         for (i2=0;i2<blocktop;i2++)
+           for (i1=0;i1<blocktop;i1++)
+            XPutPixel(spinimage,j1+i1,j2+i2,color);
+     }
+ }
+ XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
+ XDrawImageString(display,samplebutton,gcr,0,font_height,"   sample    ",13);
+ return;
+}
+
+
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
 void showphase() /* replace tiles by phase diagram T=1 & T=2 lines */
 {int row,col,color,i1,i2,j1,j2,blocktop=block;
@@ -485,7 +595,7 @@ void showphase() /* replace tiles by phase diagram T=1 & T=2 lines */
 
 /* fix up the pause button */
 void setpause(int value)
-{paused=value;
+{paused=value; if (paused==0) sampling=0;
  if (paused) 
    XDrawImageString(display,pausebutton,gcr,0,font_height,"  run/PAUSE  ",13);
  else
@@ -503,7 +613,31 @@ void setcolor(int value)
    XDrawImageString(display,colorbutton,gcr,0,font_height,"TILE/err/hyd",12);
 }
 
-/* fix up the colors button */
+/* fix up the export button */
+void setexport(int value)
+{export_mode=value;
+ if (export_mode==2) 
+  if (export_movie==0)
+   XDrawImageString(display,exportbutton,gcr,0,font_height,"export[MOVIE]",13);
+  else
+   switch (random()%3) {
+   case 0:
+   XDrawImageString(display,exportbutton,gcr,0,font_height,"ExPoRt[MOVIE]",13);
+   break;
+   case 1:
+   XDrawImageString(display,exportbutton,gcr,0,font_height,"eXpOrT[MOVIE]",13);
+   break;
+   case 2:
+   XDrawImageString(display,exportbutton,gcr,0,font_height,"EXPORT[MOVIE]",13);
+   break;
+   }
+ else if (export_mode==1) 
+   XDrawImageString(display,exportbutton,gcr,0,font_height,"export [ALL] ",13);
+ else if (export_mode==0)
+   XDrawImageString(display,exportbutton,gcr,0,font_height,"export [ONE] ",13);
+}
+
+/* fix up the seed mode button */
 void setwander(int value)
 {wander=value;
  if (wander) 
@@ -512,18 +646,29 @@ void setwander(int value)
    XDrawImageString(display,seedbutton,gcr,0,font_height,"FIXED/wander",12);
 }
 
+/* fix up the fission mode button */
+void setfission(int value)
+{fission_allowed=value;
+ if (fission_allowed) 
+   XDrawImageString(display,fissionbutton,gcr,0,font_height," fission OK ",12);
+ else
+   XDrawImageString(display,fissionbutton,gcr,0,font_height," NO fission ",12);
+}
+
 
 /* this fixes the window up whenever it is uncovered */
 void repaint()
 {int i=0;
  XDrawString(display,quitbutton,  gcr,0,font_height,"    quit     ",13);
  XDrawString(display,fillbutton,  gcr,0,font_height,"    clear    ",13);
- XDrawString(display,holebutton,  gcr,0,font_height,"   puncture  ",13);
+ XDrawString(display,samplebutton,gcr,0,font_height,"   sample    ",13);
  XDrawString(display,flakebutton, gcr,0,font_height,"next/big/prev",13);
  XDrawString(display,tempbutton,  gcr,0,font_height," cool   heat ",13);
+ setexport(export_mode);
  setpause(paused);
  setcolor(errorc);
  setwander(wander);
+ setfission(fission_allowed);
 
  /* write various strings */
  sprintf(stringbuffer,"flake %d (%d by %d%s, seed %d @ (%d,%d)): %ld events, %d tiles, %d mismatches         ",
@@ -567,19 +712,24 @@ void repaint()
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
- // if (fp->flake_conc>0) {
-  sprintf(stringbuffer, "Gfc=%4.1f; Gmc(%d)=%4.1f Gmc(%d)=%4.1f Gmc(%d)=%4.1f",
-        -log(fp->flake_conc), 1, (tp->conc[1]>0)?-log(tp->conc[1]):0,
-             N/2, (tp->conc[N/2]>0)?-log(tp->conc[N/2]):0,
-             N, (tp->conc[N]>0)?-log(tp->conc[N]):0);
+ if (1 || fp->flake_conc>0) { int tl;
+ sprintf(stringbuffer, "Gfc=%4.1f; ", -log(fp->flake_conc)); 
+ for (tl=1; tl<=tp->N && strlen(stringbuffer)<230; tl++)
+   sprintf(stringbuffer+strlen(stringbuffer),"Gmc(%d)=%4.1f ",
+      tl, (tp->conc[tl]>0)?-log(tp->conc[tl]):0 );
   XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
- // }
+ }
+
+ XDrawString(display,window,gc,WINDOWWIDTH-140,WINDOWHEIGHT-45
+       ,"left: puncture",14); 
+ XDrawString(display,window,gc,WINDOWWIDTH-140,WINDOWHEIGHT-25
+       ,"right: Gmc Gse",14); 
 
  XDrawString(display,window,gc,WINDOWWIDTH-120,WINDOWHEIGHT-5
        ,"EW '98-'02",10); 
 
- showpic(fp,errorc); 
+ if (!sampling) showpic(fp,errorc); 
 }
  
 /* a lot of this is taken from the basicwin program in the
@@ -705,21 +855,25 @@ void openwindow(int argc, char **argv)
 
 /* make the buttons */
  quitbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-50,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-150,120,20,2,black,darkcolor);
  pausebutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-76,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-176,120,20,2,black,darkcolor);
  fillbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-102,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-202,120,20,2,black,darkcolor);
  colorbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-128,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-228,120,20,2,black,darkcolor);
  flakebutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-154,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-254,120,20,2,black,darkcolor);
  seedbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-180,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-280,120,20,2,black,darkcolor);
+ fissionbutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-306,120,20,2,black,darkcolor);
  tempbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-206,120,20,2,black,darkcolor);
- holebutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-232,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-332,120,20,2,black,darkcolor);
+ samplebutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-358,120,20,2,black,darkcolor);
+ exportbutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-384,120,20,2,black,darkcolor);
  playground=XCreateSimpleWindow(display,window,
     PLAYLEFT,PLAYTOP,block*NCOLS,block*NROWS,2,translate[4],white);
 
@@ -736,8 +890,10 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XSelectInput(display,colorbutton,event_mask);
  XSelectInput(display,flakebutton,event_mask);
  XSelectInput(display,seedbutton,event_mask);
+ XSelectInput(display,fissionbutton,event_mask);
  XSelectInput(display,tempbutton,event_mask);
- XSelectInput(display,holebutton,event_mask);
+ XSelectInput(display,samplebutton,event_mask);
+ XSelectInput(display,exportbutton,event_mask);
  event_mask=ButtonReleaseMask|ButtonPressMask|PointerMotionHintMask
                    |ButtonMotionMask; 
  XSelectInput(display,playground,event_mask);
@@ -781,8 +937,10 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  if (~(fparam->N==1 && fparam->next_param==NULL))  
    XMapWindow(display,flakebutton); 
  XMapWindow(display,seedbutton);
+ XMapWindow(display,fissionbutton);
  XMapWindow(display,tempbutton);
- XMapWindow(display,holebutton);
+ XMapWindow(display,samplebutton);
+ XMapWindow(display,exportbutton);
  XMapWindow(display,playground);
 
 /* make image structure */
@@ -916,7 +1074,7 @@ int main(int argc, char **argv)
    // printf("flake initialized, size_P=%d, size=%d\n",size_P,size);
 
  new_Gse=Gse; new_Gmc=Gmc;
- if (tracefp!=NULL) write_datalines(tracefp);
+ if (tracefp!=NULL) write_datalines(tracefp,"\n");
 
  /* loop forever, looking for events */
  while((tmax==0 || tp->t < tmax) && 
@@ -924,11 +1082,13 @@ int main(int argc, char **argv)
        (smax==0 || tp->stat_a-tp->stat_d < smax)) { 
    if (!XXX) {
      simulate(tp,update_rate,tmax,emax,smax);
-     if (tracefp!=NULL) write_datalines(tracefp);
+     if (tracefp!=NULL) write_datalines(tracefp,"\n");
+     if (export_mode==2 && export_movie==1) export_flake("movie",fp);
    } else {
    if (0==paused && 0==mousing && !XPending(display)) {
      simulate(tp,update_rate,tmax,emax,smax);
-     if (tracefp!=NULL) write_datalines(tracefp);
+     if (tracefp!=NULL) write_datalines(tracefp,"\n");
+     if (export_mode==2 && export_movie==1) export_flake("movie",fp);
      if (fp->flake_conc>0) recalc_G(fp);
                    // make sure displayed G is accurate for conc's
                    // hopefully this won't slow things down too much.
@@ -1005,8 +1165,6 @@ int main(int argc, char **argv)
             cleanup();  
         } else if (report.xbutton.window==pausebutton) {
             setpause(1-paused); repaint(); 
-        } else if (report.xbutton.window==holebutton) {
-            repaint(); 
         } else if (report.xbutton.window==fillbutton) {
             free_tube(tp); 
             tp = init_tube(size_P,N,num_bindings);   
@@ -1022,15 +1180,49 @@ int main(int argc, char **argv)
                fprm=fprm->next_param;
             } 
             repaint();
-        } else if (report.xbutton.window==colorbutton)
-            { setcolor((errorc+1)%3); repaint(); }
-        else if (report.xbutton.window==seedbutton)
-            { setwander(1-wander); repaint(); }
-        else if (report.xbutton.window==flakebutton) { 
-             flake *tfp=tp->flake_list; 
+        } else if (report.xbutton.window==colorbutton) { 
+            setcolor((errorc+1)%3); repaint(); // show tiles or error or hyd
+        } else if (report.xbutton.window==seedbutton) {
+            setwander(1-wander); repaint(); 
+        } else if (report.xbutton.window==fissionbutton) {
+            setfission(1-fission_allowed); repaint(); 
+        } else if (report.xbutton.window==exportbutton) {
              x=report.xbutton.x;
              y=report.xbutton.y;
              b=report.xbutton.button;
+             if (x>70) {  // change from ONE to ALL to MOVIE
+               setexport((export_mode+1)%3); 
+             } else if (export_mode==0) { 
+               // output to file (unless MOVIE mode already)
+               export_flake("flake", fp);
+             } else if (export_mode==1) { 
+               flake *tfp=tp->flake_list; 
+               while (tfp->next_flake != NULL) {
+                 export_flake("flake", tfp);
+                 tfp=tfp->next_flake;
+	       }
+             } else if (export_mode==2) {
+               // turn movie mode on & off
+               export_movie= !export_movie;
+	     }
+             repaint();           
+        } else if (report.xbutton.window==samplebutton) {
+             flake *tfp=tp->flake_list; int n;
+             x=report.xbutton.x;
+             y=report.xbutton.y;
+             b=report.xbutton.button;
+             // stop simulation if you're sampling.
+             setpause(1);  sampling=1;
+             // pick a sample and add to the field
+             n = random()%tp->num_flakes;
+             for (i=0;i<n;i++) tfp=tfp->next_flake;
+             add_sample_pic(tfp,errorc); 
+             repaint(); 
+        } else if (report.xbutton.window==flakebutton) { 
+             flake *tfp=tp->flake_list; 
+             x=report.xbutton.x;
+             y=report.xbutton.y;
+             b=report.xbutton.button; 
              // cycle through flakes.
              if (x>80) {
                fp=fp->next_flake;
@@ -1047,7 +1239,7 @@ int main(int argc, char **argv)
 	       }
 	     } 
 	     //             print_tree(tp->flake_tree,0,'*');  
-             repaint();
+             sampling=0; repaint();
         } else if (report.xbutton.window==tempbutton) {
              x=report.xbutton.x;
              y=report.xbutton.y;

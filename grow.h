@@ -136,6 +136,7 @@ typedef struct tube_struct {
 
 extern int periodic;    /* simulation on torus */
 extern int wander;      /* of seed tile designation */
+extern int fission_allowed; /* allow dissociation that breaks flake in two? */
 
 tube *init_tube(unsigned char P, unsigned char N, int num_bindings);
 flake *init_flake(unsigned char P, unsigned char N,

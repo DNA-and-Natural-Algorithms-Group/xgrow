@@ -740,8 +740,9 @@ flake *choose_flake(tube *tp)
 
 
 /* here, we loose the part that's unconnected to the seed, rather     */
-/* than saving it and creating a new flake                            */
-void flake_fission(flake *fp, int ii, int jj)
+/* than saving it and creating a new flake.                           */
+/* returns whether this dissociation does/would break the flake       */
+int flake_fission(flake *fp, int ii, int jj)
 { 
                  /* groups are 0=clear, 1=E, 2=S, 3=W, 4=N.           */
   int head[5],   /* first pointer.  PULL grabs this guy to process    */
@@ -755,14 +756,14 @@ void flake_fission(flake *fp, int ii, int jj)
   int size = (1<<fp->P);
   int i,j,g,gg,implicit,active;
   tube *tp=fp->tube;
- 
+
   for (g=0;g<5;g++) { head[g]=tail[g]=-1; ming[g]=-1; seeded[g]=0; }
   ming[0]=0;
 
-  if (DEBUG==2) { int n; 
+  if (1 || DEBUG==2) { int n; 
      for (i=j=n=0;n<size*size;n++) 
          { i+=(tp->Fgroup[n] != 0); j+=(tp->Fnext[n] != -1); }
-     if (i>0 || j>0) printf("%d groupies and %d wannabies on entry\n",i,j);
+     if (i>0 || j>0) printf("FILL: %d groupies and %d wannabies on entry\n",i,j);
   }
 
   /* start filling the neighbors until they all connect, or until       */
@@ -799,7 +800,8 @@ void flake_fission(flake *fp, int ii, int jj)
     implicit = ( seeded[1]+seeded[2]+seeded[3]+seeded[4]==0 && active==1 );
   } while (active>0 && !implicit && ngroups>1);
 
-  if (ngroups==1) { /* all groups merged to one. clean up; we're fine */
+  /* all groups merged to one. clean up; we're fine. or, fission not allowed */
+  if (ngroups==1 || fission_allowed==0) { 
     while (!Fempty(1)) { Fpull(1,i,j) }
     while (!Fempty(2)) { Fpull(2,i,j) }
     while (!Fempty(3)) { Fpull(3,i,j) } 
@@ -852,7 +854,8 @@ void flake_fission(flake *fp, int ii, int jj)
      if (tp->Fgroup[Qn(i-1,j)]>0) { Fpush(0,i-1,j) }
   }
   /* now tp->Fnext is all -1 and tp->Fgroup is all 0 */
-  tp->stat_f += ngroups-1;
+  if (fission_allowed) tp->stat_f += ngroups-1;
+  return (ngroups != 1); // would fission occur w/o this tile?
 }
 
 
@@ -931,7 +934,18 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
       }
      }
 
-     choose_cell(fp, &i, &j, &n); oldn = fp->Cell(i,j);
+     choose_cell(fp, &i, &j, &n); 
+     if (wander && (i == fp->seed_i && j == fp->seed_j)) {
+       // looks like we're trying to dissociate the seed tile.
+       // if 'wander' is set, this can happen -- if there is a neighboring
+       // tile to move the seed to.
+       int mi,mj; mi=((random()/17)%2)*2-1; mj=((random()/17)%2)*2-1; 
+       if (fp->Cell(i-mi,j)!=0) fp->seed_i=i-mi;
+       else if (fp->Cell(i,j-mj)!=0) fp->seed_j=j-mj;
+       else if (fp->Cell(i+mi,j)!=0) fp->seed_i=i+mi;
+       else if (fp->Cell(i,j+mj)!=0) fp->seed_j=j+mj;
+     }
+     oldn = fp->Cell(i,j);
      if (i != fp->seed_i || j != fp->seed_j) { /* can't change seed tile */
        tp->t += dt;
        if (tp->T>0) { /* irreversible Tile Assembly Model */
@@ -966,7 +980,12 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
                    ((fp->Cell(i,j-1)!=0)<<1) +
              ((CONNECTED_S(fp,i-1,j-1) && CONNECTED_E(fp,i-1,j-1))<<0);
            if (ring[ringi]==0) { /* couldn't quickly confirm... */
-              flake_fission(fp,i,j);
+              if (flake_fission(fp,i,j) && fission_allowed==0)
+		change_cell(fp,i,j,oldn); tp->stat_a--; tp->stat_d--;
+                // re-attach cell:
+                // dissociation was chosen, but rejected because it would
+                // cause fission. (note that flake_fission calculates but
+                // doesn't remove cells if fission_allowed==0.)
            }
 	} 
        }
