@@ -1,0 +1,22 @@
+tile edges matches {{N E S W}*}
+num tile types=8
+num binding types=7
+tile edges={
+{0 1 5 0}
+{0 2 5 1}
+{0 3 5 2}
+{0 4 6 3}
+{0 0 5 4}
+{5 5 5 5}
+{6 5 5 7}
+{5 7 6 5}}
+binding strengths=
+{2 2 2 2 1 2 1}
+% this is an example of a tile set that looked right at first...
+% but actually doesn't uniquely produce a square
+seed=15,15,1
+size=32
+block=20
+Gse=10
+Gmc=19
+update_rate=10
