@@ -93,7 +93,6 @@
 # include <stdlib.h>
 # include <sys/time.h>
 # include <unistd.h>
-# include <malloc.h>
 # include <math.h>
 # include <assert.h>
 
@@ -171,7 +170,7 @@ double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
 char *stripe_args=NULL;
 int XXX=1;  /* If 1, draw the simulation, otherwise don't.  (as inferred from the effect of -nw)*/
-int import; /* Are we importing flakes? */
+int import=0; /* Are we importing flakes? */
 int import_flake_size = 0;
 
 struct flake_param {
@@ -369,7 +368,7 @@ void getargs(int argc, char **argv)
  gettimeofday(&tv, NULL); srand48(tv.tv_usec); srandom(tv.tv_usec);
 
  if (sizeof(long) != 4) {
-   printf("Error: sizeof long (%d) should be 4\n", sizeof(long int));
+   printf("Error: sizeof long (%d) should be 4\n", (int)sizeof(long int));
    exit(-1);
  }
 
@@ -465,6 +464,7 @@ void getargs(int argc, char **argv)
  if (fparam==NULL) {
    fprm = (struct flake_param *)malloc(sizeof(struct flake_param)); 
    fprm->seed_i=seed_i; fprm->seed_j=seed_j; fprm->seed_n=seed_n; 
+   fprm->import_from=NULL;
    fprm->N=1; fprm->Gfc=Gfc;
    fprm->next_param=fparam;
    fparam=fprm;
