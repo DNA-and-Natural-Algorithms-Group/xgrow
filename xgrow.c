@@ -135,7 +135,11 @@
     6/4/04  Bond types can now be given as names.  See spiral.tiles for example.
     6/20/04 Added command-line option for setting tile stoichiometry.
             Made sure file is flushed immediately after export.
-
+    3/19/05 Adding blast damage for demonstrating self-repair.  alpha, beta, gamma command-line args.
+            Wander allows the original seed tile to be lost.
+            It's a bit strange when no_fission is used, because fission is tested sequentially as
+             tiles in the square are being removed, rather than after the whole square has been removed.
+            
   TO DO List:
   
   * If the tile set specifies a stoichiometry of 0 (e.g. for the seed), the simulation can freak out.
@@ -256,6 +260,10 @@ tube *tp; flake *fp;
 double Gse, Gmc, ratek, T;
 double Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc;
 
+double blast_rate_alpha=0;
+double blast_rate_beta=4;  // k>3 required for finite rate of blasting a given tile in infinite size flakes (gamma=0)
+double blast_rate_gamma=0;
+double blast_rate=0;
 
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
@@ -327,6 +335,9 @@ void parse_arg_line(char *arg)
    else if (strncmp(arg,"no_fission",10)==0) fission_allowed=0;
    else if (strncmp(arg,"fission",7)==0) fission_allowed=1;
    else if (strncmp(arg,"chunk_fission",13)==0) fission_allowed=2;
+   else if (strncmp(arg,"blast_rate_alpha=",17)==0) blast_rate_alpha=atof(&arg[17]);
+   else if (strncmp(arg,"blast_rate_beta=",16)==0)  blast_rate_beta =atof(&arg[16]);
+   else if (strncmp(arg,"blast_rate_gamma=",17)==0) blast_rate_gamma=atof(&arg[17]);
    else if (strncmp(arg,"zero_bonds",10)==0) zero_bonds_allowed=1;
    else if (strncmp(arg,"no_zero_bonds",13)==0) zero_bonds_allowed=0;
    else if (strncmp(arg,"seed=",5)==0) {
@@ -615,6 +626,10 @@ void getargs(int argc, char **argv)
    printf("  fission               can tile be removed if two flakes result?\n");
    printf("  no_fission             the answer is no [default]\n");
    printf("  chunk_fission         allow pairs & 2x2 blocks to dissociate as one (implies fission)\n");
+   printf("  blast_rate_alpha      square kxk holes are blasted with this per-tile rate for 1x1 [default=0]\n"
+          "                         (rate relative to tile addition, i.e. scaled by total concentration)\n");
+   printf("  blast_rate_beta        rate scales as 1/k^beta [default=10]\n");
+   printf("  blast_rate_gamma       rate also scales as exp(-gamma*(k-1)) [default=0]\n");
    printf("  zero_bonds            can tiles be added if they bond with 0 strength?\n");
    printf("  no_zero_bonds          the answer is no [default]\n");
    printf("  periodic              periodic boundary conditions\n");
@@ -670,7 +685,9 @@ void getargs(int argc, char **argv)
    parse_arg_line(argv[i]);
  }
  if (tmax==0 && emax==0 && smax==0) XXX=1;
- if (hydro && fission_allowed==2) fission_allowed=1;
+ if (hydro && fission_allowed==2) {
+    printf("* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(0);
+ }
 
  for (size_P=5; (1<<size_P)<size; size_P++);
  size=(1<<size_P); 
@@ -678,6 +695,14 @@ void getargs(int argc, char **argv)
    if (size*block > 800) block=800/size;
    if (block==0) { size=512; block=1; size_P=9; }
  }
+
+ if (blast_rate_alpha>0) { int kb;
+   printf("blast_rate: alpha = %f, beta = %f, gamma = %f\n",blast_rate_alpha,blast_rate_beta,blast_rate_gamma);
+   for (kb=1; kb<size; kb++)  
+     blast_rate += blast_rate_alpha * exp(-blast_rate_gamma*(kb-1)) / pow(kb*1.0,blast_rate_beta) ;
+   printf("total blast_rate per site = %f\n",blast_rate);
+ }
+
 
  NROWS=(size+NBDY*2);
  NCOLS=(size+NBDY*2);
