@@ -49,6 +49,7 @@ Hydrolysis is now a generic option for any tile set.
   to be S-E, as in Sierpinski tiles.  Thus, e.g. binary.tile
   (the binary-counting square) has error-correction problems; it only
   works is Gao=0, indicating no preference for "input" vs "output".
+  [fixed by Nov 2003]
 
  Gbor is a funny parameter: it changes the relative strength of
   bond type 1, only. (But not other "strength 2" bonds.)  Strictly
@@ -74,6 +75,7 @@ Hydrolysis is now a generic option for any tile set.
   PROBLEM IDENTIFIED IN simulate(): IF MOST TILE ADDITION SITES CAN ONLY
   ADD TILES THAT ARE NOT "CONNECTED" THEN MOST CALLS TO choose_cell() ARE
   IGNORED, AND FEW CALLS TO change_cell() ARE MADE.
+  [fixed Dec 2003]
 
  Also note that connectivity considers 0-strength bonds between adjacent
   tiles to be "connected", as long as both tile types have nominally 
@@ -129,14 +131,14 @@ Hydrolysis is now a generic option for any tile set.
   they are used.
  
  Remaining Issues on To-Do List (see above for details)
-  * Connectivity definition
-  * Slow-down due to choosing un-connectable tile additions.
+  * Connectivity definition [fixed Dec 2003]]
+  * Slow-down due to choosing un-connectable tile additions. [fixed Dec 2003]
   * Graphics update frequency changed from 
      fixed number of events to fixed simulated time or to fixed real time
-  * Convenient tile file format, with command-line type default params
-  * Irreversible Tile Assembly Model directly implemented
+  * Convenient tile file format, with command-line type default params [fixed <2003]
+  * Irreversible Tile Assembly Model directly implemented [fixed <2003]
   * Temperature annealing
-  * Following multiple flakes simultaneously
+  * Following multiple flakes simultaneously [fixed <2003]
   * Gfc is a strange hack... and it clearly affects the resulting shape...
      but what *is* the "concentration" of a flake?  can it be determined
      better, or estimated, by following multiple flakes?
@@ -193,7 +195,8 @@ Hydrolysis is now a generic option for any tile set.
   
   * chunk_fission -- decribe this please.  motivation and implementation.
 
-  * Mismatch, errortile, and HCONNECTEED issues, contemplation of revision.
+  * Mismatch, errortile, and HCONNECTEED issues, contemplation of revision. 
+    [fixed Dec 2003]
 
   * surface mode needed!
 
