@@ -1280,7 +1280,14 @@ void order_removals(tube *tp, flake *fp,
   if (n == 1) {
     removals[0] = 0;
     return;
+  } else {
+    // remove this when the feature is done:
+    for (x = 0; x < n; x++) {
+      removals[x] = x;
+    }
+    return;
   }
+
 
   index = n-1;
   // index = place in removal order
