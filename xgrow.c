@@ -135,11 +135,33 @@
     6/4/04  Bond types can now be given as names.  See spiral.tiles for example.
     6/20/04 Added command-line option for setting tile stoichiometry.
             Made sure file is flushed immediately after export.
+    3/8/05  Fixed bug in chunk_fission that caused bogus "impossible chunk chosen" errors (RS)
+
+    3/8/05 Implemented a "doubletile" function in configuration files
+           that allows two tile types to be considered a connected,
+           horizontal rectangle for purposes of tile additions and removals.  This works as follows:
+           - Tile types are entered as usual.  Double tiles are submitted 
+             as two single tiles.  The bond between the tile types is ignored
+           - The option "doubletile(4,5)" listed in the options section 
+             creates a double tile from tiles 4 and 5, with 4 to the left of 5.
+           - Double tiles are added as follows:
+                 - the first tile can be added anywhere it is adjacent to 
+                   the assembly, provided that the second tile will fit 
+                   geometrically.
+                 - the second tile can be added only if the first tile is not 
+                   adjacent to the current assembly
+           - Double tiles are removed as follows:
+                 - Only the first of the two tiles has a non-zero off rate.  
+                 - If it is chosen, the binding energy is the sum of the 
+                   energies attaching both tiles to the assembly.  
+                   If it is removed, both tiles are removed.
+           (RS)
     3/19/05 Adding blast damage for demonstrating self-repair.  alpha, beta, gamma command-line args.
             Wander allows the original seed tile to be lost.
             It's a bit strange when no_fission is used, because fission is tested sequentially as
              tiles in the square are being removed, rather than after the whole square has been removed.
-            
+                                               
+
   TO DO List:
   
   * If the tile set specifies a stoichiometry of 0 (e.g. for the seed), the simulation can freak out.
@@ -264,6 +286,8 @@ double blast_rate_alpha=0;
 double blast_rate_beta=4;  // k>3 required for finite rate of blasting a given tile in infinite size flakes (gamma=0)
 double blast_rate_gamma=0;
 double blast_rate=0;
+int first_tile, second_tile;
+int double_tiles=0;
 
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
@@ -272,6 +296,7 @@ int wander, periodic, linear, fission_allowed, zero_bonds_allowed;
 FILE *tracefp, *datafp, *arrayfp, *tilefp;
 double *strength;
 double **glue;
+int *dt_right, *dt_left;
 int N, num_bindings, tileb_length;
 int **tileb; double *stoic;
 int hydro; 
@@ -284,6 +309,8 @@ int XXX=1;  /* If 1, draw the simulation, otherwise don't.  (as inferred from th
 int import=0; /* Are we importing flakes? */
 int import_flake_size = 0;
 
+char newline[2];
+
 struct flake_param {
   int seed_i,seed_j,seed_n,N; double Gfc; FILE *import_from;  struct flake_param *next_param;
 };
@@ -291,9 +318,9 @@ struct flake_param *fparam=NULL, *fprm;
 
 int count_flakes(FILE *flake_file);
 
-void parse_arg_line(char *arg)
+int parse_arg_line(char *arg)
 {
-        if (strncmp(arg,"block=",6)==0) 
+  if (strncmp(arg,"block=",6)==0) 
      block=MAX(1,MIN(30,atoi(&arg[6])));
    else if (strncmp(arg,"size=",5)==0) 
      size=MAX(32,MIN(4096,atoi(&arg[5])));
@@ -320,12 +347,16 @@ void parse_arg_line(char *arg)
            stoic[stn]=sts;
            printf("stoic of tile %d = [%f]\n",stn,sts);
 	} else { 
-           if (sts==0) 
-             { fprintf(stderr,"Stoic == 0.0 is not allowed; use a small but positive value.\n"); exit(-1); }
-           fprintf(stderr,"Requested stoic of tile %d = [%f] is impossible!\n",stn,sts); exit(-1);
+	  if (sts==0) {
+	    fprintf(stderr,"Stoic == 0.0 is not allowed; use a small but positive value.\n"); 
+	    return -1;
+	  }
+           fprintf(stderr,"Requested stoic of tile %d = [%f] is impossible!\n",stn,sts); 
+	   return -1;
 	}
       } else {
-        fprintf(stderr,"Could not parse stoichiometry command '%s'.\n",arg); exit(-1);
+        fprintf(stderr,"Could not parse stoichiometry command '%s'.\n",arg); 
+	return -1;
       }
    }
    else if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
@@ -373,6 +404,26 @@ void parse_arg_line(char *arg)
       { stripe_args=(&arg[7]); periodic=1; wander=1; }
    else if (strcmp(arg,"-nw")==0) XXX=0;
    else if (strcmp(arg,"-linear")==0) linear=1;
+   else if (strncmp(arg,"doubletile=",11)==0) {
+     char *p;
+     first_tile = atoi(&arg[11]);
+     p = strchr(&arg[12],',');
+     if (p == NULL) {
+       fprintf(stderr,"Two tiles with a comma separating them are required for the double tile option.\n");
+       return -1;
+     }
+     second_tile = atoi(p + 1);
+     if (tileb[first_tile][1] != tileb[second_tile][3]) {
+       fprintf(stderr,"Pieces of a double tile must have a matching bond in between them.\n");
+       return -1;
+     }
+     dt_right[first_tile] = second_tile;
+     dt_left[second_tile] = first_tile;
+     double_tiles = 1;
+     // Use 0 bond energy between first and second tile
+     tileb[first_tile][1] = 0;
+     tileb[second_tile][3] = 0;
+   }
    else if (strncmp(arg,"update_rate=",12)==0) 
       update_rate=MAX(1,MIN(atol(&arg[12]),10000000));
    else if (strncmp(arg,"tracefile=",10)==0) tracefp=fopen(&arg[10], "a");
@@ -409,26 +460,32 @@ void parse_arg_line(char *arg)
 	*/
        fparam->seed_i = fparam->seed_j = size / 2;
        fparam->seed_n = 1;
+       /* It's easier to use characters here than fight cvs's varying
+	  habits with non-alphabetic characters */
+       newline[0] = 10;
+       newline[1] = 0;
        if (strncmp(arg,"importfile=",11)==0)
-	 import_fp = fopen(strtok(p,"@"), "r");
+	 import_fp = fopen(strtok(p,newline), "r");
        else
 	 import_fp = fopen("xgrow_export_output", "r");
        /* If the file does not exist. */
        if (import_fp == NULL) 
 	 {
 	   fprintf(stderr, "Error: Import file not found.\n");
-	   exit(-1);
+	   return -1;
 	 }
        fparam->import_from = import_fp;
-       if ((p = strtok(NULL, "@")) != NULL)
+       if ((p = strtok(NULL, newline)) != NULL)
 	 fparam->Gfc=atof(p);
        else
 	 fparam->Gfc=0;
        fparam->N = count_flakes(import_fp);
      }
    else {
-     fprintf(stderr,"Could not parse argument '%s'\n",arg); exit(-1);
+     fprintf(stderr,"Could not parse argument '%s'\n",arg); 
+     return -1;
    }
+  return 0;
 }
 
 #define rsc read_skip_comment(tilefp)
@@ -449,6 +506,7 @@ void read_tilefile(FILE *tilefp)
  float strength_float, glue_float, stoic_float; int i,j,k;
  int temp_char; char s[255], **btnames;
  int n,m,r;
+ int return_code;
 
  rewind(tilefp); 
    // needs to be read twice, 
@@ -505,7 +563,6 @@ void read_tilefile(FILE *tilefp)
    tileb[i] = (int*) calloc(sizeof(int),4);
    r=0; fscanf(tilefp,"{%n",&r); rsc; 
    if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d start def {. \n",i); exit(-1); }
-   /* XXX we will need to change this too */
    /* read in the four binding types {N E S W} */
    for (j=0;j<4;j++) { rsc;
      temp_char = getc (tilefp); ungetc(temp_char, tilefp);
@@ -547,6 +604,8 @@ void read_tilefile(FILE *tilefp)
    for (j=0;j<=num_bindings;j++) { glue[i][j]=0; }  // necessary??  -- EW
  }
  strength = (double*) calloc(sizeof(double),num_bindings+1); 
+ dt_left = (int *) calloc(sizeof(int),N+1);
+ dt_right = (int *) calloc(sizeof(int),N+1);
 
  temp_char = getc (tilefp);  ungetc(temp_char, tilefp);
  if (temp_char == 'b') {
@@ -577,7 +636,11 @@ void read_tilefile(FILE *tilefp)
    
  rsc;
  while(fgets(&stringbuffer[0],256,tilefp)!=NULL) {
-   parse_arg_line(&stringbuffer[0]); rsc;
+   return_code = parse_arg_line(&stringbuffer[0]); 
+   if (return_code) {
+     exit(-1);
+   }
+   rsc;
  }
 
  fclose(tilefp);
@@ -686,7 +749,29 @@ void getargs(int argc, char **argv)
  }
  if (tmax==0 && emax==0 && smax==0) XXX=1;
  if (hydro && fission_allowed==2) {
-    printf("* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(0);
+   printf("* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(0);
+ }
+ if (double_tiles) {
+   if (fission_allowed) {
+     printf("Double tiles cannot be used with fission or chunk_fission currently.\n");
+     exit(0);
+   }
+   if (T > 0) {
+     printf("Double tiles cannot be used with the irreversible tile assembly model currently.\n");
+     exit(0);
+   }
+   if (hydro) {
+     printf("Double tiles cannot be used with hydrolysis currently.\n");
+     exit(0);
+   }
+   if (clean_cycles || fill_cycles || repair_unique) {
+     printf("Double tiles cannot be used with repair or clean or fill cycles currently.\n");
+     exit(0);
+   }
+   if (blast_rate > 0) {
+     printf("Blasting cannot be used with double tiles currently.\n");
+     exit(0);
+   }
  }
 
  for (size_P=5; (1<<size_P)<size; size_P++);
@@ -1464,7 +1549,6 @@ void repaint()
 
  if (!sampling) showpic(fp,errorc); 
  else XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
-
 }
  
 /* a lot of this is taken from the basicwin program in the
@@ -1716,6 +1800,9 @@ void cleanup()
  exit(1);
 } 
 
+
+#ifndef TESTING 
+
 int main(int argc, char **argv)
 {unsigned int width, height;
  int x,y,b,i,j;    int clear_x=0,clear_y=0;
@@ -1759,7 +1846,7 @@ int main(int argc, char **argv)
  
    /* set initial state */
    tp = init_tube(size_P,N,num_bindings);   
-   set_params(tp,tileb,strength,glue,stoic,hydro,ratek,
+   set_params(tp,tileb,strength,glue,stoic,dt_right, dt_left, hydro,ratek,
           Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
 
    fprm=fparam;
@@ -1953,7 +2040,7 @@ int main(int argc, char **argv)
         } else if (report.xbutton.window==restartbutton) {
             free_tube(tp); 
             tp = init_tube(size_P,N,num_bindings);   
-            set_params(tp,tileb,strength,glue,stoic,hydro,ratek,
+            set_params(tp,tileb,strength,glue,stoic,dt_right, dt_left, hydro,ratek,
                Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
             fprm=fparam; 
             while (fprm!=NULL) {
@@ -2103,3 +2190,76 @@ int main(int argc, char **argv)
 } /* end of main */
 
 
+#else
+
+#define DT_TEST_FILE "./tilesets/double_tile_test.tiles"
+
+/* Run a series of tests on xgrow functions to be sure that they work
+   as advertised.  Please add tests here as you need them when you add
+   features, search down bugs, etc. */
+int main(int argc, char **argv) {
+  FILE *dt_fp; 
+  int i;
+
+
+  // Test doubletile config file is parsed correctly
+  printf("Testing double tile option parsing in configuration file...\n");
+  dt_fp = fopen(DT_TEST_FILE,"r");
+  if (dt_fp == NULL) {
+    fprintf(stderr, "Cannot find double tile test config file %s.\n",DT_TEST_FILE);
+    exit(-1);
+  }
+  read_tilefile(dt_fp);
+
+  for (i = 0; i < 5; i++) {
+    if (dt_right[i] != 0) {
+      fprintf(stderr, "Double tile config is incorrectly initialized.  Partner of %d should be 0, instead is %d.\n", i, dt_right[i]);
+    }
+  }
+  for (i = 7; i < 9; i++) {
+    if (dt_right[i] != 0) {
+      fprintf(stderr, "Double tile right of %d should be 0, instead is %d.\n", i, dt_right[i]);
+    }
+  }
+
+  if (dt_right[6] != 0) {
+    fprintf(stderr, "Double tile right of 6 should be 0, instead is %d.\n", dt_right[6]);
+  }
+  if (dt_right[9] != 0) {
+    fprintf(stderr, "Double tile right of 9 should be 0, instead is %d.\n", dt_right[9]);
+  }
+
+  if (dt_right[10] != 9) {
+    fprintf(stderr, "Double tile right of 10 should be 9, instead is %d.\n", dt_right[6]);
+  }
+  if (dt_right[5] != 6) {
+    fprintf(stderr, "Double tile right of 5 should be 6, instead is %d.\n", dt_right[9]);
+  }
+  
+  for (i = 0; i < 6; i++) {
+    if (dt_left[i] != 0) {
+      fprintf(stderr, "Double tile left of %d should be 0, instead is %d.\n", i, dt_left[i]);
+    }
+  }
+  for (i = 7; i < 9; i++) {
+    if (dt_left[i] != 0) {
+      fprintf(stderr, "Double tile left of %d should be 0, instead is %d.\n", i, dt_left[i]);
+    }
+  }
+
+  if (dt_left[10] != 0) {
+    fprintf(stderr, "Double tile left of 10 should be 0, instead is %d.\n", dt_left[6]);
+  }
+
+  if (dt_left[9] != 10) {
+    fprintf(stderr, "Double tile left of 9 should be 10, instead is %d.\n", dt_left[6]);
+  }
+  if (dt_left[6] != 5) {
+    fprintf(stderr, "Double tile left of 6 should be 5, instead is %d.\n", dt_left[9]);
+  }
+  fclose(dt_fp);
+
+  exit(0);
+}
+
+#endif
