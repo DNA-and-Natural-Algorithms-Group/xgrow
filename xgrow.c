@@ -133,9 +133,13 @@
     2/25/04 Fixed bug in locally_fission_proof() call when chunk_fission is set. 
             (Sometimes bogus value resulted in non-fission when fission should have occurred.)
 
-
   TO DO List:
   
+  * If the tile set specifies a stoichiometry of 0 (e.g. for the seed), the simulation can freak out.
+  * export ALL may actually be ALL-BUT-ONE.  Test and fix, please?
+  * add a DILUTE/CONCENTRATE button.
+  * files should be flushed after each use.  arrayfile should *append*, not overwrite, properly
+    adding to flake{} array at the appropriate index?
   * option for chunk_fission, but disallowing larger flake_fission events, would be desirable, so
     as to have a simulation in detailed balance.
   * for the same reason, we'd need a chunk_fusion option -- calculates equilibrium concentrations
