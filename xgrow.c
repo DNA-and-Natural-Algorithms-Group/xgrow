@@ -132,6 +132,8 @@
             Also added command-line "pause", primarily for examining saved files w/o starting simulator.
     2/25/04 Fixed bug in locally_fission_proof() call when chunk_fission is set. 
             (Sometimes bogus value resulted in non-fission when fission should have occurred.)
+    6/4/04  Bond types can now be given as names.  See spiral.tiles for example.
+    6/20/04 Added command-line option for setting tile stoichiometry.
 
   TO DO List:
   
@@ -300,6 +302,23 @@ void parse_arg_line(char *arg)
    else if (strncmp(arg,"Gah=",4)==0) {hydro=1; Gah=atof(&arg[4]);}
    else if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
    else if (strncmp(arg,"Gfc=",4)==0) {Gfc=atof(&arg[4]);}
+   else if (strncmp(arg,"stoic=",6)==0) {
+      double sts; int stn; char *sp;
+      sp=strchr(&arg[6],'[');
+      if (sp!=NULL) {
+        stn=atoi(&arg[6]); sts=atof(sp+1);
+        if (stn<=N && stn>0 && sts>0) {
+           stoic[stn]=sts;
+           printf("stoic of tile %d = [%f]\n",stn,sts);
+	} else { 
+           if (sts==0) 
+             { fprintf(stderr,"Stoic == 0.0 is not allowed; use a small but positive value.\n"); exit(-1); }
+           fprintf(stderr,"Requested stoic of tile %d = [%f] is impossible!\n",stn,sts); exit(-1);
+	}
+      } else {
+        fprintf(stderr,"Could not parse stoichiometry command '%s'.\n",arg); exit(-1);
+      }
+   }
    else if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
    else if (strncmp(arg,"pause",5)==0) paused=1;
    else if (strncmp(arg,"periodic",8)==0) periodic=!periodic;
