@@ -40,7 +40,14 @@ typedef struct flake_struct {
                        /*                 (di,dj in {0,1})                 */
                        /* rate[0][0][0] + k * sum conc[] = net event rate  */
   int ***empty;        /* hierarchical tally of number of empty cells      */
-                       /* adjacent to some non-empty cell                  */
+                       /* adjacent to some non-empty cell.                 */
+                       /* for irreversible model, counts only if there is  */
+                       /* a tile type that could stick here.               */  
+  double T;            /* threshold T for irreversible Tile Assembly Model */
+                       /* used to prevent dissociation only if T>0         */
+                       /* also, prevents incorrect association             */
+                       /* on-rates & off-rates are calculated as usual,    */
+                       /* but events violating the model are discarded     */
   double k;            /* forward rate constant for on-events.             */
   double kas,kao,      /* f.r.c (ratio to k) for "hydrolysis" spontaneous, */
          kam,kae,kah;  /* and when input se are mismatched, empty, or      */
@@ -76,11 +83,14 @@ extern int wander;      /* of seed tile designation */
 flake *init_flake(unsigned char P, unsigned char N, int num_bindings);
 void free_flake(flake *fp);
 void clean_flake(flake *fp);
-void set_params(flake *fp, int** units, double* strength, double* relconc,
+void set_params(flake *fp, int** units, double* strength, double* stoic,
  int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao,
- double Gfc);
+ double Gfc, double T);
+void reset_params(flake *fp, double old_Gmc, double old_Gse,
+ double new_Gmc, double new_Gse);
+void recalc_G(flake *fp);
 void change_cell(flake *fp, int i, int j, unsigned char n);
 void simulate(flake *fp, int events, double tmax, int emax, int smax);
 void linear_simulate( double ratek, double Gmc, double Gse,

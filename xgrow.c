@@ -17,8 +17,9 @@
             But, some problems with fission fragments not disappearing?
    7/5/02   Michael DeLorimier adds general tile definitions
    7/6/02   EW generalizes hydrolysis rules for any tile set
+   7/12/02  EW adds GUI for changing Gse and Gmc during simulation
 
-  Compiling:  see rosemake
+  Compiling:  see makecc
     
 */
 
@@ -71,7 +72,7 @@ char stringbuffer[100];
 Display *display;
 int screen;
 Window window,quitbutton,pausebutton,playground,
-        fillbutton,colorbutton,randombutton,seedbutton;
+        fillbutton,colorbutton,randombutton,seedbutton,tempbutton;
 GC gc, gcr, gccolor;
 XImage *spinimage=NULL;
 XFontStruct *font=NULL;
@@ -83,7 +84,7 @@ long int darkcolor,lightcolor,black,white;
 
 
 /* simulation parameters */
-flake *fp; double Gse, Gmc, ratek;
+flake *fp; double Gse, Gmc, ratek, T;
 double Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc;
 
 int block=1; /* default to small blocks; calling with argument changes this */
@@ -172,6 +173,7 @@ void getargs(int argc, char **argv)
    printf("  Gah=   activation energy for hydrolyzed neighbors\n");
    printf("  Gao=   delta a. e. for output vs input-triggers hydrolysis\n");
    printf("  Gfc=   log concentration of flakes (otherwise no depletion)\n");
+   printf("  T=     threshold T (relative to Gse) for irreversible Tile Assembly Model\n");
 /* printf("  anneal=g/t        anneal Gse to g with time constant t\n"); */
    printf("  seed=i,j,n        seed tile type n at position i,j\n");
    printf("  stripe=o[:p,w]*   width w stripe with p errors, offset o\n");
@@ -198,7 +200,7 @@ void getargs(int argc, char **argv)
  tmax=0; emax=0; smax=0;
  wander=0; periodic=0; deplete=0; linear=0;
  Gfc=0; datafp=NULL; arrayfp=NULL; 
- Gmc=17; Gse=8.6; ratek = 1000000.0;
+ Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
  Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
  seed_i=250; seed_j=250; seed_n=1; hydro=0;
 
@@ -219,6 +221,7 @@ void getargs(int argc, char **argv)
    if (strncmp(argv[i],"Gah=",4)==0) {hydro=1; Gah=atof(&argv[i][4]);}
    if (strncmp(argv[i],"Gao=",4)==0) {hydro=1; Gao=atof(&argv[i][4]);}
    if (strncmp(argv[i],"Gfc=",4)==0) {deplete=1; Gfc=atof(&argv[i][4]);}
+   if (strncmp(argv[i],"T=",2)==0) T=atof(&argv[i][2]);
    if (strcmp(argv[i],"periodic")==0) periodic=1;
    if (strcmp(argv[i],"wander")==0) wander=1;
    if (strncmp(argv[i],"seed=",5)==0) {
@@ -240,6 +243,7 @@ void getargs(int argc, char **argv)
    if (strncmp(argv[i],"arrayfile=",10)==0) arrayfp=fopen(&argv[i][10], "w");
  }
  if (tmax==0 && emax==0 && smax==0) XXX=1;
+ T=T*Gse;
 }
 
 void closeargs()
@@ -328,6 +332,24 @@ void showpic(flake *fp, int err) /* display the field */
  return;
 }
 
+/* NOTE: requires 2^P < NCOLS+2*NBDY */
+void showphase() /* replace tiles by phase diagram T=1 & T=2 lines */
+{int row,col,color,i1,i2,j1,j2,blocktop=block,size;
+ size = (1<<fp->P); 
+ if (block>4) blocktop=block-1;
+    for (row=0;row<size;row++)
+      for (col=0;col<size;col++) {
+        color = ((size-row)/2==col || (size-row)==col) ?
+                translate[7]:translate[0];
+        j1=block*(col+NBDY); j2=block*(row+NBDY);
+        for (i2=0;i2<blocktop;i2++)
+          for (i1=0;i1<blocktop;i1++)
+            XPutPixel(spinimage,j1+i1,j2+i2,color);
+      }
+ XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
+ return;
+}
+
 
 /* fix up the pause button */
 void setpause(int value)
@@ -365,6 +387,7 @@ void repaint()
  XDrawString(display,quitbutton,  gcr,0,font_height,"    quit     ",13);
  XDrawString(display,fillbutton,  gcr,0,font_height,"    clear    ",13);
  XDrawString(display,randombutton,gcr,0,font_height,"random square",13);
+ XDrawString(display,tempbutton,  gcr,0,font_height," cool   heat ",13);
  setpause(paused);
  setcolor(errorc);
  setwander(wander);
@@ -382,9 +405,13 @@ void repaint()
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
- sprintf(stringbuffer,"Gmc=%4.1f  Gse=%4.1f  k=%6.0f",
+ if (T>0) 
+   sprintf(stringbuffer,"Gmc=%4.1f  Gse=%4.1f  k=%6.0f   T=%4.1f",
+               Gmc,Gse,ratek,T/Gse);
+ else 
+   sprintf(stringbuffer,"Gmc=%4.1f  Gse=%4.1f  k=%6.0f   ",
                Gmc,Gse,ratek);
- XDrawString(display,window,gc,5,(++i)*font_height,
+ XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
  if (fp->hydro) {
@@ -552,6 +579,8 @@ void openwindow(int argc, char **argv)
     WINDOWWIDTH-140,WINDOWHEIGHT-154,120,20,2,black,darkcolor);
  seedbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-180,120,20,2,black,darkcolor);
+ tempbutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-206,120,20,2,black,darkcolor);
  playground=XCreateSimpleWindow(display,window,
     PLAYLEFT,PLAYTOP,block*NCOLS,block*NROWS,2,translate[4],white);
 
@@ -568,6 +597,7 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XSelectInput(display,colorbutton,event_mask);
  XSelectInput(display,randombutton,event_mask);
  XSelectInput(display,seedbutton,event_mask);
+ XSelectInput(display,tempbutton,event_mask);
  event_mask=ButtonReleaseMask|ButtonPressMask|PointerMotionHintMask
                    |ButtonMotionMask; 
  XSelectInput(display,playground,event_mask);
@@ -608,8 +638,9 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XMapWindow(display,pausebutton);
  XMapWindow(display,fillbutton);
  XMapWindow(display,colorbutton);
- XMapWindow(display,randombutton);
+ /* XMapWindow(display,randombutton); */ /* square is not useful */
  XMapWindow(display,seedbutton);
+ XMapWindow(display,tempbutton);
  XMapWindow(display,playground);
 
 /* make image structure */
@@ -656,7 +687,8 @@ void cleanup()
 int main(int argc, char **argv)
 {unsigned int width, height;
  int x,y,b,i,j;
- int stat=0;
+ int stat=0; int mousing=0;
+ double new_Gse, new_Gmc;
  XEvent report;
  progname=argv[0];
 
@@ -684,20 +716,21 @@ int main(int argc, char **argv)
 
  if (XXX) openwindow(argc,argv);
 
- printf("xgrow: tile set read, beginning simulation\n");
+ /*  printf("xgrow: tile set read, beginning simulation\n"); */
  
  if (DEBUG==2) {
    /* set initial state: 2^3 grid */
    fp = init_flake(3,N,num_bindings);   
-   set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc);   
+   set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc,T);   
    fp->seed_i=6; fp->seed_j=6;  
  } else {
    /* set initial state: 2^8 grid */
    fp = init_flake(8,N,num_bindings);   
-   set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc);
+   set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc,T);
    if (stripe_args==NULL) {
       fp->seed_i=seed_i; fp->seed_j=seed_j; fp->seed_n=seed_n; 
    } else {
+     /* STRIPE OPTION HAS HARDCODED TILESET NONSENSE -- A BUG */
       int i,j,k,w; double p; int size=(1<<fp->P); char *s=stripe_args;
       char XOR[2][2]={ {4,7}, {6,5} }; /* XOR[S][E] */ char c,cc;
       i=size-1; j = atoi(s)%size; 
@@ -729,6 +762,8 @@ int main(int argc, char **argv)
    }
  }
 
+ new_Gse=Gse; new_Gmc=Gmc;
+
  /* loop forever, looking for events */
  while((tmax==0 || fp->t < tmax) && 
        (emax==0 || fp->events < emax) &&
@@ -736,11 +771,11 @@ int main(int argc, char **argv)
   if (!XXX) 
      simulate(fp,NUPDATES,tmax,emax,smax);
   else {
-   if (0==paused && !XPending(display)) {
+   if (0==paused && 0==mousing && !XPending(display)) {
      simulate(fp,NUPDATES,tmax,emax,smax);
      stat++; if (stat==NSTATS) { stat=0; repaint(); }
    }
-   if (paused|XPending(display))
+   if (paused|mousing|XPending(display))
     {XNextEvent(display,&report); 
      switch (report.type)
       {case Expose:
@@ -755,6 +790,41 @@ int main(int argc, char **argv)
              cleanup();
             } 
         break; 
+       case MotionNotify:
+        if (report.xbutton.window==playground) {
+             if (fp->hydro) break; /* don't know how to reset params */
+             x=report.xbutton.x/block;
+             y=report.xbutton.y/block;
+             b=report.xbutton.button;
+             /* was sketch(x,y,b); now change Gse & Gmc */
+             new_Gse=(30.0*x)/256; new_Gmc=30-(30.0*y)/256;
+             /* draw current Gse, Gmc values */
+             sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
+               Gmc,new_Gmc,Gse,new_Gse);
+             XDrawImageString(display,window,gc,5,3*font_height,
+               stringbuffer,strlen(stringbuffer));
+
+	     {
+             int newx,newy;
+             Window root,child;
+             unsigned int keys_buttons;
+             int window_x,window_y;
+             /* this is necessary in order to get more than one MotionNotify
+                event; I don't know why. */
+             if (!XQueryPointer(display,playground,
+              &root,&child,&window_x,&window_y,
+              &newx,&newy,&keys_buttons))
+              {mousing=0; }
+	     }
+	}
+        break;
+       case ButtonRelease:
+        reset_params(fp, Gmc, Gse, new_Gmc, new_Gse);
+        if (Gfc>0) Gfc+=(new_Gmc-Gmc);
+        Gse=new_Gse; Gmc=new_Gmc; 
+        showpic(fp,errorc); 
+        mousing=0; 
+        break;
        case ButtonPress:
         if (report.xbutton.window==quitbutton)
             { cleanup(); } 
@@ -762,7 +832,7 @@ int main(int argc, char **argv)
             { setpause(1-paused); repaint(); }
         else if (report.xbutton.window==fillbutton)
             {free_flake(fp); fp=init_flake(8,N,num_bindings); 
-             set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc);
+             set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc,T);
              fp->seed_i=seed_i; fp->seed_j=seed_j; fp->seed_n=seed_n; 
              repaint();
             }
@@ -776,11 +846,27 @@ int main(int argc, char **argv)
 /*               change_cell(fp,x,y,lrand48()%(fp->N+1)); */
                change_cell(fp,x,y,4+((x+y)%2));  /* bar code */
              repaint();
+        } else if (report.xbutton.window==tempbutton) {
+             x=report.xbutton.x;
+             y=report.xbutton.y;
+             b=report.xbutton.button;
+             if (fp->hydro) break; /* don't know how to reset params */
+             if (x>60) new_Gse=Gse-0.1; else new_Gse=Gse+0.1;
+             reset_params(fp, Gmc, Gse, new_Gmc, new_Gse);
+             Gse=new_Gse; Gmc=new_Gmc; repaint();
         } else if (report.xbutton.window==playground) 
             {x=report.xbutton.x/block;
              y=report.xbutton.y/block;
              b=report.xbutton.button;
-             /* sketch(x,y,b); */
+             if (fp->hydro) break; /* don't know how to reset params */
+             new_Gse=(30.0*x)/256; new_Gmc=30-(30.0*y)/256;
+             /* draw current Gse, Gmc values */
+             sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
+               Gmc,new_Gmc,Gse,new_Gse);
+             XDrawImageString(display,window,gc,5,3*font_height,
+               stringbuffer,strlen(stringbuffer));
+             /* later: if down button, draw T=1/T=2 diagram */
+             mousing=1; showphase();
             }
         else {
 	  /*  what here ?  */

@@ -144,3 +144,7 @@ Hydrolysis is now a generic option for any tile set.
   * graphical display of tile types, and other information, would be useful
   * choose_cell() in grow.c could make more efficient use of random numbers
   * user-specifiable grid size, and block > 4.
+
+7/16/02
+  * added GUI for changing Gse and Gmc during the run.
+  * added irreversible Tile Assembly Model.  

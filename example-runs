@@ -49,3 +49,16 @@ xgrow sierpinski.tile Gse=7 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=0
 % infinite binary counter
 xgrow count.tile Gse=10 Gmc=19.8 block=3
 
+
+%%% irreversible Tile Assembly Model
+
+xgrow barseed.tile T=2 block=2 seed=180,180,1
+xgrow barseed.tile T=2 block=2 seed=180,180,5
+xgrow sier3x3.tile T=2 block=2 seed=180,180,5
+xgrow lines.tile T=2 block=2 
+xgrow lines2.tile T=2 block=2
+xgrow lines.tile T=1 block=2
+xgrow count.tile T=2 block=2
+xgrow sierpinski.tile T=2
+xgrow AB.tile T=1 seed=130,130,1
+xgrow barcode.tile T=1 seed=130,130,1

@@ -116,7 +116,7 @@ void set_params(flake *fp, int** units, double* strength, double* stoic,
  int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao,
- double Gfc)
+ double Gfc, double T)
 {
    int i,j,n,m;
 
@@ -126,6 +126,7 @@ void set_params(flake *fp, int** units, double* strength, double* stoic,
    for (i=0;i<=fp->num_bindings;i++) fp->strength[i] = strength[i]; 
 
    fp->hydro = hydro;
+   fp->T=T;
 
    fp->k = k;
    fp->kas = exp(-Gas);  fp->kao = exp(-Gao);
@@ -169,6 +170,40 @@ void set_params(flake *fp, int** units, double* strength, double* stoic,
 }
 
 
+void reset_params(flake *fp, double old_Gmc, double old_Gse, 
+		  double new_Gmc, double new_Gse)
+{  int n,m;
+
+ if (!(fp->hydro)) {         /* not clear what to do for hydro rules */
+
+   /* reset bond strengths */
+   for (n=1; n<=fp->N; n++)
+      for (m=1; m<=fp->N; m++) {
+         fp->Gse_EW[n][m] = ((fp->units)[n][3]==(fp->units)[m][1]) *
+              (fp->strength)[(fp->units)[m][1]] * new_Gse;
+         fp->Gse_NS[n][m] = ((fp->units)[n][2]==(fp->units)[m][0]) *
+              (fp->strength)[(fp->units)[m][0]] * new_Gse;
+      }
+
+   /* changing Gmc when Gfc>0 indicates either 
+      dilution ( in which case all conc including Gfc decrease proportionally )
+      concentration ( in which case same conc increase proportionally )
+      Thus effects of increasing & decreasing are reversible
+ 
+      adding tiles ( in which case all conc except Gfc increase additively ) 
+      is currently not an option
+   */
+  fp->conc[0]=0;  
+  for (n=1; n <= fp->N; n++) 
+     fp->conc[0]+= (fp->conc[n]*=exp(-(new_Gmc-old_Gmc)));
+  fp->flake_conc*=exp(-(new_Gmc-old_Gmc));
+
+  recalc_G(fp);
+ }
+}
+
+
+
 /* macro definition of summed sticky end bond energy                    */
 /* computes energy IF Cell(i,j) were n, given its current neighbors     */
 /* assumes "fp" arg is a simple variable, but others can be expressions */
@@ -205,6 +240,7 @@ double calc_rates(flake *fp, int i, int j, double *rv)
   unsigned char N,E,S,W;
 
   if (rv!=NULL) for (n=0;n<=fp->N;n++) rv[n]=0;
+  if (fp->T>0) return 0;   /* no off-rates: irreversible Tile Assembly Model */
   n = fp->Cell(i,j);
   if (n==0) return 0;                           /* no off-rate for empties   */
   if (i==fp->seed_i && j==fp->seed_j) return 0; /* seed site doesn't go away */
@@ -254,16 +290,18 @@ double calc_rates(flake *fp, int i, int j, double *rv)
 }
 
 
-/* figure the delta_rate for this cell, and propagate up            */
+/* figure the delta_rate for this cell, and propagate up.           */
 /* Cell(i,j) has just changed to n, but old rates and empty status  */
 /*   has not yet changed to reflect this.  Since the cell and its   */
 /*   neighbors must all be changed, we only guarantee that THIS     */
 /*   cell's hierarchical status has not been updated yet.           */
-/*   ii,jj is a neighbor cell; possibly a border cell.              */
+/*   ii,jj is cell i,j or a neighbor cell; possibly a border cell.  */
 /*   Note: "empty" means "empty and neighbor to a tile".            */
+/*   In irreversible Tile Assembly Model, "empty" means that there  */
+/*   is(are) a tile type(s) that could be added at the location.    */
 void update_rates(flake *fp, int ii, int jj)
 {
-   int p; int size=(1<<fp->P);
+   int n,p; int size=(1<<fp->P);
    double oldrate, newrate, oldempty, newempty;
 
    if (periodic) { ii=(ii+size)%size; jj=(jj+size)%size; }
@@ -272,8 +310,14 @@ void update_rates(flake *fp, int ii, int jj)
       oldrate  = fp->rate[fp->P][ii][jj];
       oldempty = fp->empty[fp->P][ii][jj];
       newempty = (fp->Cell(ii,jj)==0) &&
-                 ( fp->Cell(ii+1,jj) || fp->Cell(ii,jj+1) ||
-                   fp->Cell(ii-1,jj) || fp->Cell(ii,jj-1) );
+                ( fp->Cell(ii+1,jj) || fp->Cell(ii,jj+1) ||
+                  fp->Cell(ii-1,jj) || fp->Cell(ii,jj-1) );
+      if (newempty && fp->T>0) { 
+        /* calculate how many tile types could make >= T bonds */
+	for (n=1;n<=fp->N;n++)
+          if (Gse(fp,ii,jj,n)>=fp->T) newempty++;
+        newempty--;  newempty=(newempty>0);  /* only care if exists */
+      }
       newrate  = calc_rates(fp, ii, jj, NULL);
       for (p=fp->P; p>=0; p--) {
          fp->rate[p][ii][jj] += newrate-oldrate;
@@ -329,6 +373,20 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
    update_rates(fp,i,j-1);
 }
 
+/* recalculate flake energy from scratch */
+void recalc_G(flake *fp)
+{
+   int n,i,j,size=(1<<fp->P);
+
+   /* don't count the seed tile concentration */
+   fp->G=log(fp->conc[fp->seed_n]);  
+   /* add up all tile's entropy, bond energy, and hydrolysis energy */
+   for (i=0;i<size;i++)
+     for(j=0;j<size;j++) 
+       if ((n=fp->Cell(i,j))>0) 
+         fp->G += -log(fp->conc[n]) - Gse(fp,i,j,n)/2.0 - fp->Gcb[n];
+}
+
 /* use rates & empty & conc to choose a cell to change,      */
 /* and call calc_rates to identify what change to make.      */
 /* report choice, but don't act on it.                       */
@@ -343,7 +401,7 @@ double choose_cell(flake *fp, int *ip, int *jp, int *np)
 
   i=0; j=0;
   for (p=0; p<fp->P; p++) { /* choosing subquadrant from within p:i,j */
-     sum = fp->rate[p][i][j] + kc*fp->empty[p][i][j]; 
+     sum = fp->rate[p][i][j] + kc*fp->empty[p][i][j]; // not used unless oops
      k00 = fp->rate[p+1][2*i][2*j]+kc*fp->empty[p+1][2*i][2*j];
      k10 = fp->rate[p+1][2*i+1][2*j]+kc*fp->empty[p+1][2*i+1][2*j];
      k01 = fp->rate[p+1][2*i][2*j+1]+kc*fp->empty[p+1][2*i][2*j+1];
@@ -591,7 +649,8 @@ void simulate(flake *fp, int events, double tmax, int emax, int smax)
 
    while (fp->events < emax && 
           (tmax==0 || fp->t < tmax) && 
-          (smax==0 || fp->stat_a-fp->stat_d < smax)) {
+          (smax==0 || fp->stat_a-fp->stat_d < smax) &&
+          fp->rate[0][0][0] + fp->empty[0][0][0] > 0) {
 
     if (DEBUG==2) {
      for (i=0; i<8; i++) {
@@ -635,10 +694,30 @@ void simulate(flake *fp, int events, double tmax, int emax, int smax)
      }
 
       dt = choose_cell(fp, &i, &j, &n); oldn = fp->Cell(i,j);
-      if (i != fp->seed_i || j != fp->seed_j) {
-        fp->t += dt;
-        /* to add, must have se contact */
+      if (i != fp->seed_i || j != fp->seed_j) { /* can't change seed tile */
+       fp->t += dt;
+       if (fp->T>0) { /* irreversible Tile Assembly Model */
+        if (n>0 && Gse(fp,i,j,n)>=fp->T) change_cell(fp,i,j,n);
+        else { fp->stat_a++; fp->stat_d++; fp->events+=2; } 
+        /* NOTE this is extremely inefficient -- would be much better to
+        actually change the rates such that bad on-events and all off-events
+        have rate 0.  However, this doesn't fit well into the "empty"
+        framework for calculating rates.  Another fast solution would be to
+        keep a linked list of active growth sites.  Alas. */
+        /* NOTE the above refered to before update_rates() and calc_rates() 
+        were modified for the T>0 case.  Now it's faster.  Still, if 
+        only one of N tile types can be added at a location, all have
+        equal chance to be chosen & rejected -- this is inefficient, but 
+        unless fp->empty were to be changed, we can't handle unequal tile
+        concentrations. */
+       } else {
+        /* to add, must have se contact; hydrolysis also happens here */
         if (oldn!=0 || HCONNECTED(fp,i,j,n)) change_cell(fp,i,j,n);
+        /* zero-bond tile additions fall off immediately;
+           count them or else, if there are lots, the display
+           can be super-slow! */
+        if (oldn==0 && ~HCONNECTED(fp,i,j,n)) 
+           { fp->stat_a++; fp->stat_d++; fp->events+=2; } 
         if (n==0) {  /* dissociation: check connectedness */
            ringi = ((fp->Cell(i-1,j)!=0)<<7) +
              ((CONNECTED_W(fp,i-1,j+1) && CONNECTED_S(fp,i-1,j+1))<<6) +
@@ -652,6 +731,7 @@ void simulate(flake *fp, int events, double tmax, int emax, int smax)
               flake_fission(fp,i,j);
            }
 	} 
+       }
       } else dprintf("can't move seed!\n");
       d2printf("%d,%d -> %d\n",i,j,n);
    }
