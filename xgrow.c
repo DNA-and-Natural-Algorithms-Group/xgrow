@@ -120,6 +120,17 @@
             null:   Gse_EW with EW neighbor is < .5 Gse            (e.g. mismatch or null neighbor)
             weak:   Gse_EW with EW neighbor is > .5 and < 1.5 Gse  (e.g. regular strength-1 bond)
             strong: Gse_EW with EW neighbor is > 1.5 Gse           (e.g. strength-2 bond)
+    1/18/04 Added Rx to clean/fill button, and repair_unique_T to command-line.
+            This provides an improved (I think) mismatch measurement, as it is guaranteed to
+            fill in in all interior holes (thus not undercounting), and it removes all mismatches
+            and fills in with unique correct aTAM tiles if possible (thus not overcounting).
+            But in cases of big erroneous holes, it can (a) result in many mismatches, since non-unique
+            filling proceeds somewhat arbitrarily to completion, and (b) result in a non-connected
+            flake, which is weird if the simulation is continued. (So far, non-connected flakes always 
+            get cleaned up well, but I'd still call this a BUG.)   Also, since only interior holes
+            get filled in, any error that stalls growth or leaves an inlet will not get counted.
+            Also added command-line "pause", primarily for examining saved files w/o starting simulator.
+
 
   TO DO List:
   
@@ -238,8 +249,9 @@ double *strength;
 double **glue;
 int N, num_bindings, tileb_length;
 int **tileb; double *stoic;
-int hydro; int clean_cycles=0; double clean_X=1.0; int fill_cycles=0; double fill_X=1.0;
-double error_radius=0.0;
+int hydro; 
+int clean_cycles=0; double clean_X=1.0; int fill_cycles=0; double fill_X=1.0; 
+double error_radius=0.0; double repair_unique_T=2.0; int repair_unique=0;
 double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
 char *stripe_args=NULL;
@@ -275,6 +287,7 @@ void parse_arg_line(char *arg)
    else if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
    else if (strncmp(arg,"Gfc=",4)==0) {Gfc=atof(&arg[4]);}
    else if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
+   else if (strncmp(arg,"pause",5)==0) paused=1;
    else if (strncmp(arg,"periodic",8)==0) periodic=!periodic;
    else if (strncmp(arg,"wander",6)==0) wander=!wander;
    else if (strncmp(arg,"no_fission",10)==0) fission_allowed=0;
@@ -327,6 +340,7 @@ void parse_arg_line(char *arg)
    else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[12]);
    else if (strncmp(arg,"fill_X=",7)==0) fill_X=atof(&arg[7]);
    else if (strncmp(arg,"error_radius=",13)==0) error_radius=atof(&arg[13]);
+   else if (strncmp(arg,"repair_unique_T=",15)==0) { repair_unique_T=atof(&arg[15]); repair_unique=1; }
    else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
    else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
    else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
@@ -545,12 +559,15 @@ void getargs(int argc, char **argv)
    printf("  fill_X=               for filling, minimal ratio of off-rate to on-rate [default=1.0]\n");
    printf("  error_radius=         when writing to file, #mismatches counts only those for which \n"
           "                        all surounding tiles are present (after clean/fill) [default=0]\n");
+   printf("  repair_unique_T=      alternative clean/fill: remove mismatches, fill in interior sites \n"
+          "                        if there is a unique strength-T tile, then fill in by strongest tile]n");
    printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events, perimeter, dG, dG_bonds\n");
    printf("  arrayfile=            output MATLAB-format flake array information on exit (after cleaning)\n");
    printf("  exportfile=           on-request output of MATLAB-format flake array information\n");
    printf("                        [defaults to 'xgrow_export_output']\n");
    printf("  importfile=FILENAME   import all flakes from FILENAME.\n");
    printf("  importfile            import all flakes from xgrow_export_output.\n");
+   printf("  pause                 start in paused state; wait for user to request simulation to start.\n");
    exit (0);
  }
 
@@ -954,6 +971,11 @@ void closeargs()
       error_radius_flake(fpp,error_radius); 
   }
 
+  // alternative fix-up routine (not compatible with error_radius; redundant with clean/fill)
+  if (repair_unique) 
+    for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
+      repair_flake(fpp,repair_unique_T,Gse); 
+
   /* output information for *all* flakes */
   if (datafp!=NULL) {
     write_datalines(datafp,"\n"); fclose(datafp);
@@ -1011,10 +1033,10 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
             for (i2=0;i2<blocktop;i2++)
                picture[j1+i2]=color;
           }
-          if (block>4 && fp->Cell(row,col)!=0) {
+          if (block>4) {
+               int n=fp->Cell(row,col);
 	       int Ccolm=lightcolor,Ccolp=lightcolor,Crowp=lightcolor,Crowm=lightcolor;
                if (errors==1) {
-                 int n=fp->Cell(row,col);
                  int ncolm=fp->Cell(row,col-1),  ncolp=fp->Cell(row,col+1);  
                  int nrowm=fp->Cell(row-1,col),  nrowp=fp->Cell(row+1,col);  
 	         Ccolm=weakcolor; Ccolp=weakcolor; Crowp=weakcolor; Crowm=weakcolor;
@@ -1027,6 +1049,10 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
                  if (fp->tube->Gse_NS[ n ] [ nrowp ] < 0.5*Gse) Crowp=nullcolor;
                  if (fp->tube->Gse_NS[ nrowm ] [ n ] < 0.5*Gse) Crowm=nullcolor;
                }
+               if (n==0 && fp->Cell(row,col-1)==0) Ccolm=translate[0];
+               if (n==0 && fp->Cell(row,col+1)==0) Ccolp=translate[0];
+               if (n==0 && fp->Cell(row-1,col)==0) Crowm=translate[0];
+               if (n==0 && fp->Cell(row+1,col)==0) Crowp=translate[0];
             for (i1=0;i1<blocktop;i1++) // col-1 side
                picture[i1*block*NCOLS+j-1]=Ccolm;
             for (i1=0;i1<blocktop;i1++) // col+1 side
@@ -1035,16 +1061,6 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
 	      picture[blocktop*block*NCOLS+j+i1]=Crowp;
             for (i1=0;i1<blocktop;i1++) // row-1 side
                picture[-block*NCOLS+j+i1]=Crowm;
-	  }
-          if (block>4 && fp->Cell(row,col)==0) {
-            if (fp->Cell(row,col-1)==0) for (i1=0;i1<blocktop;i1++) // col-1 side
-               picture[i1*block*NCOLS+j-1]=translate[0];
-            if (fp->Cell(row,col+1)==0) for (i1=0;i1<blocktop;i1++) // col+1 side
-               picture[i1*block*NCOLS+j+blocktop]=translate[0];
-            if (fp->Cell(row+1,col)==0) for (i1=0;i1<blocktop;i1++) // row+1 side
-               picture[blocktop*block*NCOLS+j+i1]=translate[0];
-            if (fp->Cell(row-1,col)==0) for (i1=0;i1<blocktop;i1++) // row-1 side
-               picture[-block*NCOLS+j+i1]=translate[0];
 	  }
 	}
       }
@@ -1063,11 +1079,11 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
          for (i2=0;i2<blocktop;i2++)
            for (i1=0;i1<blocktop;i1++)
             XPutPixel(spinimage,j1+i1,j2+i2,color);
-          if (block>4 && fp->Cell(row,col)!=0) {
+          if (block>4) {
             for (i1=0;i1<blocktop;i1++) {
+               int n=fp->Cell(row,col);
 	       int Ccolm=lightcolor,Ccolp=lightcolor,Crowp=lightcolor,Crowm=lightcolor;
                if (errors==1) {
-                 int n=fp->Cell(row,col);
                  int ncolm=fp->Cell(row,col-1),  ncolp=fp->Cell(row,col+1);  
                  int nrowm=fp->Cell(row-1,col),  nrowp=fp->Cell(row+1,col);  
 	         Ccolm=weakcolor; Ccolp=weakcolor; Crowp=weakcolor; Crowm=weakcolor;
@@ -1080,21 +1096,15 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
                  if (fp->tube->Gse_NS[ n ] [ nrowp ] < 0.5*Gse) Crowp=nullcolor;
                  if (fp->tube->Gse_NS[ nrowm ] [ n ] < 0.5*Gse) Crowm=nullcolor;
                }
+               if (n==0 && fp->Cell(row,col-1)==0) Ccolm=translate[0];
+               if (n==0 && fp->Cell(row,col+1)==0) Ccolp=translate[0];
+               if (n==0 && fp->Cell(row-1,col)==0) Crowm=translate[0];
+               if (n==0 && fp->Cell(row+1,col)==0) Crowp=translate[0];
                XPutPixel(spinimage,j1-1,j2+i1,Ccolm); // col-1 side
                XPutPixel(spinimage,j1+blocktop,j2+i1,Ccolp); // col+1 side
                XPutPixel(spinimage,j1+i1,j2+blocktop,Crowp); // row+1 side
                XPutPixel(spinimage,j1+i1,j2-1,Crowm); // row-1 side
 	    }
-	  }
-          if (block>4 && fp->Cell(row,col)==0) {
-            if (fp->Cell(row,col-1)==0) for (i1=0;i1<blocktop;i1++) 
-               XPutPixel(spinimage,j1-1,j2+i1,translate[0]); // col-1 side
-            if (fp->Cell(row,col+1)==0) for (i1=0;i1<blocktop;i1++) 
-               XPutPixel(spinimage,j1+blocktop,j2+i1,translate[0]); // col+1 side
-            if (fp->Cell(row+1,col)==0) for (i1=0;i1<blocktop;i1++) 
-               XPutPixel(spinimage,j1+i1,j2+blocktop,translate[0]); // row+1 side
-            if (fp->Cell(row-1,col)==0) for (i1=0;i1<blocktop;i1++) 
-               XPutPixel(spinimage,j1+i1,j2-1,translate[0]); // row-1 side
 	  }
        }
      }
@@ -1276,7 +1286,7 @@ void repaint()
 {int i=0;
  XDrawString(display,quitbutton,    gcr,0,font_height,"    quit     ",13);
  XDrawString(display,restartbutton, gcr,0,font_height,"   restart   ",13);
- XDrawString(display,cleanbutton,   gcr,0,font_height," clean/fill  ",13);
+ XDrawString(display,cleanbutton,   gcr,0,font_height,"clean/fill/Rx",13);
  XDrawString(display,samplebutton,  gcr,0,font_height,"   sample    ",13);
  XDrawString(display,flakebutton,   gcr,0,font_height,"next/big/prev",13);
  XDrawString(display,tempbutton,    gcr,0,font_height," cool   heat ",13);
@@ -1347,7 +1357,7 @@ void repaint()
        ,"right: Gmc Gse ",15); 
 
  XDrawString(display,window,gc,WINDOWWIDTH-120,WINDOWHEIGHT-5
-       ,"EW '98-'03",10); 
+       ,"EW '98-'04",10); 
 
  if (!sampling) showpic(fp,errorc); 
  else XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
@@ -1467,21 +1477,21 @@ void openwindow(int argc, char **argv)
     WINDOWWIDTH-140,WINDOWHEIGHT-124,120,20,2,black,darkcolor);
  restartbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-150,120,20,2,black,darkcolor);
- pausebutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-176,120,20,2,black,darkcolor);
  cleanbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-202,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-176,120,20,2,black,darkcolor);
  seedbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-228,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-202,120,20,2,black,darkcolor);
  fissionbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-254,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-228,120,20,2,black,darkcolor);
  tempbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-280,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-254,120,20,2,black,darkcolor);
  flakebutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-306,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-280,120,20,2,black,darkcolor);
  samplebutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-332,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-306,120,20,2,black,darkcolor);
  exportbutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-332,120,20,2,black,darkcolor);
+ pausebutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-358,120,20,2,black,darkcolor);
  colorbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-384,120,20,2,black,darkcolor);
@@ -1713,6 +1723,8 @@ int main(int argc, char **argv)
 
  // printf("tmax=%f  emax=%d  smax=%d\n",tmax,emax,smax);
 
+ if (XXX) repaint();
+
  /* loop forever, looking for events */
  while((tmax==0 || tp->t < tmax) && 
        (emax==0 || tp->events < emax) &&
@@ -1824,6 +1836,7 @@ int main(int argc, char **argv)
 	       }
 	     fission_allowed=fa; 
 	   }
+           showpic(fp,errorc); 
 	 }
         mousing=0; 
         break;
@@ -1864,12 +1877,15 @@ int main(int argc, char **argv)
              x=report.xbutton.x;
              y=report.xbutton.y;
              b=report.xbutton.button;
-             if (x<60) {  // do a clean_flake cycle
+             if (x<50) {  // do a clean_flake cycle
                printf("Cleaning 1 cycle, clean_X=%f\n",clean_X);
                clean_flake(fp,clean_X,1); 
-             } else { // do a fill_flake cycle
+             } else if (x<90) { // do a fill_flake cycle
                printf("Filling 1 cycle, fill_X=%f\n",fill_X);
                fill_flake(fp,fill_X,1); 
+	     } else {
+               printf("Repairing, uniqueness for T=%f\n",repair_unique_T);
+               repair_flake(fp,repair_unique_T,Gse); 
 	     }
              repaint();           
         } else if (report.xbutton.window==exportbutton) {
