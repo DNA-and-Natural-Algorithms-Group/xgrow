@@ -782,10 +782,12 @@ flake *choose_flake(tube *tp)
 
 /*************** the fill routine for checking connectedness ***********/
 
-/* A tile is defined to be HCONNECTED to a neighbor if they both have   */
-/* non-zero se types  (who cares what the Gse is).                      */
-/* This is hypothetical on i,j being tile n != 0.                       */
-/* CONNECTED is the non-hypothetical version.                           */
+#if 0
+ /* original (pre-Dec 29, 2003) definitions:                             */
+ /* A tile is defined to be HCONNECTED to a neighbor if they both have   */
+ /* non-zero se types  (who cares what the Gse is).                      */
+ /* This is hypothetical on i,j being tile n != 0.                       */
+ /* CONNECTED is the non-hypothetical version.                           */
 #define HCONNECTED_N(fp,i,j,n) \
     ((fp->tube->tileb)[n][0]!=0 && (fp->tube->tileb)[fp->Cell((i)-1,j)][2]!=0)
 #define HCONNECTED_E(fp,i,j,n) \
@@ -794,6 +796,18 @@ flake *choose_flake(tube *tp)
     ((fp->tube->tileb)[n][2]!=0 && (fp->tube->tileb)[fp->Cell((i)+1,j)][0]!=0)
 #define HCONNECTED_W(fp,i,j,n) \
     ((fp->tube->tileb)[n][3]!=0 && (fp->tube->tileb)[fp->Cell(i,(j)-1)][1]!=0)
+#else
+ /* new (post-Dec 29, 2003) definitions:                                 */
+ /* A tile is defined to be HCONNECTED to a neighbor if the              */
+ /* Gse of the bond between them is non-zero (regardless of how small).  */
+ /* This is hypothetical on i,j being tile n != 0.                       */
+ /* CONNECTED is the non-hypothetical version.                           */
+#define HCONNECTED_N(fp,i,j,n) (fp->tube->Gse_NS[fp->Cell((i)-1,j)][n]>0)
+#define HCONNECTED_E(fp,i,j,n) (fp->tube->Gse_EW[fp->Cell(i,(j)+1)][n]>0)
+#define HCONNECTED_S(fp,i,j,n) (fp->tube->Gse_NS[n][fp->Cell((i)+1,j)]>0)
+#define HCONNECTED_W(fp,i,j,n) (fp->tube->Gse_EW[n][fp->Cell(i,(j)-1)]>0)
+#endif
+
 #define HCONNECTED(fp,i,j,n) \
     ( HCONNECTED_N(fp,i,j,n) || HCONNECTED_E(fp,i,j,n) || \
       HCONNECTED_S(fp,i,j,n) || HCONNECTED_W(fp,i,j,n) )
@@ -956,9 +970,67 @@ int flake_fission(flake *fp, int ii, int jj)
   /* now tp->Fnext is all -1 and tp->Fgroup is all 0 */
   if (fission_allowed>0) tp->stat_f += ngroups-1;
   return (ngroups != 1); // would fission occur w/o this tile?
+} // flake_fission()
+
+
+/* Tile type n just dissociated from site i,j.  Was this safe to do?        */
+/* If we can verify that what used to be connected still must be connected, */
+/* then it is safe.                                                         */
+int locally_fission_proof(flake *fp, int i, int j, int oldn)
+{ unsigned char ringi; 
+  ringi = ((fp->Cell(i-1,j)!=0)<<7) +
+             ((CONNECTED_W(fp,i-1,j+1) && CONNECTED_S(fp,i-1,j+1))<<6) +
+          ((fp->Cell(i,j+1)!=0)<<5) +
+             ((CONNECTED_N(fp,i+1,j+1) && CONNECTED_W(fp,i+1,j+1))<<4) +
+          ((fp->Cell(i+1,j)!=0)<<3) +
+             ((CONNECTED_E(fp,i+1,j-1) && CONNECTED_N(fp,i+1,j-1))<<2) +
+          ((fp->Cell(i,j-1)!=0)<<1) +
+             ((CONNECTED_S(fp,i-1,j-1) && CONNECTED_E(fp,i-1,j-1))<<0);
+
+  // safe if neighbors form one fully connected group, w/o central tile:
+  if (ring[ringi]==1) return 1; 
+
+  // next check, a little harder: label each neighbor, and merge connected groups.
+  // if same labels regardless of whether central tile was used for merging,
+  // then we're safe again.
+
+  // This could be done a lot faster with a lookup table, but it's sufficiently
+  // rare that I'm not bothering... for now...
+
+  { int Nw=1,Nwo=1,Sw=2,Swo=2,Ew=3,Ewo=3,Ww=4,Wwo=4; 
+    int Nc=(fp->Cell(i-1,j)!=0), Sc=(fp->Cell(i+1,j)!=0), 
+        Ec=(fp->Cell(i,j+1)!=0), Wc=(fp->Cell(i,j-1)!=0), 
+      NEc=(CONNECTED_W(fp,i-1,j+1) && CONNECTED_S(fp,i-1,j+1)),
+      SEc=(CONNECTED_N(fp,i+1,j+1) && CONNECTED_W(fp,i+1,j+1)),
+      SWc=(CONNECTED_E(fp,i+1,j-1) && CONNECTED_N(fp,i+1,j-1)),
+      NWc=(CONNECTED_S(fp,i-1,j-1) && CONNECTED_E(fp,i-1,j-1));
+    int Nh=HCONNECTED_N(fp,i,j,oldn), Eh=HCONNECTED_E(fp,i,j,oldn),
+        Sh=HCONNECTED_S(fp,i,j,oldn), Wh=HCONNECTED_W(fp,i,j,oldn);
+    int changed=1;
+
+   while (changed) { changed=0;
+    if (Nc && Ec && NEc && Nwo!=Ewo) {Nwo=Ewo=MIN(Nwo,Ewo); changed=1;}
+    if (Nc && Wc && NWc && Nwo!=Wwo) {Nwo=Wwo=MIN(Nwo,Wwo); changed=1;}
+    if (Sc && Ec && SEc && Swo!=Ewo) {Swo=Ewo=MIN(Swo,Ewo); changed=1;}
+    if (Sc && Wc && SWc && Swo!=Wwo) {Swo=Wwo=MIN(Swo,Wwo); changed=1;}
+
+    if (Nc && Ec && NEc && Nw!=Ew) {Nw=Ew=MIN(Nw,Ew); changed=1;}
+    if (Nc && Wc && NWc && Nw!=Ww) {Nw=Ww=MIN(Nw,Ww); changed=1;}
+    if (Sc && Ec && SEc && Sw!=Ew) {Sw=Ew=MIN(Sw,Ew); changed=1;}
+    if (Sc && Wc && SWc && Sw!=Ww) {Sw=Ww=MIN(Sw,Ww); changed=1;}
+    if (Nc && Ec && Nh && Eh && Nw!=Ew) {Nw=Ew=MIN(Nw,Ew); changed=1;}
+    if (Nc && Wc && Nh && Wh && Nw!=Ww) {Nw=Ww=MIN(Nw,Ww); changed=1;}
+    if (Sc && Ec && Sh && Eh && Sw!=Ew) {Sw=Ew=MIN(Sw,Ew); changed=1;}
+    if (Sc && Wc && Sh && Wh && Sw!=Ww) {Sw=Ww=MIN(Sw,Ww); changed=1;}
+    if (Sc && Nc && Sh && Nh && Sw!=Nw) {Sw=Nw=MIN(Sw,Nw); changed=1;}
+    if (Ec && Wc && Eh && Wh && Ew!=Ww) {Ew=Ww=MIN(Ew,Ww); changed=1;}
+   }
+
+   if (Nw==Nwo && Sw==Swo && Ew==Ewo && Ww==Wwo) return 1;  
+  }
+
+  return 0;
 }
-
-
 
 /* remove all tiles whose off-rate is 'X' times faster than its on-rate. */
 /* repeat 'iters' times. */
@@ -983,13 +1055,13 @@ void clean_flake(flake *fp, double X, int iters)
         tp->Fgroup[i+size*j] = 0;
   }
 
-}
+} // clean_flake()
 
 /* simulates 'events' events */
 void simulate(tube *tp, int events, double tmax, int emax, int smax)
 {
   int i,j,n,oldn; double dt; flake *fp; int chunk, seedchunk[4];
-  unsigned char ringi;  double total_rate; long int emaxL;
+  double total_rate; long int emaxL;
   int size=(1<<tp->P), N=tp->N;  
 
   if (tp->flake_list==NULL) return;  /* no flakes! */
@@ -1116,7 +1188,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
         equal chance to be chosen & rejected -- this is inefficient, but 
         unless fp->empty were to be changed, we can't handle unequal tile
         concentrations. */
-       } else {
+       } else { /* reversible kTAM model */
         /* to add, must have se contact */
         if (oldn==0 && HCONNECTED(fp,i,j,n)) change_cell(fp,i,j,n);
         /* zero-bond tile additions fall off immediately;
@@ -1139,15 +1211,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	     printf("removing seed at %d, %d! chunk=%d from %d,%d\n",i,j,chunk,di[0],dj[0]);
            if (fp->Cell(i,j)>0) {  // might have been removed already by previous fission
             change_cell(fp,i,j,0);
-            ringi = ((fp->Cell(i-1,j)!=0)<<7) +
-             ((CONNECTED_W(fp,i-1,j+1) && CONNECTED_S(fp,i-1,j+1))<<6) +
-                   ((fp->Cell(i,j+1)!=0)<<5) +
-             ((CONNECTED_N(fp,i+1,j+1) && CONNECTED_W(fp,i+1,j+1))<<4) +
-                   ((fp->Cell(i+1,j)!=0)<<3) +
-             ((CONNECTED_E(fp,i+1,j-1) && CONNECTED_N(fp,i+1,j-1))<<2) +
-                   ((fp->Cell(i,j-1)!=0)<<1) +
-             ((CONNECTED_S(fp,i-1,j-1) && CONNECTED_E(fp,i-1,j-1))<<0);
-            if (ring[ringi]==0) { /* couldn't quickly confirm... */
+            if (!locally_fission_proof(fp,i,j,oldn)) { /* couldn't quickly confirm... */
               if (flake_fission(fp,i,j) && fission_allowed==0)
 		change_cell(fp,i,j,oldn); tp->stat_a--; tp->stat_d--;
                 // re-attach cell:
