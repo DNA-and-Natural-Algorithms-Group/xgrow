@@ -43,6 +43,24 @@
                strange, so I won't make it the default (yet).
             nice little boxes drawn around blocks, if blocks>4
             simulation no longer stops when event counter wraps around.
+   5/11/03  changed behavior for flakes with []'s:
+               if the flake is a single tile, then it "absorbs" no []
+               thus, an excess of single-tile flakes won't decrease the
+               free monomer concentration experienced by the other flakes.
+               coding implications: 
+                 no monomer depletion when initializing single-tile seed flakes.
+                 when dimer flakes lose a tile, *both* concentrations are restored.
+                 when monomer flake gains a tile, *both* concentrations are depleted.
+            changed seed tile behavior for rates: 
+               event for removing seed tile is always present (unless tiles==1) 
+               but it may have no effect (except to increment time)
+                 if seed can't wander.    
+               if monomer flake can't grow (because flake_conc > all seed tile conc)
+                 then seed tile type changes to a random value
+                 and this counts as a "hydrolysis" event, oddly enough
+            flake G now reports G_bonds + G_concs *including* the seed tile
+               (if wander is off, then screen display offsets for seed tile [])
+            actually fixed the simulation event counter wrap-around.
 
   TO DO List:
   * Something like "multiflakes=100@27" argument does "the right thing"
@@ -50,7 +68,13 @@
            with each seed centered in the field,
        defaults to "wander"
   * Event counter should simply have more bits!
-
+  * Should CONNECTED be true for mismatched sticky ends??
+  * In no-fission mode, one can get caught up on very fast -- but disallowed --
+    dissociations, which must be rejected.  This is not good.
+  * rubberbanding for "puncture"
+  * green dot (current value), red dot (selection cursor) for Gse/Gmc mouse choice
+  * puncture can try to erase the seed, leading to disconnected flakes... yikes!
+  * fp->G nan and other discrepencies should be tracked down.
 
   Compiling:  see makecc and makeccprof
     
@@ -202,7 +226,7 @@ void parse_arg_line(char *arg)
    if (strcmp(arg,"-nw")==0) XXX=0;
    if (strcmp(arg,"-linear")==0) linear=1;
    if (strncmp(arg,"update_rate=",12)==0) 
-      update_rate=MAX(1,MIN(atoi(&arg[12]),100000));
+      update_rate=MAX(1,MIN(atol(&arg[12]),10000000));
    if (strncmp(arg,"tracefile=",10)==0) tracefp=fopen(&arg[10], "a");
    if (strncmp(arg,"movie",5)==0) { export_mode=2; export_movie=1; }
    if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
@@ -754,7 +778,8 @@ void repaint()
                stringbuffer,strlen(stringbuffer));
  }
 
- sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",tp->t, fp->G);
+ sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",tp->t, 
+       wander ? fp->G : (fp->G+log(tp->conc[fp->seed_n])));           
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
  sprintf(stringbuffer, "%ld events (%lda,%ldd,%ldh,%ldf), %ld tiles total %s      ",
@@ -764,10 +789,11 @@ void repaint()
                stringbuffer,strlen(stringbuffer));
 
  if (1 || fp->flake_conc>0) { int tl;
- sprintf(stringbuffer, "Gfc=%4.1f; ", -log(fp->flake_conc)); 
- for (tl=1; tl<=tp->N && strlen(stringbuffer)<230; tl++)
-   sprintf(stringbuffer+strlen(stringbuffer),"Gmc(%d)=%4.1f ",
-      tl, (tp->conc[tl]>0)?-log(tp->conc[tl]):0 );
+  sprintf(stringbuffer, "Gfc=%4.1f; Gmc=[", -log(fp->flake_conc)); 
+  for (tl=1; tl<=tp->N && strlen(stringbuffer)<230; tl++)
+   sprintf(stringbuffer+strlen(stringbuffer)," %4.1f",
+      (tp->conc[tl]>0)?-log(tp->conc[tl]):0 );
+  sprintf(stringbuffer+strlen(stringbuffer)," ]");
   XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
  }
@@ -1129,6 +1155,9 @@ int main(int argc, char **argv)
  new_Gse=Gse; new_Gmc=Gmc;
  if (tracefp!=NULL) write_datalines(tracefp,"\n");
 
+
+ // printf("tmax=%f  emax=%d  smax=%d\n",tmax,emax,smax);
+
  /* loop forever, looking for events */
  while((tmax==0 || tp->t < tmax) && 
        (emax==0 || tp->events < emax) &&
@@ -1201,15 +1230,15 @@ int main(int argc, char **argv)
            Gse=new_Gse; Gmc=new_Gmc; 
            showpic(fp,errorc); 
 	 } else if (mousing==1) {
-           /* clear a region */
-	   flake *tfp=tp->flake_list; int i,j;
+           /* clear a region, i.e., "puncture" */
+	   int i,j;
              x=report.xbutton.x/block;
              y=report.xbutton.y/block;
              b=report.xbutton.button;
            if (clear_x != x && clear_y != y) {
              for (i=MIN(clear_y,y); i<MAX(clear_y,y); i++)
                for (j=MIN(clear_x,x); j<MAX(clear_x,x); j++)
-                  change_cell(tfp, (i+size)%size, (j+size)%size, 0);
+                  change_cell(fp, (i+size)%size, (j+size)%size, 0);
 	   }
 	 }
         mousing=0; 
@@ -1316,7 +1345,7 @@ int main(int argc, char **argv)
                  stringbuffer,strlen(stringbuffer));
                /* later: if down button, draw T=1/T=2 diagram */
                mousing=3; showphase();
-	     } else if (b==1) {
+	     } else if (b==1) { // "puncture"
                mousing=1; clear_x=x; clear_y=y;  /* prepare to clear a region */
 	     }
             }

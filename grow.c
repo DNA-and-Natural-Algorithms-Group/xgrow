@@ -4,6 +4,7 @@
 # include <malloc.h>
 # include <math.h>
 # include <assert.h>
+# include <limits.h>
 
 # include "grow.h"
 
@@ -247,9 +248,10 @@ void recalc_G(flake *fp)
 {
   int n,i,j,size=(1<<fp->P);  tube *tp=fp->tube;
 
-   /* don't count the seed tile concentration */
-   fp->G=log(tp->conc[fp->seed_n]);  
-   fp->mismatches=0; fp->tiles=0;
+   fp->G = 0; fp->mismatches=0; fp->tiles=0;
+   /* OLD: don't count the seed tile concentration */
+   /* NEW: count it only if 'wander' is on -- but only in the display */
+
    /* add up all tile's entropy, bond energy, and hydrolysis energy */
    /* while we're at it, make sure 'mismatches' is correct          */
    /* and re-evaluate all off-rate & hydrolysis rates               */
@@ -422,7 +424,12 @@ double calc_rates(flake *fp, int i, int j, double *rv)
   if (tp->T>0) return 0;   /* no off-rates: irreversible Tile Assembly Model */
   n = fp->Cell(i,j);
   if (n==0) return 0;                           /* no off-rate for empties   */
-  if (i==fp->seed_i && j==fp->seed_j) return 0; /* seed site doesn't go away */
+  // OLD: seed site doesn't go away, so set rate to 0.
+  // NEW: let seed tile try to go away, update time, but null-effect event 
+  //      *except* if flake is monomer, in which case we can't dissociate
+  if (i==fp->seed_i && j==fp->seed_j &&
+      fp->Cell(i-1,j)==0 && fp->Cell(i,j-1)==0 &&
+      fp->Cell(i+1,j)==0 && fp->Cell(i,j+1)==0) return 0; 
 
   r = tp->k * exp(-Gse(fp,i,j,n)); 
   if (rv!=NULL) rv[0]=r; sumr = r;
@@ -547,7 +554,7 @@ void update_tube_rates(flake *fp)
 /* we only modify cells with 0 <= i,j < (1<<fp->P)                    */
 /* but since it might be called out of range in FILL, we fix it up.   */
 /* BUG: changes in concentration should change G for every tile, but  */
-/* we don't update G; also, if conc[n]==0, nan is result.             */
+/* we don't update G automatically; also, if conc[n]==0, nan results. */
 void change_cell(flake *fp, int i, int j, unsigned char n)
 {
    int size=(1<<fp->P);  tube *tp=fp->tube; 
@@ -558,19 +565,29 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
    if (tp!=NULL) { /* flake has been added to a tube */
     if (fp->Cell(i,j)==0) {                         /* tile addition */
      if (tp->conc[n]<=fp->flake_conc) return; // conc's can't got to zero!
+     if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) return; // ditto
      fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n);   
      tp->conc[n] -= fp->flake_conc; 
      tp->conc[0] -= fp->flake_conc;
+     if (fp->tiles==1) { // monomer flakes don't deplete []; now no longer monomer!
+        tp->conc[fp->seed_n] -= fp->flake_conc; 
+        tp->conc[0]          -= fp->flake_conc;
+     }
      tp->stat_a++; fp->tiles++; 
      fp->mismatches += Mism(fp,i,j,n);
     } else if (n==0) {                              /* tile loss */
      tp->conc[0] += fp->flake_conc; 
      tp->conc[fp->Cell(i,j)] += fp->flake_conc; 
      fp->G += log(tp->conc[fp->Cell(i,j)]) + Gse(fp,i,j,fp->Cell(i,j));
+     if (fp->tiles==2) { // monomer flakes don't deplete []; just became monomer!
+        tp->conc[fp->seed_n] += fp->flake_conc; 
+        tp->conc[0]          += fp->flake_conc;
+     }
      tp->stat_d++; fp->tiles--; 
      fp->mismatches -= Mism(fp,i,j,fp->Cell(i,j));
-    } else {                                        /* tile hydrolysis */
+    } else {                               /* tile hydrolysis or replacement */
      fp->G += Gse(fp,i,j,fp->Cell(i,j)) - Gse(fp,i,j,n) +
+              log(tp->conc[fp->Cell(i,j)]) - log(tp->conc[n]) + 
               tp->Gcb[fp->Cell(i,j)] - tp->Gcb[n]; 
      tp->stat_h++; 
      /* by our rules, hydrolyzed tiles have same se types as non-hyd. */
@@ -888,19 +905,26 @@ void clean_flake(flake *fp, double X, int iters)
 /* simulates 'events' events */
 void simulate(tube *tp, int events, double tmax, int emax, int smax)
 {
-  int i,j,n,oldn; double dt; flake *fp=tp->flake_list;
+  int i,j,n,oldn; double dt; flake *fp;
   unsigned char ringi;  double total_rate; long int emaxL;
 
-  if (fp==NULL) return;  /* no flakes! */
+  if (tp->flake_list==NULL) return;  /* no flakes! */
 
-   if (tp->events + events < tp->events) {
+  //   if (tp->events + 2*events > INT_MAX) {
+   if (tp->events + 2*events > 1000000000) {
      tp->ewrapped=1; tp->events=0; 
      tp->stat_a-=tp->stat_d; tp->stat_d=0; tp->stat_h=0; tp->stat_f=0;
+     fp=tp->flake_list; 
+     while (fp!=NULL) {  
+       fp->events=0;
+       fp=fp->next_flake;
+     }
    }
 
    emaxL = (emax==0 || tp->events+events<emax)?(tp->events+events):emax;
 
    /* make sure seed tiles are in place (is this really needed?) */
+   fp=tp->flake_list; 
    while (fp!=NULL) {  
      change_cell(fp, fp->seed_i, fp->seed_j, fp->seed_n);
      fp=fp->next_flake;
@@ -918,24 +942,20 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 
      /* let the designated seed site wander around */
      /* must do this very frequently, else treadmilling would get stuck */
-     if (wander && (tp->events%10)==0) {  
-      int new_i, new_j, new_n, old_i, old_j, old_n, size=(1<<tp->P);
+     if (wander) {  
+      int new_i, new_j, new_n, size=(1<<tp->P);
       new_i = fp->seed_i-1+random()%3;
       new_j = fp->seed_j-1+random()%3;
       if (periodic  || (new_i>=0 && new_i<size && new_j>=0 && new_j<size)) {
          if (periodic) { new_i=(new_i+size)%size; new_j=(new_j+size)%size; }
          if ((new_n = fp->Cell(new_i,new_j)) != 0) { 
-	    /* OK, remove both fellows, then replace them both. */
-            /* this way, rates[] reflects that the seed can't go away. */
-            old_i=fp->seed_i; old_j=fp->seed_j; old_n=fp->seed_n;
-            change_cell(fp,old_i,old_j,0); 
-            change_cell(fp,new_i,new_j,0); 
             fp->seed_n = new_n; fp->seed_i=new_i; fp->seed_j=new_j;
-            change_cell(fp,old_i,old_j,old_n); 
-            change_cell(fp,new_i,new_j,new_n); 
-            tp->events-=4; /* don't count this bookkeeping! */
-            /* ERROR: stats are also modified!!! */
 	 }
+      }
+      // 
+      if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) {
+	change_cell(fp,fp->seed_i,fp->seed_j,(random()%tp->N)+1); 
+        fp->seed_n=fp->Cell(fp->seed_i,fp->seed_j);
       }
      }
 
@@ -949,10 +969,11 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
        else if (fp->Cell(i,j-mj)!=0) fp->seed_j=j-mj;
        else if (fp->Cell(i+mi,j)!=0) fp->seed_i=i+mi;
        else if (fp->Cell(i,j+mj)!=0) fp->seed_j=j+mj;
+       fp->seed_n=fp->Cell(fp->seed_i,fp->seed_j);
      }
      oldn = fp->Cell(i,j);
+     tp->t += dt;  // increment time whether or not seed tile event is effective
      if (i != fp->seed_i || j != fp->seed_j) { /* can't change seed tile */
-       tp->t += dt;
        if (tp->T>0) { /* irreversible Tile Assembly Model */
         if (n>0 && Gse(fp,i,j,n)>=tp->T) change_cell(fp,i,j,n);
         else { tp->stat_a++; tp->stat_d++; tp->events+=2; fp->events+=2; } 
@@ -994,10 +1015,10 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
            }
 	} 
        }
-      } else dprintf("can't move seed!\n");
-      d2printf("%d,%d -> %d\n",i,j,n);
+     } // else dprintf("can't move seed!\n"); NEW: no error, since this event exists
+     d2printf("%d,%d -> %d\n",i,j,n);
      total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
-   }
+   } // end while
 } 
 
 
