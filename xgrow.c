@@ -66,6 +66,8 @@
                e.g., {2 3 5 1}[.4](purple)
 
   TO DO List:
+  * MAKE SURE "ERR" MODE USES GREEN AND RED, EVEN IF TILE COLORS ARE SPECIFIED
+  * add debugging feature so tile # underneath pointer is identified
   * Something like "multiflakes=100@27" argument does "the right thing"
        by adding 100 flakes for each tile type, at Gfc=27+stoich,
            with each seed centered in the field,
