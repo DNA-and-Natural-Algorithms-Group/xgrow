@@ -58,6 +58,7 @@
                if monomer flake can't grow (because flake_conc > all seed tile conc)
                  then seed tile type changes to a random value
                  and this counts as a "hydrolysis" event, oddly enough
+            sampling now ignores monomer tiles if possible
             flake G now reports G_bonds + G_concs *including* the seed tile
                (if wander is off, then screen display offsets for seed tile [])
             actually fixed the simulation event counter wrap-around.
@@ -1290,15 +1291,23 @@ int main(int argc, char **argv)
 	     }
              repaint();           
         } else if (report.xbutton.window==samplebutton) {
-             flake *tfp=tp->flake_list; int n;
+             flake *tfp; int n,num_big=0;
              x=report.xbutton.x;
              y=report.xbutton.y;
              b=report.xbutton.button;
              // stop simulation if you're sampling.
              setpause(1);  sampling=1;
-             // pick a sample and add to the field
-             n = random()%tp->num_flakes;
-             for (i=0;i<n;i++) tfp=tfp->next_flake;
+             // pick a (if possible non-monomer) sample and add to the field
+	     for (tfp=tp->flake_list; tfp!=NULL; tfp=tfp->next_flake) {
+               if (tfp->tiles>1) num_big++;
+	     } 
+             n = random()%(num_big>0 ? num_big : tp->num_flakes);
+             tfp=tp->flake_list;
+             while (num_big>0 && tfp->tiles==1) { tfp=tfp->next_flake; } 
+             for (i=0;i<n;i++) {
+               tfp=tfp->next_flake;
+               while (num_big>0 && tfp->tiles==1) { tfp=tfp->next_flake; } 
+	     }
              add_sample_pic(tfp,errorc); 
              repaint(); 
         } else if (report.xbutton.window==flakebutton) { 
