@@ -108,6 +108,9 @@
      slower but still fast (compared to the full fission fill test) test that verifies
      that the local connectivity of neighbors is *unchanged* with and without the tile.
 
+   12/30/03 Added fill_cycles and fill_X to fill-in small holes after simulation.
+            Added zero_bonds option to allow accretion of tiles that "don't stick".
+
 
   TO DO List:
   
@@ -219,13 +222,13 @@ double Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc;
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
 int block=1; /* default to small blocks; calling with argument changes this */
-int wander, periodic, linear, fission_allowed; 
+int wander, periodic, linear, fission_allowed, zero_bonds_allowed; 
 FILE *tracefp, *datafp, *arrayfp, *tilefp;
 double *strength;
 double **glue;
 int N, num_bindings, tileb_length;
 int **tileb; double *stoic;
-int hydro; int clean_cycles=1; double clean_X=1.0;
+int hydro; int clean_cycles=1; double clean_X=1.0; int fill_cycles=1; double fill_X=1.0;
 double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
 char *stripe_args=NULL;
@@ -266,6 +269,8 @@ void parse_arg_line(char *arg)
    else if (strncmp(arg,"no_fission",10)==0) fission_allowed=0;
    else if (strncmp(arg,"fission",7)==0) fission_allowed=1;
    else if (strncmp(arg,"chunk_fission",13)==0) fission_allowed=2;
+   else if (strncmp(arg,"zero_bonds",10)==0) zero_bonds_allowed=1;
+   else if (strncmp(arg,"no_zero_bonds",13)==0) zero_bonds_allowed=0;
    else if (strncmp(arg,"seed=",5)==0) {
       char *p=(&arg[5]);
       seed_i=atoi(p);
@@ -308,6 +313,8 @@ void parse_arg_line(char *arg)
    else if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
    else if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
    else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
+   else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[13]);
+   else if (strncmp(arg,"fill_X=",7)==0) fill_X=atof(&arg[8]);
    else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
    else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
    else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
@@ -505,8 +512,10 @@ void getargs(int argc, char **argv)
    printf("  stripe=o[:p,w]*       width w stripe with p errors, offset o\n");
    printf("  wander                wandering `seed' designation\n");
    printf("  fission               can tile be removed if two flakes result?\n");
-   printf("  no_fission             the answer is no\n");
+   printf("  no_fission             the answer is no [default]\n");
    printf("  chunk_fission         allow pairs & 2x2 blocks to dissociate as one (implies fission)\n");
+   printf("  zero_bonds            can tiles be added if they bond with 0 strength?\n");
+   printf("  no_zero_bonds          the answer is no [default]\n");
    printf("  periodic              periodic boundary conditions\n");
    printf("  -linear               simulate linear A B tiles, write errs > stdout \n");
    printf("  -nw                   no X window (only if ?max set)\n");
@@ -519,6 +528,9 @@ void getargs(int argc, char **argv)
    printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles?\n"
 	  "                        [default=1]\n");
    printf("  clean_X=              for cleaning, minimal ratio of off-rate to on-rate [default=1.0]\n");
+   printf("  fill_cycles=          at end, add how many layers of strongly attached tiles?\n"
+	  "                        [default=1]\n");
+   printf("  fill_X=               for filling, minimal ratio of off-rate to on-rate [default=1.0]\n");
    printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events, perimeter, dG, dG_bonds\n");
    printf("  arrayfile=            output MATLAB-format flake array information on exit (after cleaning)\n");
    printf("  exportfile=           on-request output of MATLAB-format flake array information\n");
@@ -529,7 +541,7 @@ void getargs(int argc, char **argv)
  }
 
  tmax=0; emax=0; smax=0;
- wander=0; periodic=0; linear=0; fission_allowed=0; 
+ wander=0; periodic=0; linear=0; fission_allowed=0; zero_bonds_allowed=0;
  Gfc=0; datafp=NULL; arrayfp=NULL; 
  Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
  Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
@@ -917,6 +929,10 @@ void closeargs()
   // cleans all flakes  (removes "temporary" tiles on growth edge)
   for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
     clean_flake(fpp,clean_X,clean_cycles); 
+
+  // fills in all flakes  (adds tiles in holes or on growth edge that "ought" to be there)
+  for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
+    fill_flake(fpp,fill_X,fill_cycles); 
 
   /* output information for *all* flakes */
   if (datafp!=NULL) {

@@ -1032,11 +1032,13 @@ int locally_fission_proof(flake *fp, int i, int j, int oldn)
   return 0;
 }
 
-/* remove all tiles whose off-rate is 'X' times faster than its on-rate. */
+/* remove all tiles whose off-rate more than is 'X' times faster than its on-rate. */
+/* (these are calculated for individual tiles only; chunk_fission has no effect.) */
 /* repeat 'iters' times. */
+/* WARNING: could remove tiles that leave the flake disconnected! */
 void clean_flake(flake *fp, double X, int iters)
 {
-  int i,j; double kc;  tube *tp=fp->tube;
+  int i,j,n; double kc;  tube *tp=fp->tube;
   int size = (1<<fp->P); int it;
 
   kc = tp->k*tp->conc[0]; /* on-rate */
@@ -1044,9 +1046,10 @@ void clean_flake(flake *fp, double X, int iters)
   /* first memorize, then remove, to avoid changing rates during removal */
   for (it=0; it<iters; it++) {
     for (i=0; i<size; i++)
-      for (j=0; j<size; j++)
-        tp->Fgroup[i+size*j] = 
-          (fp->rate[fp->P][i][j] > X * tp->k * tp->conc[fp->Cell(i,j)]);
+      for (j=0; j<size; j++) {
+        n = fp->Cell(i,j);
+        tp->Fgroup[i+size*j] = (exp(-Gse(fp,i,j,n)) > X * tp->conc[n]);
+      }
     for (i=0; i<size; i++)
       for (j=0; j<size; j++)
         if (tp->Fgroup[i+size*j]) change_cell(fp, i, j, 0);
@@ -1056,6 +1059,39 @@ void clean_flake(flake *fp, double X, int iters)
   }
 
 } // clean_flake()
+
+/* add tiles whose off-rate less than 'X' times faster than its on-rate. */
+/* (these are calculated for individual tiles only; chunk_fission has no effect.) */
+/* repeat 'iters' times. */
+void fill_flake(flake *fp, double X, int iters)
+{
+  int i,j,n; double secure, most_secure; double kc;  tube *tp=fp->tube;
+  int size = (1<<fp->P); int it;
+
+  kc = tp->k*tp->conc[0]; /* on-rate */
+
+  /* first memorize, then add, to avoid changing rates during removal */
+  for (it=0; it<iters; it++) {
+    for (i=0; i<size; i++)
+      for (j=0; j<size; j++) {
+        tp->Fgroup[i+size*j] = 0; most_secure=0;
+        if (fp->Cell(i,j)==0) for (n=1; n<=fp->N; n++) {
+          secure = (exp(-Gse(fp,i,j,n)) - X * tp->conc[n]);
+          if (secure<most_secure) { 
+            tp->Fgroup[i+size*j] = n; most_secure=secure;
+	  }
+	}
+            
+      }
+    for (i=0; i<size; i++)
+      for (j=0; j<size; j++)
+        if (tp->Fgroup[i+size*j]) change_cell(fp, i, j, tp->Fgroup[i+size*j]);
+    for (i=0; i<size; i++)
+      for (j=0; j<size; j++)
+        tp->Fgroup[i+size*j] = 0;
+  }
+
+} // fill_flake()
 
 /* simulates 'events' events */
 void simulate(tube *tp, int events, double tmax, int emax, int smax)
@@ -1189,13 +1225,17 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
         unless fp->empty were to be changed, we can't handle unequal tile
         concentrations. */
        } else { /* reversible kTAM model */
-        /* to add, must have se contact */
-        if (oldn==0 && HCONNECTED(fp,i,j,n)) change_cell(fp,i,j,n);
-        /* zero-bond tile additions fall off immediately;
-           count them or else, if there are lots, the display
-           can be super-slow! */
-        if (oldn==0 && ~HCONNECTED(fp,i,j,n)) 
-           { tp->stat_a++; tp->stat_d++; tp->events+=2; fp->events+=2; } 
+	if (zero_bonds_allowed==0) {
+          /* to add, must have se contact */
+          if (oldn==0 && HCONNECTED(fp,i,j,n)) change_cell(fp,i,j,n);
+          /* zero-bond tile additions fall off immediately;
+             count them or else, if there are lots, the display
+             can be super-slow! */
+          if (oldn==0 && ~HCONNECTED(fp,i,j,n)) 
+             { tp->stat_a++; tp->stat_d++; tp->events+=2; fp->events+=2; } 
+	} 
+          else if (oldn==0) change_cell(fp,i,j,n);
+
         /* hydrolysis happens here */
         if (oldn>0 && n>0) change_cell(fp,i,j,n);
         if (n==0) {  /* dissociation: check connectedness */
@@ -1227,7 +1267,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
      d2printf("%d,%d -> %d\n",i,j,n);
      total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
    } // end while
-} 
+} // simulate
 
 
 /* for testing analytic solution to 2-tile 1D polymerization */
@@ -1268,4 +1308,4 @@ void linear_simulate(double ratek, double Gmc, double Gse,
        Gmc,Gse,ratek, t, s, errs, e);
 
    free(tile);
-}
+} // linear_simulate

@@ -175,6 +175,7 @@ typedef struct tube_struct {
 extern int periodic;    /* simulation on torus */
 extern int wander;      /* of seed tile designation */
 extern int fission_allowed; /* allow dissociation that breaks flake in two? */
+extern int zero_bonds_allowed; /* allow association of tiles that make only 0 strength bonds to flake? */
 
 tube *init_tube(unsigned char P, unsigned char N, int num_bindings);
 flake *init_flake(unsigned char P, unsigned char N,
@@ -184,6 +185,7 @@ void free_tube(tube *tp);
 void insert_flake(flake *fp, tube *tp);
 void print_tree(flake_tree *ftp, int L, char s);
 void clean_flake(flake *fp, double X, int iters);
+void fill_flake(flake *fp, double X, int iters);
 void set_params(tube *tp, int** tileb, double* strength, double **glue, 
  double* stoic,int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
