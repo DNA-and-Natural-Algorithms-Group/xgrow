@@ -130,10 +130,20 @@
             get cleaned up well, but I'd still call this a BUG.)   Also, since only interior holes
             get filled in, any error that stalls growth or leaves an inlet will not get counted.
             Also added command-line "pause", primarily for examining saved files w/o starting simulator.
+    2/25/04 Fixed bug in locally_fission_proof() call when chunk_fission is set. 
+            (Sometimes bogus value resulted in non-fission when fission should have occurred.)
 
 
   TO DO List:
   
+  * option for chunk_fission, but disallowing larger flake_fission events, would be desirable, so
+    as to have a simulation in detailed balance.
+  * for the same reason, we'd need a chunk_fusion option -- calculates equilibrium concentrations
+    for all dimers & 2x2 blocks, and adds these as on-event options.  total on-rate would include
+    these; in circumstances where they can't occur, result would just be a non-event.  There are 
+    so many 2x2 blocks, we'd need a binary tree to efficiently select one. (Not a bad idea for
+    large tile sets, even w/o chunks.)  To avoid non-events, we could have 4 "empty" arrays, one
+    for each size.  This would be a significant change to the code.
   * Mism() and errortile()
     ought to be redefined to be sensible for g() type glues implementing complementary
     (rather than self-complementary) sticky ends.  E.g., precalculate bestmatch[bond_type]
