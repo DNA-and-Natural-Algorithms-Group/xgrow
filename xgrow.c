@@ -170,12 +170,16 @@ int hydro; int clean_cycles=1; double clean_X=1.0;
 double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
 char *stripe_args=NULL;
-int XXX=1;
+int XXX=1;  /* If 1, draw the simulation, otherwise don't.  (as inferred from the effect of -nw)*/
+int import; /* Are we importing flakes? */
+int import_flake_size = 0;
 
 struct flake_param {
-  int seed_i,seed_j,seed_n,N; double Gfc; struct flake_param *next_param;
+  int seed_i,seed_j,seed_n,N; double Gfc; FILE *import_from;  struct flake_param *next_param;
 };
 struct flake_param *fparam=NULL, *fprm; 
+
+int count_flakes(FILE *flake_file);
 
 void parse_arg_line(char *arg)
 {
@@ -213,6 +217,7 @@ void parse_arg_line(char *arg)
       char *p=(&arg[10]);
       fprm = (struct flake_param *)malloc(sizeof(struct flake_param)); 
       fprm->seed_i=fprm->seed_j=130; fprm->seed_n=1; fprm->N=1; fprm->Gfc=0;
+      fprm->import_from=NULL;
       fprm->next_param=fparam;
       fparam=fprm;
       fparam->seed_i=atoi(p);
@@ -245,6 +250,43 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
    if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
    if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
+   if (strncmp(arg,"importfile",10)==0)
+     {
+       char *p=(&arg[11]);
+       FILE *import_fp;
+       import = 1;
+       fprm = (struct flake_param *)malloc(sizeof(struct flake_param));
+       fprm->seed_i = fprm->seed_j = 130;
+       fprm->seed_n = 1;
+       fprm->N = 1;
+       fprm->Gfc=0;
+       fprm->import_from=NULL;
+       fprm->next_param = fparam;
+       fparam = fprm;
+       /*
+	* Need to figure out seed_i and seed_j after loading in the cells.
+	* Randomly choose spots from the smallest flake until we find a tile
+	* that is present in each flake.
+	*/
+       fparam->seed_i = fparam->seed_j = size / 2;
+       fparam->seed_n = 1;
+       if (strncmp(arg,"importfile=",11)==0)
+	 import_fp = fopen(strtok(p,"@"), "r");
+       else
+	 import_fp = fopen("xgrow_export_output", "r");
+       /* If the file does not exist. */
+       if (import_fp == NULL) 
+	 {
+	   fprintf(stderr, "Error: Import file not found.\n");
+	   exit(-1);
+	 }
+       fparam->import_from = import_fp;
+       if ((p = strtok(NULL, "@")) != NULL)
+	 fparam->Gfc=atof(p);
+       else
+	 fparam->Gfc=0;
+       fparam->N = count_flakes(import_fp);
+     }
 }
 
 #define rsc read_skip_comment(tilefp)
@@ -287,6 +329,7 @@ void read_tilefile(FILE *tilefp)
  for (i=1;i<units_length;i++) {
    units[i] = (int*) calloc(sizeof(int),4);
    fscanf(tilefp,"{"); 
+   /* read in the four binding types {N E S W} */
    for (j=0;j<4;j++) {
      fscanf(tilefp,"%d",&units[i][j]);
    }
@@ -326,7 +369,7 @@ void getargs(int argc, char **argv)
  gettimeofday(&tv, NULL); srand48(tv.tv_usec); srandom(tv.tv_usec);
 
  if (sizeof(long) != 4) {
-   printf("sizeof long (%d) should be 4\n", sizeof(long int));
+   printf("Error: sizeof long (%d) should be 4\n", sizeof(long int));
    exit(-1);
  }
 
@@ -365,12 +408,15 @@ void getargs(int argc, char **argv)
    printf("  tmax=                 quit after time t has passed\n");
    printf("  emax=                 quit after e events have occurred\n");
    printf("  smax=                 quit when the fragment is size s\n");
-   printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles? [default=1]\n");
+   printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles?\n"
+	  "                        [default=1]\n");
    printf("  clean_X=              for cleaning, minimal ratio of off-rate to on-rate [default=1.0]\n");
    printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events, perimeter, dG, dG_bonds\n");
    printf("  arrayfile=            output MATLAB-format flake array information on exit (after cleaning)\n");
    printf("  exportfile=           on-request output of MATLAB-format flake array information\n");
    printf("                        [defaults to 'xgrow_export_output']\n");
+   printf("  importfile=FILENAME   import all flakes from FILENAME.\n");
+   printf("  importfile            import all flakes from xgrow_export_output.\n");
    exit (0);
  }
 
@@ -435,24 +481,23 @@ void getargs(int argc, char **argv)
    printf(" Starting simulation (1st seed=%d,%d,%d) on %d x %d board.\n",
 	  seed_i, seed_j, seed_n, size, size);
  }
-
  
 }
 
 void write_datalines(FILE *out, char *text)
 { flake *fpp; int perimeter; double dG_bonds;  
-
-    for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
-     if (strcmp(text,"")==0) fpp=fp;
-     perimeter=calc_perimeter(fpp);
-     dG_bonds = calc_dG_bonds(fpp);
-     if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
-       Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
-     fprintf(out, " %f %f %f %f %d %d %ld %d %f %f%s",
-       Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events,
-       perimeter, fpp->G, dG_bonds,text);
-     if (strcmp(text,"")==0) break;
-    }
+ 
+ for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
+   if (strcmp(text,"")==0) fpp=fp;
+   perimeter=calc_perimeter(fpp);
+   dG_bonds = calc_dG_bonds(fpp);
+   if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
+			  Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
+   fprintf(out, " %f %f %f %f %d %d %ld %d %f %f%s",
+	   Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events,
+	   perimeter, fpp->G, dG_bonds,text);
+   if (strcmp(text,"")==0) break;
+ }
 }
 
 
@@ -482,6 +527,276 @@ void export_flake(char *mode, flake *fp)
 {
   if (export_fp==NULL) export_fp=fopen("xgrow_export_output","a+");
   write_flake(export_fp, mode, fp);
+}
+
+
+/*
+ * Count the number of flakes in an exported file.
+ * Doesn't actually count the number of flakes, it just watches
+ * the flake number and returns the last one it finds.
+ */
+int count_flakes(FILE *flake_file)
+{
+  int n, i, flake_size, row, garbage, end;
+  /*
+   * This assumes the parameters (which we want to ignore)
+   * are less than 20 charaters long (Overkill.  14 should be enough)
+   */
+  char line[20]; 
+  flake_size = 0;
+
+  /* Run through once to make sure the flakes are the right size. */
+  
+  fscanf(flake_file, "\nflake{%d}={ ...\n[", &n);
+
+  /* For debugging */
+/*    printf("flake number: %d\n", n); */
+
+  /* Run through the parameters, waiting for ],... to appear twice. */
+  for(i = 0; i < 2; i++)
+    {
+      while (1)
+	{
+	  fscanf(flake_file, "%s", line);
+	  if (strcmp(line, "],...")==0)
+	    break;
+	}
+    }
+  
+  /* Read in the '[' */
+  fscanf(flake_file, "%s", line);
+
+  while (1)
+    {
+      fscanf(flake_file, "%s", line);
+      /*      printf("Just read in loop: %s\n", line); */
+      if (strcmp(line, "...")==0) /* then we've reached the end of the line */
+	{
+	  break;
+	}
+      else
+	flake_size++;
+    }
+  
+  if (flake_size > import_flake_size)
+    import_flake_size = flake_size;
+  
+  /*
+   * Now finish processing the first flake.
+   */
+
+  for(row = 2; row <= flake_size; row++)
+    {
+/*        fprintf(stderr, "Now on row: %d\n", row); */
+      for(i = 0; i <= flake_size; i++)
+	{
+	  fscanf(flake_file, "%d", &garbage);
+	  /*	  fprintf(stderr, "%d:%d ", i, garbage); */
+	}
+      fscanf(flake_file, "%s", line);
+      /* Make sure that we've actually read the end of line. */
+      if(strcmp(";", line) != 0)
+	{
+	  fprintf(stderr, "Error parsing input file. Expected ';' but read '%s'\n", line);
+	  exit(-1);
+	}
+      fscanf(flake_file, "%s", line);
+      if(strcmp("...", line) != 0)
+	{
+	  fprintf(stderr, "Error parsing input file. Expected '...' but read '%s'\n", line);
+	  exit(-1);
+	}
+    }
+  
+  row--; /* stupid off by one things. */
+
+  if(row != flake_size)
+    {
+      fprintf(stderr, "Error: Flake dimensions do not match.\n%d rows and "
+	      "%d columns\n", row, flake_size);
+      exit(-1);
+    }
+  
+  fscanf(flake_file, "%s", line);
+  assert(strcmp(line, "]")==0);
+  fscanf(flake_file, "%s", line);
+  assert(strcmp(line, "};")==0);
+    
+  /* Watch for end of file as well as find the next flake number. */
+  end = fscanf(flake_file, "\nflake{%d}={ ...\n[", &n);
+  
+  /* Now go through the rest of the file. */
+  while (end)
+    {
+      /* For debugging */
+/*        printf("Flake number: %d\n", n); */
+      
+      /* Run through the parameters, waiting for ],... to appear twice. */
+      for(i = 0; i < 2; i++)
+	{
+	  while (1)
+	    {
+	      fscanf(flake_file, "%s", line);
+	      if (strcmp(line, "],...")==0)
+		break;
+	    }
+	}
+      
+      fscanf(flake_file, "%s", line);
+      assert(strcmp(line, "[")==0);
+      for(row = 1; row <= flake_size; row++)
+	{
+	  for(i = 0; i < flake_size; i++)
+	    {
+	      fscanf(flake_file, "%s", line);
+	    }
+	  fscanf(flake_file, "%s", line);
+	  assert(strcmp("...", line)==0);
+	} 
+      
+      fscanf(flake_file, "%s", line);
+      assert(strcmp("]", line)==0);
+      fscanf(flake_file, "%s", line);
+      assert(strcmp("};", line)==0);
+
+      /* Watch for end of file as well as find the next flake number. */
+      end = fscanf(flake_file, "\nflake{%d}={ ...\n[", &n);
+    } /* end while */
+
+  fprintf(stderr, "Found %d flakes\n", n);
+  
+  return n;
+}
+
+
+/* Import flakes */
+/*
+ * Import flake data for flake n from the file and store it into
+ * flake fp, then recalc_g at the end.  If there is no corresponding flake
+ * in the file, it doesn't modify the flake.
+ */
+void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
+{
+  fpos_t flake_start;
+  int tile_type, read_flake_number, translate, i, j, end, flake_size, seed_set;
+  char line[20];
+  seed_set = flake_size = 0;
+  
+  /* Just to be sure. */
+  rewind(flake_file);
+
+  /* Find the flake we want. */
+  fscanf(flake_file, "\nflake{%d}={ ...\n[", &read_flake_number);
+
+  while (read_flake_number!=flake_number)
+    {
+      /* Skip through the parameters, waiting for ],... to appear twice. */
+      for(i = 0; i < 2; i++)
+	{
+	  while (1)
+	    {
+	      /* Assumes the parameters are terminated by '],...' */
+	      if (fscanf(flake_file, "%s", line)==0)
+		{
+		  fprintf(stderr,"Error: Expected ],... at end of parameters.\n");
+		  exit(-1);
+		}
+	      if (strcmp(line, "],...")==0)
+		break;
+	    }
+	}
+      
+      /* Skip through the data for this flake */
+      while(1)
+	{
+	  if (fscanf(flake_file, "%s", line)==0)
+	    {
+	      fprintf(stderr,"Error: Expected }; at end of data.");
+	      exit(-1);
+	    }
+	  if (strcmp(line, "};")==0)
+	    break;
+	}
+      
+      end = fscanf(flake_file, "\n\nflake{%d}={", &read_flake_number);
+
+      if (!end)
+	{
+	  fprintf(stderr, "Flake %d not found in file.\n", flake_number);
+	  return;
+	}
+    }
+
+  /* Skip through the parameters, waiting for ],... to appear twice. */
+  for(i = 0; i < 2; i++)
+    {
+      while (1)
+	{
+	  fscanf(flake_file, "%s", line);
+	  if (strcmp(line, "],...")==0)
+	    break;
+	}
+    }
+  /* Read in the starting '[' */
+  fscanf(flake_file, "%s", line);
+  assert(strcmp("[", line)==0);
+
+  /*
+   * Save the current position in the file stream so that we can
+   * import data values after calculating the size of the import
+   * flake.
+   */
+  fgetpos(flake_file, &flake_start);
+
+  /* Find the width of the flake. */
+  while (1)
+    {
+      fscanf(flake_file, "%s", line);
+      if (strcmp(line, "...")==0)
+	  break;
+      else
+	  flake_size++;
+    }
+  
+  /* Go back to the starting point. */
+  fsetpos(flake_file, &flake_start);
+
+  /*
+   * We want to import the flake into the middle of the empty flake, so
+   * calculate how much we need to translate every cell by.
+   */
+  translate = (size - flake_size) / 2;
+  
+  for (i = 0; i < flake_size; i++)
+    {
+      for (j = 0; j < (flake_size - 1); j++)
+	{
+	  fscanf(flake_file, "%d", &tile_type);
+	  change_cell(current_flake, translate + i, translate + j, tile_type);
+	}
+      fscanf(flake_file, "%d;", &tile_type);
+      change_cell(current_flake, translate + i, translate + j, tile_type);
+
+      fscanf(flake_file, "%s", line);
+      assert(strcmp(line, "...")==0);
+    }
+
+  /* Now choose a random active cell and set it as the flake's seed. */
+  srand(time(0));
+  i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate;
+  j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate;
+  while ((current_flake->Cell(i,j)) == 0)
+    {
+      i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate;
+      j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate;
+    }
+  current_flake->seed_i = i;
+  current_flake->seed_j = j;
+  current_flake->seed_n = current_flake->Cell(i,j);
+  
+/*    fprintf(stderr, "Just set seed for flake %d to (%d,%d), tile type %d\n", flake_number, i, j, current_flake->Cell(i,j)); */
+  
+  recalc_G(fp);
 }
 
 
@@ -783,7 +1098,7 @@ void repaint()
                Gmc,Gse,ratek,T/Gse);
  else 
    sprintf(stringbuffer,"Gmc=%4.1f  Gse=%4.1f  k=%6.0f   ",
-               Gmc,Gse,ratek);
+	   Gmc,Gse,ratek);
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
@@ -1068,10 +1383,17 @@ int main(int argc, char **argv)
  progname=argv[0];
 
  for (i=0;i<MAXTILETYPES;i++) {
-   translate[i]=0;
+   translate[i]=0; /* translate[] from tiles to colors */
  }
 
  getargs(argc, argv);
+
+ if (import_flake_size > size)
+   {
+     fprintf(stderr, "Error: The input flake size is larger than the "
+	     "simulation flake size.\n");
+     exit(-1);
+   }
 
  if (hydro) { /* automatically double the number of tiles */
    units=(int**) realloc(units,sizeof(int*)*(2*N+1));
@@ -1091,7 +1413,7 @@ int main(int argc, char **argv)
 
  if (XXX) openwindow(argc,argv);
 
- // printf("xgrow: tile set read, beginning simulation\n"); 
+ /* printf("xgrow: tile set read, beginning simulation\n"); */
  
    /* set initial state */
    tp = init_tube(size_P,N,num_bindings);   
@@ -1099,15 +1421,25 @@ int main(int argc, char **argv)
           Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
 
    fprm=fparam;
-   while (fprm!=NULL) {
-     int fn;
-     for (fn=0; fn<fprm->N; fn++) {
-       insert_flake(fp=init_flake(size_P,N,
-            fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp); 
+
+   /* initialize flakes */
+   while (fprm!=NULL)
+     {
+       int fn;
+       for (fn=1; fn <= fprm->N; fn++)
+	 {
+	   insert_flake(fp=init_flake(size_P,N,
+				      fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp);
+	   
+	   if (fprm->import_from != NULL)
+	     {
+  	       fprintf(stderr, "WARNING: In imported flakes, the seed position is chosen randomly.\n");
+	       import_flake(fp, fprm->import_from, fn);
+	     }
+	 }
+       fprm=fprm->next_param;
      }
-     fprm=fprm->next_param;
-   } 
-  
+
    //   print_tree(tp->flake_tree,0,'*'); 
   
    if (stripe_args!=NULL) {

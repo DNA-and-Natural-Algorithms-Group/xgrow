@@ -365,6 +365,7 @@ void insert_flake(flake *fp, tube *tp)
   rate  = fp->rate[0][0][0];
   empty = fp->empty[0][0][0];
 
+  /* If the flake_tree is empty, make the root. */
   if (tp->flake_tree==NULL) {
     ftp = (flake_tree *)malloc(sizeof(flake_tree));
     ftp->left=ftp->right=NULL; ftp->fp=fp; ftp->up=NULL;
