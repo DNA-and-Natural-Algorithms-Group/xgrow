@@ -112,6 +112,8 @@ typedef struct flake_struct {
   unsigned char seed_n; 
   long int events;     /* total on, off, hydrolysis events in this flake   */
   int tiles;           /* total number of tiles in this flake              */
+  int seed_is_double_tile;  /* If the seed is a double tile, it will be a monomer,
+				but the number of tiles will be reported as 2.  */
   int mismatches;      /* number of se edges that don't agree              */
   struct flake_struct *next_flake;  /* for NULL-terminated linked list     */
   struct flake_tree_struct *tree_node;  /* for tree of flakes              */
@@ -132,7 +134,14 @@ typedef struct tube_struct {
   double **glue;       /* A generalized version of the strength function:
 			  The level of "glue" between various bond types   */
   int num_bindings;    /* length of strength */
-  
+  int *dt_right;     /* The right half of a double tile.  
+			If it doesn't have one, or the tile is the  
+			left half of a double tile, the value 
+			here is 0 */
+  int *dt_left;     /* The left half of a double tile.  
+			If it doesn't have one, or the tile is the  
+			right half of a double tile, the value 
+			here is 0 */
   unsigned char N, P;  /* # non-empty tile types; 2^P active cell grid     */
 
   int num_flakes;      /* how many flakes do we have here?                 */
@@ -194,7 +203,7 @@ void fill_flake(flake *fp, double X, int iters);
 void error_radius_flake(flake *fp, double rad);
 void repair_flake(flake *fp, double T, double Gse);
 void set_params(tube *tp, int** tileb, double* strength, double **glue, 
- double* stoic,int hydro, double k, double Gmc, double Gse,
+ double* stoic, int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao, double T);
 void reset_params(tube *tp, double old_Gmc, double old_Gse,
