@@ -130,6 +130,7 @@ typedef struct tube_struct {
   long int events;     /* cumulative number of events                      */
   long int stat_a,stat_d,/* tally of number of association, dissociation,  */
       stat_h,stat_f;   /* "hydrolysis", and "fission" events               */
+  int ewrapped;        /* has the event counter wrapped around?            */
   double *rv;          /* scratch space, size fp->N+1                      */
   int *Fnext, *Fgroup; /* size x size array for fill scratch space         */
 } tube;          

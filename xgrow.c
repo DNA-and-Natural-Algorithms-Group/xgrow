@@ -42,12 +42,14 @@
                although 'wander' is the "right" model, it sometimes looks
                strange, so I won't make it the default (yet).
             nice little boxes drawn around blocks, if blocks>4
+            simulation no longer stops when event counter wraps around.
 
   TO DO List:
   * Something like "multiflakes=100@27" argument does "the right thing"
        by adding 100 flakes for each tile type, at Gfc=27+stoich,
            with each seed centered in the field,
        defaults to "wander"
+  * Event counter should simply have more bits!
 
 
   Compiling:  see makecc and makeccprof
@@ -755,9 +757,9 @@ void repaint()
  sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",tp->t, fp->G);
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
- sprintf(stringbuffer, "%ld events (%lda,%ldd,%ldh,%ldf), %ld tiles total       ",
+ sprintf(stringbuffer, "%ld events (%lda,%ldd,%ldh,%ldf), %ld tiles total %s      ",
         tp->events, tp->stat_a, tp->stat_d, tp->stat_h, tp->stat_f,
-        tp->stat_a-tp->stat_d+tp->num_flakes);
+        tp->stat_a-tp->stat_d+tp->num_flakes, tp->ewrapped?"[wrapped]":"");
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
@@ -779,6 +781,8 @@ void repaint()
        ,"EW '98-'02",10); 
 
  if (!sampling) showpic(fp,errorc); 
+ else XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
+
 }
  
 /* a lot of this is taken from the basicwin program in the
@@ -1129,6 +1133,7 @@ int main(int argc, char **argv)
  while((tmax==0 || tp->t < tmax) && 
        (emax==0 || tp->events < emax) &&
        (smax==0 || tp->stat_a-tp->stat_d < smax)) { 
+
    if (!XXX) {
      simulate(tp,update_rate,tmax,emax,smax);
      if (tracefp!=NULL) write_datalines(tracefp,"\n");

@@ -142,7 +142,7 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
   for (n=0;n<N+1;n++) tp->Gse_NS[n]=(double *)calloc(sizeof(double),N+1);
   for (n=0;n<N+1;n++) for (m=0;m<N+1;m++) tp->Gse_NS[n][m]=0;
 
-  tp->events=0; tp->t=0;
+  tp->events=0; tp->t=0; tp->ewrapped=0;
   tp->stat_a=tp->stat_d=tp->stat_h=tp->stat_f=0;
 
   tp->rv  = (double *)calloc(sizeof(double),N+1);
@@ -892,6 +892,11 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
   unsigned char ringi;  double total_rate; long int emaxL;
 
   if (fp==NULL) return;  /* no flakes! */
+
+   if (tp->events + events < tp->events) {
+     tp->ewrapped=1; tp->events=0; 
+     tp->stat_a-=tp->stat_d; tp->stat_d=0; tp->stat_h=0; tp->stat_f=0;
+   }
 
    emaxL = (emax==0 || tp->events+events<emax)?(tp->events+events):emax;
 
