@@ -124,7 +124,7 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"block=",6)==0) 
      block=MAX(1,MIN(30,atoi(&arg[6])));
    if (strncmp(arg,"size=",5)==0) 
-     size=MAX(32,MIN(512,atoi(&arg[5])));
+     size=MAX(32,MIN(4096,atoi(&arg[5])));
    if (strncmp(arg,"rand=",5)==0) 
      { srand48(atoi(&arg[5])); srandom(atoi(&arg[5])); }
    if (strncmp(arg,"k=",2)==0) ratek=atof(&arg[2]);
@@ -250,6 +250,7 @@ void getargs(int argc, char **argv)
    printf("  block=  display block size, 1...10\n");
    printf("  size=   field side length (power-of-two) [default 256]\n");
    printf("  rand=   random number seed\n");
+   printf("  T=      threshold T (relative to Gse) for irreversible Tile Assembly Model\n");
    printf("  k=      hybridization rate constant (/sec)\n");
    printf("  Gmc=    initiation free energy  (units kT)\n");
    printf("  Gse=    interaction free energy per binding\n");
@@ -262,7 +263,6 @@ void getargs(int argc, char **argv)
    printf("  Gah=    activation energy for hydrolyzed neighbors\n");
    printf("  Gao=    delta a. e. for output vs input-triggers hydrolysis\n");
    printf("  Gfc=    log concentration of flakes (otherwise no depletion)\n");
-   printf("  T=      threshold T (relative to Gse) for irreversible Tile Assembly Model\n");
 /* printf("  anneal=g/t            anneal Gse to g with time constant t\n"); */
    printf("  seed=i,j,n            seed tile type n at position i,j\n");
    printf("  addflakes=i,j,n:N@Gfc simulate N separate flakes\n");
@@ -275,8 +275,8 @@ void getargs(int argc, char **argv)
    printf("  tmax=                 quit after time t has passed\n");
    printf("  emax=                 quit after e events have occurred\n");
    printf("  smax=                 quit when the fragment is size s\n");
-   printf("  datafile=             append Gmc, Gse, time, size, #mismatched se\n");
-   printf("  arrayfile=            output matrix of final tiles\n");
+   printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events\n");
+   printf("  arrayfile=            output matrix of final tiles (after cleaning)\n");
    exit (0);
  }
 
@@ -301,7 +301,10 @@ void getargs(int argc, char **argv)
 
  for (size_P=5; (1<<size_P)<size; size_P++);
  size=(1<<size_P); 
- if (size*block > 1024) block=1024/size;
+ if (XXX) {
+   if (size*block > 800) block=800/size;
+   if (block==0) { size=512; block=1; }
+ }
  while (seed_i>=size) seed_i/=2;
  while (seed_j>=size) seed_j/=2;
 
@@ -552,6 +555,7 @@ void openwindow(int argc, char **argv)
     progname,XDisplayName(display_name));
    exit(-1);
   }
+
  screen=DefaultScreen(display);
  depth=DefaultDepth(display,screen);
  cmap=DefaultColormap(display,screen);
@@ -736,6 +740,8 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
        }
      }
  
+  /* BUG: if real screen is smaller than requested display, */
+  /*      then this command causes a core dump.             */
   spinimage=XGetImage((Display *) display, (Drawable) playground,
             0,0,block*NCOLS,block*NROWS,
             AllPlanes,ZPixmap);

@@ -36,6 +36,12 @@ xgrow binary.tile Gse=11 Gmc=21.8 block=10 seed=130,130,1
 xgrow binary.tile Gse=15 Gmc=29 block=10 seed=130,130,1
 xgrow binary.tile T=2
 
+% unseeded growth (compare different seeds)
+
+xgrow unary.tile T=2 addflakes=10,10,1:1@0 addflakes=10,15,2:1@0 addflakes=10,20,3:1@0 addflakes=15,10,4:1@0 addflakes=15,15,5:1@0 addflakes=15,20,6:1@0 addflakes=20,10,7:1@0 addflakes=20,15,8:1@0 addflakes=20,20,9:1@0
+
+xgrow unary.tile addflakes=10,10,1:1@0 addflakes=10,15,2:1@0 addflakes=10,20,3:1@0 addflakes=15,10,4:1@0 addflakes=15,15,5:1@0 addflakes=15,20,6:1@0 addflakes=20,10,7:1@0 addflakes=20,15,8:1@0 addflakes=20,20,9:1@0
+
 % Sierpinski XOR rule tiles by themselves
 xgrow XOR.tile Gse=7 Gmc=12 block=3 seed=130,130,1
 xgrow XOR.tile addflakes=130,130,1:100@24

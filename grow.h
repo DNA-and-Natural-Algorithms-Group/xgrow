@@ -38,6 +38,8 @@ double exp(); double log();
 /* this gives the number of mismatched bonds (not null bonds, not equal) */
 /* NOT the number of tiles with mismatches.                              */
 /* note that this counts twice: sum_i,j Mism(i,j) == 2ce # mism. bonds.  */
+/* however, *if* the sum is accumulated during assembly, exactly when    */
+/* the tile at i,j is being added, then it counts each mismatch ONCE.    */
 
 #define Mism(fp,i,j,n) (                                                   \
  ((fp->tube->units)[n][1] != (fp->tube->units)[fp->Cell(i,(j)+1)][3] &&    \
