@@ -18,8 +18,17 @@
    7/5/02   Michael DeLorimier adds general tile definitions
    7/6/02   EW generalizes hydrolysis rules for any tile set
    7/12/02  EW adds GUI for changing Gse and Gmc during simulation
+   7/16/02  EW adds irreversible Tile Assembly Model
+   7/17/02  EW adds default param defs to be read from tile file 
+            (can be overwritten by command line)
+            Allow more field sizes, not just 256, and larger blocks.
+              (Note: crashes if you try too large for your display)
+            Allowed variable display rates.
+            Optimized choose_cell() and update_rates() using gprof.
+            Put estimated [DX] and temp on display 
+               (from thesis pg 63, "Simulations" (1998) pg 10)
 
-  Compiling:  see makecc
+  Compiling:  see makecc and makeccprof
     
 */
 
@@ -37,19 +46,18 @@
 
 # include "grow.h"
 
-#define NUPDATES 10000
-#define NSTATS   1
-
  /* lattice dimensions (plus two for boundaries): */
  /* NCOLS should be a multiple of bytes per long word (BPW) */
          /* THIS is for X bitmap stuff, so add total 4 for boundary */
 # define NBDY 2
+/* THESE BECOME VARIABLES, NOW THAT FIELD SIZE IS VARIABLE 
 # define NROWS (256+NBDY*2)
 # define NCOLS (256+NBDY*2)
 # define VOLUME (NROWS*NCOLS)
 
 # define WINDOWWIDTH (block*NCOLS+PLAYLEFT+BOUNDWIDTH+20)
 # define WINDOWHEIGHT (PLAYTOP+block*NROWS+10)
+*/
 # define PLAYTOP 120
 # define PLAYLEFT 10
 # define BOUNDHEIGHT 80
@@ -65,8 +73,9 @@
 
 long int translate[MAXTILETYPES]; /* for converting colors */
 int paused=0, errorc=0;
+int update_rate=10000;
 static char *progname;
-char stringbuffer[100];
+char stringbuffer[256];
 
 /* various window stuff */
 Display *display;
@@ -87,6 +96,9 @@ long int darkcolor,lightcolor,black,white;
 flake *fp; double Gse, Gmc, ratek, T;
 double Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc;
 
+
+int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
+int size=256, size_P=8; 
 int block=1; /* default to small blocks; calling with argument changes this */
 int wander, periodic, deplete, linear; 
 FILE *datafp, *arrayfp, *tilefp;
@@ -99,6 +111,50 @@ int seed_i,seed_j,seed_n;
 char *stripe_args=NULL;
 int XXX=1;
 
+
+void parse_arg_line(char *arg)
+{
+   if (strncmp(arg,"block=",6)==0) 
+     block=MAX(1,MIN(30,atoi(&arg[6])));
+   if (strncmp(arg,"size=",5)==0) 
+     size=MAX(32,MIN(512,atoi(&arg[5])));
+   if (strncmp(arg,"rand=",5)==0) 
+     { srand48(atoi(&arg[5])); srandom(atoi(&arg[5])); }
+   if (strncmp(arg,"k=",2)==0) ratek=atof(&arg[2]);
+   if (strncmp(arg,"Gmc=",4)==0) Gmc=atof(&arg[4]);
+   if (strncmp(arg,"Gse=",4)==0) Gse=atof(&arg[4]);
+   if (strncmp(arg,"Gmch=",5)==0) {hydro=1; Gmch=atof(&arg[5]);}
+   if (strncmp(arg,"Gseh=",5)==0) {hydro=1; Gseh=atof(&arg[5]);}
+   if (strncmp(arg,"Ghyd=",5)==0) {hydro=1; Ghyd=atof(&arg[5]);}
+   if (strncmp(arg,"Gas=",4)==0) {hydro=1; Gas=atof(&arg[4]);}
+   if (strncmp(arg,"Gam=",4)==0) {hydro=1; Gam=atof(&arg[4]);}
+   if (strncmp(arg,"Gae=",4)==0) {hydro=1; Gae=atof(&arg[4]);}
+   if (strncmp(arg,"Gah=",4)==0) {hydro=1; Gah=atof(&arg[4]);}
+   if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
+   if (strncmp(arg,"Gfc=",4)==0) {deplete=1; Gfc=atof(&arg[4]);}
+   if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
+   if (strcmp(arg,"periodic")==0) periodic=!periodic;
+   if (strcmp(arg,"wander")==0) wander=!wander;
+   if (strncmp(arg,"seed=",5)==0) {
+      char *p=(&arg[5]);
+      seed_i=atoi(p);
+      if ((p=strchr(p,','))!=NULL) {
+         seed_j=atoi(p+1);
+         if ((p=strchr(p+1,','))!=NULL) seed_n=atoi(p+1);
+      }
+   }
+   if (strncmp(arg,"stripe=",7)==0) 
+      { stripe_args=(&arg[7]); periodic=1; wander=1; }
+   if (strcmp(arg,"-nw")==0) XXX=0;
+   if (strcmp(arg,"-linear")==0) linear=1;
+   if (strncmp(arg,"update_rate=",12)==0) 
+      update_rate=MAX(1,MIN(atoi(&arg[12]),100000));
+   if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
+   if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
+   if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
+   if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
+   if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
+}
 
 void read_tilefile(FILE *tilefp) 
 { 
@@ -141,6 +197,11 @@ void read_tilefile(FILE *tilefp)
    strength[i]=(double)strength_float;
  }
  fscanf(tilefp,"}\n");
+
+ while(fgets(&stringbuffer[0],256,tilefp)!=NULL) {
+   parse_arg_line(&stringbuffer[0]);
+ }
+
  fclose(tilefp);
 }
 
@@ -159,21 +220,22 @@ void getargs(int argc, char **argv)
    printf("usage: xgrow tilefile [option=#]... \n");
    printf(" tilefile is an input file that specifies tiles\n");
    printf(" options:\n");
-   printf("  block= display block size, 1...4\n");
-   printf("  rand=  random number seed\n");
-   printf("  k=     hybridization rate constant (/sec)\n");
-   printf("  Gmc=   initiation free energy  (units kT)\n");
-   printf("  Gse=   interaction free energy per binding\n");
-   printf("  Gmch=  initiation free energy  for hydrolyzed units\n");
-   printf("  Gseh=  interaction free energy for hydrolyzed units\n");
-   printf("  Ghyd=  free energy of hydrolysis\n");
-   printf("  Gas=   activation energy for spontaneous hydrolysis\n");
-   printf("  Gam=   activation energy for mismatched sticky ends\n");
-   printf("  Gae=   activation energy for unmatched sticky ends\n");
-   printf("  Gah=   activation energy for hydrolyzed neighbors\n");
-   printf("  Gao=   delta a. e. for output vs input-triggers hydrolysis\n");
-   printf("  Gfc=   log concentration of flakes (otherwise no depletion)\n");
-   printf("  T=     threshold T (relative to Gse) for irreversible Tile Assembly Model\n");
+   printf("  block=  display block size, 1...10\n");
+   printf("  size=   field side length (power-of-two) [default 256]\n");
+   printf("  rand=   random number seed\n");
+   printf("  k=      hybridization rate constant (/sec)\n");
+   printf("  Gmc=    initiation free energy  (units kT)\n");
+   printf("  Gse=    interaction free energy per binding\n");
+   printf("  Gmch=   initiation free energy  for hydrolyzed units\n");
+   printf("  Gseh=   interaction free energy for hydrolyzed units\n");
+   printf("  Ghyd=   free energy of hydrolysis\n");
+   printf("  Gas=    activation energy for spontaneous hydrolysis\n");
+   printf("  Gam=    activation energy for mismatched sticky ends\n");
+   printf("  Gae=    activation energy for unmatched sticky ends\n");
+   printf("  Gah=    activation energy for hydrolyzed neighbors\n");
+   printf("  Gao=    delta a. e. for output vs input-triggers hydrolysis\n");
+   printf("  Gfc=    log concentration of flakes (otherwise no depletion)\n");
+   printf("  T=      threshold T (relative to Gse) for irreversible Tile Assembly Model\n");
 /* printf("  anneal=g/t        anneal Gse to g with time constant t\n"); */
    printf("  seed=i,j,n        seed tile type n at position i,j\n");
    printf("  stripe=o[:p,w]*   width w stripe with p errors, offset o\n");
@@ -181,6 +243,7 @@ void getargs(int argc, char **argv)
    printf("  periodic          periodic boundary conditions\n");
    printf("  -linear           simulate linear A B tiles, write errs > stdout \n");
    printf("  -nw               no X window (only if ?max set)\n");
+   printf("  update_rate=      update display every so-many events\n");
    printf("  tmax=             quit after time t has passed\n");
    printf("  emax=             quit after e events have occurred\n");
    printf("  smax=             quit when the fragment is size s\n");
@@ -189,14 +252,6 @@ void getargs(int argc, char **argv)
    exit (0);
  }
 
- if ( (tilefp = fopen(&argv[1][0],"r"))!=NULL )
-     { read_tilefile(tilefp); }
- else {
-   printf("  First argument must be a tile file!\n");
-   exit(0);   
- }
- 
-
  tmax=0; emax=0; smax=0;
  wander=0; periodic=0; deplete=0; linear=0;
  Gfc=0; datafp=NULL; arrayfp=NULL; 
@@ -204,53 +259,36 @@ void getargs(int argc, char **argv)
  Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
  seed_i=250; seed_j=250; seed_n=1; hydro=0;
 
+ if ( (tilefp = fopen(&argv[1][0],"r"))!=NULL )
+     { read_tilefile(tilefp); }
+ else {
+   printf("* First argument must be a tile file!\nTry 'xgrow --' for help.\n");
+   exit(0);   
+ }
+
  for (i=2; i<argc; i++) {
-   if (strncmp(argv[i],"block=",6)==0) 
-     { block=atoi(&argv[i][6]); if (block>4) block=4; if (block<1) block=1; }
-   if (strncmp(argv[i],"rand=",5)==0) 
-     { srand48(atoi(&argv[i][5])); srandom(atoi(&argv[i][5])); }
-   if (strncmp(argv[i],"k=",2)==0) ratek=atof(&argv[i][2]);
-   if (strncmp(argv[i],"Gmc=",4)==0) Gmc=atof(&argv[i][4]);
-   if (strncmp(argv[i],"Gse=",4)==0) Gse=atof(&argv[i][4]);
-   if (strncmp(argv[i],"Gmch=",5)==0) {hydro=1; Gmch=atof(&argv[i][5]);}
-   if (strncmp(argv[i],"Gseh=",5)==0) {hydro=1; Gseh=atof(&argv[i][5]);}
-   if (strncmp(argv[i],"Ghyd=",5)==0) {hydro=1; Ghyd=atof(&argv[i][5]);}
-   if (strncmp(argv[i],"Gas=",4)==0) {hydro=1; Gas=atof(&argv[i][4]);}
-   if (strncmp(argv[i],"Gam=",4)==0) {hydro=1; Gam=atof(&argv[i][4]);}
-   if (strncmp(argv[i],"Gae=",4)==0) {hydro=1; Gae=atof(&argv[i][4]);}
-   if (strncmp(argv[i],"Gah=",4)==0) {hydro=1; Gah=atof(&argv[i][4]);}
-   if (strncmp(argv[i],"Gao=",4)==0) {hydro=1; Gao=atof(&argv[i][4]);}
-   if (strncmp(argv[i],"Gfc=",4)==0) {deplete=1; Gfc=atof(&argv[i][4]);}
-   if (strncmp(argv[i],"T=",2)==0) T=atof(&argv[i][2]);
-   if (strcmp(argv[i],"periodic")==0) periodic=1;
-   if (strcmp(argv[i],"wander")==0) wander=1;
-   if (strncmp(argv[i],"seed=",5)==0) {
-      char *p=(&argv[i][5]);
-      seed_i=atoi(p);
-      if ((p=strchr(p,','))!=NULL) {
-         seed_j=atoi(p+1);
-         if ((p=strchr(p+1,','))!=NULL) seed_n=atoi(p+1);
-      }
-   }
-   if (strncmp(argv[i],"stripe=",7)==0) 
-      { stripe_args=(&argv[i][7]); periodic=1; wander=1; }
-   if (strcmp(argv[i],"-nw")==0) XXX=0;
-   if (strcmp(argv[i],"-linear")==0) linear=1;
-   if (strncmp(argv[i],"tmax=",5)==0) tmax=atof(&argv[i][5]);
-   if (strncmp(argv[i],"emax=",5)==0) emax=atoi(&argv[i][5]);
-   if (strncmp(argv[i],"smax=",5)==0) smax=atoi(&argv[i][5]);
-   if (strncmp(argv[i],"datafile=",9)==0) datafp=fopen(&argv[i][9], "a");
-   if (strncmp(argv[i],"arrayfile=",10)==0) arrayfp=fopen(&argv[i][10], "w");
+   parse_arg_line(argv[i]);
  }
  if (tmax==0 && emax==0 && smax==0) XXX=1;
+
+ for (size_P=5; (1<<size_P)<size; size_P++);
+ size=(1<<size_P); 
+ if (size*block > 1024) block=1024/size;
+ while (seed_i>=size) seed_i/=2;
+ while (seed_j>=size) seed_j/=2;
+
+ NROWS=(size+NBDY*2);
+ NCOLS=(size+NBDY*2);
+ VOLUME=(NROWS*NCOLS);
+ WINDOWWIDTH=(MAX(block*NCOLS,256)+PLAYLEFT+BOUNDWIDTH+20);
+ WINDOWHEIGHT=(PLAYTOP+MAX(block*NROWS,256)+10);
+
  T=T*Gse;
 }
 
 void closeargs()
 { 
   int row,col,i;
-  int size = (1<<fp->P); 
-
 
   clean_flake(fp);
 
@@ -288,11 +326,10 @@ void closeargs()
 
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
 void showpic(flake *fp, int err) /* display the field */
-{int row,col,i1,i2,color,j,j1,j2,blocktop=block, size, m;
+{int row,col,i1,i2,color,j,j1,j2,blocktop=block, m;
  char *picture=(*spinimage).data;
- size = (1<<fp->P); 
  m= 2*(err>1);
- if (block>4) blocktop=block-1;
+ if (block>4) blocktop=block-1;  
  if (8==(*spinimage).depth) {
   if (block>1) /* I wish I knew how to do this faster */
     for (row=0;row<size;row++)
@@ -334,8 +371,7 @@ void showpic(flake *fp, int err) /* display the field */
 
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
 void showphase() /* replace tiles by phase diagram T=1 & T=2 lines */
-{int row,col,color,i1,i2,j1,j2,blocktop=block,size;
- size = (1<<fp->P); 
+{int row,col,color,i1,i2,j1,j2,blocktop=block;
  if (block>4) blocktop=block-1;
     for (row=0;row<size;row++)
       for (col=0;col<size;col++) {
@@ -393,15 +429,19 @@ void repaint()
  setwander(wander);
 
  /* write various strings */
- sprintf(stringbuffer,"%d by %d lattice: %d tiles, %d mismatches   ",
-       (1<<fp->P),(1<<fp->P),fp->stat_a-fp->stat_d,fp->mismatches);
- XDrawImageString(display,window,gc,5,(++i)*font_height,
-               stringbuffer,strlen(stringbuffer));
  if (wander) 
-  sprintf(stringbuffer,"%s boundary.  seed i,j = %d,%d; n = %d   ",
+  sprintf(stringbuffer,"%d by %d lattice: %s boundary (seed i,j = %d,%d; n = %d)   ",
+       (1<<fp->P),(1<<fp->P),
         periodic?"periodic":"empty", fp->seed_i,fp->seed_j,fp->seed_n);
  else
-  sprintf(stringbuffer, "%s boundary.", periodic?"periodic":"empty");
+  sprintf(stringbuffer, "%d by %d lattice: %s boundary.", 
+       (1<<fp->P),(1<<fp->P),
+       periodic?"periodic":"empty");
+ XDrawImageString(display,window,gc,5,(++i)*font_height,
+               stringbuffer,strlen(stringbuffer));
+
+ sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    ",
+	 1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15);
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
@@ -428,8 +468,9 @@ void repaint()
  sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",fp->t, fp->G);
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
- sprintf(stringbuffer, "%d events (%da,%dd,%dh,%df)     ",
-        fp->events, fp->stat_a, fp->stat_d, fp->stat_h, fp->stat_f);
+ sprintf(stringbuffer, "%d events (%da,%dd,%dh,%df): %d tiles, %d mismatches   ",
+        fp->events, fp->stat_a, fp->stat_d, fp->stat_h, fp->stat_f,
+        fp->stat_a-fp->stat_d,fp->mismatches);
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
@@ -518,9 +559,8 @@ void openwindow(int argc, char **argv)
               translate[13]=colorcell.pixel;
  if (XAllocNamedColor(display,cmap,"light grey",&colorcell,&xcolor))
               translate[14]=colorcell.pixel;
-  /* fill out the color table for future uses... only 14 colors!! */
- /* MUST MODIFY THIS FOR GENERAL TILE SETS? */
- for(i=15;i<256;i++)
+ /* fill out the color table for future uses... only 14 colors!! */
+ for(i=15;i<MAXTILETYPES;i++)
    translate[i]=translate[(i-1)%14+1]; 
 
    /* make the main window */
@@ -687,7 +727,7 @@ void cleanup()
 int main(int argc, char **argv)
 {unsigned int width, height;
  int x,y,b,i,j;
- int stat=0; int mousing=0;
+ int mousing=0; int stat=0;
  double new_Gse, new_Gmc;
  XEvent report;
  progname=argv[0];
@@ -716,22 +756,16 @@ int main(int argc, char **argv)
 
  if (XXX) openwindow(argc,argv);
 
- /*  printf("xgrow: tile set read, beginning simulation\n"); */
+ // printf("xgrow: tile set read, beginning simulation\n"); 
  
- if (DEBUG==2) {
-   /* set initial state: 2^3 grid */
-   fp = init_flake(3,N,num_bindings);   
-   set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc,T);   
-   fp->seed_i=6; fp->seed_j=6;  
- } else {
    /* set initial state: 2^8 grid */
-   fp = init_flake(8,N,num_bindings);   
+   fp = init_flake(size_P,N,num_bindings);   
    set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc,T);
    if (stripe_args==NULL) {
       fp->seed_i=seed_i; fp->seed_j=seed_j; fp->seed_n=seed_n; 
    } else {
      /* STRIPE OPTION HAS HARDCODED TILESET NONSENSE -- A BUG */
-      int i,j,k,w; double p; int size=(1<<fp->P); char *s=stripe_args;
+      int i,j,k,w; double p; char *s=stripe_args;
       char XOR[2][2]={ {4,7}, {6,5} }; /* XOR[S][E] */ char c,cc;
       i=size-1; j = atoi(s)%size; 
       for (k=0; k<size; k++) 
@@ -760,7 +794,8 @@ int main(int argc, char **argv)
       fp->conc[0] -= fp->conc[2]; fp->conc[0]+=(fp->conc[2]=exp(-35));
       fp->conc[0] -= fp->conc[3]; fp->conc[0]+=(fp->conc[3]=exp(-35));
    }
- }
+
+   // printf("flake initialized, size_P=%d, size=%d\n",size_P,size);
 
  new_Gse=Gse; new_Gmc=Gmc;
 
@@ -769,11 +804,11 @@ int main(int argc, char **argv)
        (emax==0 || fp->events < emax) &&
        (smax==0 || fp->stat_a-fp->stat_d < smax)) { 
   if (!XXX) 
-     simulate(fp,NUPDATES,tmax,emax,smax);
+     simulate(fp,update_rate,tmax,emax,smax);
   else {
    if (0==paused && 0==mousing && !XPending(display)) {
-     simulate(fp,NUPDATES,tmax,emax,smax);
-     stat++; if (stat==NSTATS) { stat=0; repaint(); }
+     simulate(fp,update_rate,tmax,emax,smax);
+     stat++; if (stat==1) { stat=0; repaint(); }
    }
    if (paused|mousing|XPending(display))
     {XNextEvent(display,&report); 
@@ -797,7 +832,7 @@ int main(int argc, char **argv)
              y=report.xbutton.y/block;
              b=report.xbutton.button;
              /* was sketch(x,y,b); now change Gse & Gmc */
-             new_Gse=(30.0*x)/256; new_Gmc=30-(30.0*y)/256;
+             new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
              /* draw current Gse, Gmc values */
              sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
                Gmc,new_Gmc,Gse,new_Gse);
@@ -859,7 +894,7 @@ int main(int argc, char **argv)
              y=report.xbutton.y/block;
              b=report.xbutton.button;
              if (fp->hydro) break; /* don't know how to reset params */
-             new_Gse=(30.0*x)/256; new_Gmc=30-(30.0*y)/256;
+             new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
              /* draw current Gse, Gmc values */
              sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
                Gmc,new_Gmc,Gse,new_Gse);

@@ -12,3 +12,11 @@ tile edges={
 {5 7 6 5}}
 binding strengths=
 {2 2 2 2 1 2 1}
+% this is an example of a tile set that looked right at first...
+% but actually doesn't uniquely produce a square
+seed=15,15,1
+size=32
+block=20
+Gse=10
+Gmc=19
+update_rate=10

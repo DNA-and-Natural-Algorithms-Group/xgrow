@@ -8,3 +8,9 @@ tile edges={
 {4 3 3 4}}
 binding strengths=
 {2 2 1 1}
+seed=15,15,1
+size=32
+block=20
+Gse=10
+Gmc=19
+update_rate=10

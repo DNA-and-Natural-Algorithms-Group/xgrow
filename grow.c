@@ -302,7 +302,7 @@ double calc_rates(flake *fp, int i, int j, double *rv)
 void update_rates(flake *fp, int ii, int jj)
 {
    int n,p; int size=(1<<fp->P);
-   double oldrate, newrate, oldempty, newempty;
+   double oldrate, newrate; int oldempty, newempty;
 
    if (periodic) { ii=(ii+size)%size; jj=(jj+size)%size; }
 
@@ -393,32 +393,35 @@ void recalc_G(flake *fp)
 double choose_cell(flake *fp, int *ip, int *jp, int *np)
 {
   double dt,sum,cum,r,kc,k00,k01,k10,k11;
-  int p,i,j,di,dj,n,oops;
+  int p,i,j,di=1,dj=1,n,oops;
 
   kc = fp->k*fp->conc[0];
   sum = fp->rate[0][0][0] + kc*fp->empty[0][0][0];
   dt = -log(drand48())/sum;
 
-  i=0; j=0;
+  i=0; j=0;  r=drand48();  // we'll re-use this random number for all levels
   for (p=0; p<fp->P; p++) { /* choosing subquadrant from within p:i,j */
-     sum = fp->rate[p][i][j] + kc*fp->empty[p][i][j]; // not used unless oops
      k00 = fp->rate[p+1][2*i][2*j]+kc*fp->empty[p+1][2*i][2*j];
      k10 = fp->rate[p+1][2*i+1][2*j]+kc*fp->empty[p+1][2*i+1][2*j];
      k01 = fp->rate[p+1][2*i][2*j+1]+kc*fp->empty[p+1][2*i][2*j+1];
      k11 = fp->rate[p+1][2*i+1][2*j+1]+kc*fp->empty[p+1][2*i+1][2*j+1];
+     sum = (k00+k01+k10+k11);  
      /* avoid possible round-off error... but still check for it */
-     /* sum =?= k00+k01+k10+k11; */
-     r = drand48() * (k00+k01+k10+k11);  cum = 0; oops=0;
      d2printf("%f / %f for choosing %d from %d: %d %d\n",r,sum,p+1,p,i,j);
-     if (r < (cum += k00)) { di=0; dj=0; } else
-     if (r < (cum += k10)) { di=1; dj=0; } else
-     if (r < (cum += k01)) { di=0; dj=1; } else
-     if (r < (cum += k11)) { di=1; dj=1; } else { di=1; dj=1; oops=1; }
+     do {
+      r = r*sum;  oops=0;
+      if ( (r-=k00) < 0) { di=0; dj=0; r=(r+k00)/k00; } else
+      if ( (r-=k10) < 0) { di=1; dj=0; r=(r+k10)/k10; } else
+      if ( (r-=k01) < 0) { di=0; dj=1; r=(r+k01)/k01; } else
+      if ( (r-=k11) < 0) { di=1; dj=1; r=(r+k11)/k11; } else 
+                         { r=drand48(); oops=1; }
+     } while (oops);
      if (oops)
      {
-         /* lots of round-off error has hosed this sum */
-         dprintf("Four rose petals (%f) make no rose (%f) [at %d: %d,%d]!!!\n",
-             cum,sum,p,i,j);
+       /* lots of round-off error has hosed this sum */
+       cum = fp->rate[p][i][j] + kc*fp->empty[p][i][j]; // expected sum
+       dprintf("Four rose petals (%f) make no rose (%f) [at %d: %d,%d]!!!\n",
+             sum,cum,p,i,j);
      }
      /* always fix-up any numerical error that could have accumulated here */
      fp->rate[p][i][j] = fp->rate[p+1][2*i][2*j]+fp->rate[p+1][2*i][2*j+1]+
@@ -426,21 +429,26 @@ double choose_cell(flake *fp, int *ip, int *jp, int *np)
      i=2*i+di; j=2*j+dj;
   }
   *ip=i; *jp=j;
+  // upon exit, we should still have a good random number r
 
   if (fp->Cell(i,j) == 0) {   /* choose on-event for type 1...N            */
      /* depletion seems to get conc[0] out of wack --- no, that was a bug
      if (fp->flake_conc>0) 
        for(fp->conc[0]=0,n=1;n<=fp->N;n++) fp->conc[0]+=fp->conc[n]; */
-     r = drand48() * fp->conc[0];  cum = 0;
+     r = r * fp->conc[0];  cum = 0;
      for (n=1; n<=fp->N; n++) if (r < (cum += fp->conc[n])) break; 
      if (n>fp->N) 
        { printf("Eye of the needle!!! %f =!= %f\n",fp->conc[0],cum); n=0; }
   } else {                    /* choose off-event 0 or conversion to 1...N */
-     sum = calc_rates(fp,i,j,fp->rv);
-     if (sum==0) printf("Zero-sum game!!!\n");
-     r = drand48() * sum;  cum = 0;
-     for (n=0; n<=fp->N; n++) if (r < (cum += fp->rv[n])) break; 
-     if (n>fp->N) { printf("A rose is not a rose!!!\n"); n=0; }
+    if (fp->hydro) {
+       sum = calc_rates(fp,i,j,fp->rv);
+       if (sum==0) printf("Zero-sum game!!!\n");
+       r = r * sum;  cum = 0;
+       for (n=0; n<=fp->N; n++) if (r < (cum += fp->rv[n])) break; 
+       if (n>fp->N) { printf("A rose is not a rose!!!\n"); n=0; }
+    } else {
+       n=0;  // always an off-event, unless hydrolysis rules are used.
+    }
   }
   *np = n;
   

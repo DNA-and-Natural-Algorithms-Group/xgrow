@@ -11,3 +11,9 @@ tile edges={
 {6 0 0 0}}
 binding strengths=
 {2 2 2 2 2 2}
+seed=15,15,1
+size=32
+block=20
+Gse=10
+Gmc=19
+update_rate=10

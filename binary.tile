@@ -9,8 +9,8 @@ tile edges={
 {19 7 7 4}
 {17 7 7 9}
 {8 9 17 8}
-{7 7 7 7}
-{8 8 8 8}
+{7 7 7 7}[5]
+{8 8 8 8}[5]
 {9 7 7 18}
 {8 18 9 8}
 {5 12 5 12}
@@ -33,7 +33,10 @@ tile edges={
 binding strengths=
 {2  2  2  2  1   1 1 1 1 1  1 1 1 1 1  1 2  2  2  2   2  2  2}
 %translated from tiles.el using:
- 12 23 34 45 0   1 o p b c  n x r R l  L AA aa ZZ rr  RR ll LL
- 
-
-
+%12 23 34 45 0   1 o p b c  n x r R l  L AA aa ZZ rr  RR ll LL
+size=64
+block=10
+seed=50,15,1 
+update_rate=500
+Gse=12
+Gmc=23

@@ -9,3 +9,8 @@ tile edges={
 {4 3 5 3}}
 binding strengths=
 {2 2 1 1 1}
+seed=130,130,1
+block=3
+Gse=10
+Gmc=17.5
+

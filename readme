@@ -148,3 +148,16 @@ Hydrolysis is now a generic option for any tile set.
 7/16/02
   * added GUI for changing Gse and Gmc during the run.
   * added irreversible Tile Assembly Model.  
+
+7/17/02
+  * added default param defs to be read from tile file (can be 
+    overwritten by command line)
+  * allow more field sizes, not just 256, and larger blocks.
+  * allowed variable display rates (still fixed # events).
+  * put estimated [DX] and temp on display 
+      (from thesis pg 63, "Simulations" (1998) pg 10)
+  * sped-up choose_cell() and update_rates() a bit... reusing random numbers
+    didn't make a big difference... using int instead of double where possible
+    did make a big difference.
+
+  Major issue remaining on To-Do list is multiple flakes.
