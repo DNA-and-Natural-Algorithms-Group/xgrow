@@ -77,9 +77,11 @@
             Probably a few bugs still lurk here -- I yearn for automated testing.
             chunk_fission is incompatible with hydrolysis rules.
               (Erik Winfree)
+   11/16/03 Fixed color use for Err & Hyd display.
+            Fixed puncture so it fissions if you cut the flake in two.
+            Added error messages when tile file read fails.
 
   TO DO List:
-  * MAKE SURE "ERR" MODE USES GREEN AND RED, EVEN IF TILE COLORS ARE SPECIFIED
   * add debugging feature so tile # underneath pointer is identified
   * tile files should allow sticky ends to be specified by string labels rather
     than numbers.  num_tiles and num_bindings should be ignored, and inferred from
@@ -98,8 +100,6 @@
     (not sure if this is still true.  EW 11/10/03)
   * rubberbanding for "puncture"
   * green dot (current value), red dot (selection cursor) for Gse/Gmc mouse choice
-  * puncture can try to erase the seed, leading to disconnected flakes... yikes!
-    or simply lead to disconnected assemblies... also yikes!
   * fp->G nan and other discrepencies should be tracked down.
 
   Compiling:  see makecc and makeccprof and makeccefence
@@ -159,7 +159,7 @@ char tileset_name[256];
 Display *display;
 int screen;
 Window window,quitbutton,pausebutton,playground,
-        fillbutton,colorbutton,flakebutton,seedbutton,tempbutton, 
+        restartbutton,colorbutton,flakebutton,seedbutton,tempbutton, 
         fissionbutton, samplebutton, exportbutton;
 GC gc, gcr, gccolor;
 XImage *spinimage=NULL;
@@ -168,7 +168,7 @@ int font_height;
 XSizeHints size_hints;
 long event_mask;
 int depth;
-long int darkcolor,lightcolor,black,white;
+long int darkcolor,lightcolor,black,white,errorcolor,goodcolor,hydrocolor,hydroerrcolor;
 char *tile_colors[MAXTILETYPES]={ "black",
   "blue",      "red",      "green",      "yellow", "gold",   "purple", "white", 
   "dark blue", "dark red", "dark green", "wheat",  "orange", "cyan",   "light grey"};
@@ -187,8 +187,8 @@ int wander, periodic, linear, fission_allowed;
 FILE *tracefp, *datafp, *arrayfp, *tilefp;
 double *strength;
 double **glue;
-int N, num_bindings, units_length;
-int **units; double *stoic;
+int N, num_bindings, tilet_length;
+int **tilet; double *stoic;
 int hydro; int clean_cycles=1; double clean_X=1.0;
 double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
@@ -206,31 +206,31 @@ int count_flakes(FILE *flake_file);
 
 void parse_arg_line(char *arg)
 {
-   if (strncmp(arg,"block=",6)==0) 
+        if (strncmp(arg,"block=",6)==0) 
      block=MAX(1,MIN(30,atoi(&arg[6])));
-   if (strncmp(arg,"size=",5)==0) 
+   else if (strncmp(arg,"size=",5)==0) 
      size=MAX(32,MIN(4096,atoi(&arg[5])));
-   if (strncmp(arg,"rand=",5)==0) 
+   else if (strncmp(arg,"rand=",5)==0) 
      { srand48(atoi(&arg[5])); srandom(atoi(&arg[5])); }
-   if (strncmp(arg,"k=",2)==0) ratek=atof(&arg[2]);
-   if (strncmp(arg,"Gmc=",4)==0) Gmc=atof(&arg[4]);
-   if (strncmp(arg,"Gse=",4)==0) Gse=atof(&arg[4]);
-   if (strncmp(arg,"Gmch=",5)==0) {hydro=1; Gmch=atof(&arg[5]);}
-   if (strncmp(arg,"Gseh=",5)==0) {hydro=1; Gseh=atof(&arg[5]);}
-   if (strncmp(arg,"Ghyd=",5)==0) {hydro=1; Ghyd=atof(&arg[5]);}
-   if (strncmp(arg,"Gas=",4)==0) {hydro=1; Gas=atof(&arg[4]);}
-   if (strncmp(arg,"Gam=",4)==0) {hydro=1; Gam=atof(&arg[4]);}
-   if (strncmp(arg,"Gae=",4)==0) {hydro=1; Gae=atof(&arg[4]);}
-   if (strncmp(arg,"Gah=",4)==0) {hydro=1; Gah=atof(&arg[4]);}
-   if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
-   if (strncmp(arg,"Gfc=",4)==0) {Gfc=atof(&arg[4]);}
-   if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
-   if (strncmp(arg,"periodic",8)==0) periodic=!periodic;
-   if (strncmp(arg,"wander",6)==0) wander=!wander;
-   if (strncmp(arg,"no_fission",10)==0) fission_allowed=0;
-   if (strncmp(arg,"fission",7)==0) fission_allowed=1;
-   if (strncmp(arg,"chunk_fission",13)==0) fission_allowed=2;
-   if (strncmp(arg,"seed=",5)==0) {
+   else if (strncmp(arg,"k=",2)==0) ratek=atof(&arg[2]);
+   else if (strncmp(arg,"Gmc=",4)==0) Gmc=atof(&arg[4]);
+   else if (strncmp(arg,"Gse=",4)==0) Gse=atof(&arg[4]);
+   else if (strncmp(arg,"Gmch=",5)==0) {hydro=1; Gmch=atof(&arg[5]);}
+   else if (strncmp(arg,"Gseh=",5)==0) {hydro=1; Gseh=atof(&arg[5]);}
+   else if (strncmp(arg,"Ghyd=",5)==0) {hydro=1; Ghyd=atof(&arg[5]);}
+   else if (strncmp(arg,"Gas=",4)==0) {hydro=1; Gas=atof(&arg[4]);}
+   else if (strncmp(arg,"Gam=",4)==0) {hydro=1; Gam=atof(&arg[4]);}
+   else if (strncmp(arg,"Gae=",4)==0) {hydro=1; Gae=atof(&arg[4]);}
+   else if (strncmp(arg,"Gah=",4)==0) {hydro=1; Gah=atof(&arg[4]);}
+   else if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
+   else if (strncmp(arg,"Gfc=",4)==0) {Gfc=atof(&arg[4]);}
+   else if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
+   else if (strncmp(arg,"periodic",8)==0) periodic=!periodic;
+   else if (strncmp(arg,"wander",6)==0) wander=!wander;
+   else if (strncmp(arg,"no_fission",10)==0) fission_allowed=0;
+   else if (strncmp(arg,"fission",7)==0) fission_allowed=1;
+   else if (strncmp(arg,"chunk_fission",13)==0) fission_allowed=2;
+   else if (strncmp(arg,"seed=",5)==0) {
       char *p=(&arg[5]);
       seed_i=atoi(p);
       if ((p=strchr(p,','))!=NULL) {
@@ -238,7 +238,7 @@ void parse_arg_line(char *arg)
          if ((p=strchr(p+1,','))!=NULL) seed_n=atoi(p+1);
       }
    }
-   if (strncmp(arg,"addflakes=",10)==0) {
+   else if (strncmp(arg,"addflakes=",10)==0) {
       char *p=(&arg[10]);
       fprm = (struct flake_param *)malloc(sizeof(struct flake_param)); 
       fprm->seed_i=fprm->seed_j=130; fprm->seed_n=1; fprm->N=1; fprm->Gfc=0;
@@ -259,23 +259,23 @@ void parse_arg_line(char *arg)
 	 }
       }
    }
-   if (strncmp(arg,"stripe=",7)==0) 
+   else if (strncmp(arg,"stripe=",7)==0) 
       { stripe_args=(&arg[7]); periodic=1; wander=1; }
-   if (strcmp(arg,"-nw")==0) XXX=0;
-   if (strcmp(arg,"-linear")==0) linear=1;
-   if (strncmp(arg,"update_rate=",12)==0) 
+   else if (strcmp(arg,"-nw")==0) XXX=0;
+   else if (strcmp(arg,"-linear")==0) linear=1;
+   else if (strncmp(arg,"update_rate=",12)==0) 
       update_rate=MAX(1,MIN(atol(&arg[12]),10000000));
-   if (strncmp(arg,"tracefile=",10)==0) tracefp=fopen(&arg[10], "a");
-   if (strncmp(arg,"movie",5)==0) { export_mode=2; export_movie=1; }
-   if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
-   if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
-   if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
-   if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
-   if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
-   if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
-   if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
-   if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
-   if (strncmp(arg,"importfile",10)==0)
+   else if (strncmp(arg,"tracefile=",10)==0) tracefp=fopen(&arg[10], "a");
+   else if (strncmp(arg,"movie",5)==0) { export_mode=2; export_movie=1; }
+   else if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
+   else if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
+   else if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
+   else if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
+   else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
+   else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
+   else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
+   else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
+   else if (strncmp(arg,"importfile",10)==0)
      {
        char *p=(&arg[11]);
        FILE *import_fp;
@@ -312,17 +312,20 @@ void parse_arg_line(char *arg)
 	 fparam->Gfc=0;
        fparam->N = count_flakes(import_fp);
      }
+   else {
+     fprintf(stderr,"Could not parse argument '%s'\n",arg); exit(-1);
+   }
 }
 
 #define rsc read_skip_comment(tilefp)
 void read_skip_comment(FILE *fp)
      // anything after a "%" gets ignored
 { int c;
- c=fgetc(fp); 
+ fscanf(fp," "); c=fgetc(fp); 
  while (c=='%') {
    fgets(&stringbuffer[0],256,fp); 
-   fprintf(stderr,"%%%s",stringbuffer);
-   c=fgetc(fp); 
+   // fprintf(stderr,"%%%s",stringbuffer);
+   fscanf(fp," "); c=fgetc(fp); 
  }
  ungetc(c,fp); 
 }
@@ -331,7 +334,7 @@ void read_tilefile(FILE *tilefp)
 { 
  float strength_float, glue_float, stoic_float; int i,j;
  int temp_char;
- int n,m;
+ int n,m,r;
 
  rewind(tilefp); 
    // needs to be read twice, 
@@ -340,38 +343,51 @@ void read_tilefile(FILE *tilefp)
  rsc;
  fscanf(tilefp,"tile edges matches {{N E S W}*}\n"); rsc;
 
- fscanf(tilefp,"num tile types=%d\n",&N); rsc;
- fscanf(tilefp,"num binding types=%d\n", &num_bindings); rsc;
+ if (1!=fscanf(tilefp,"num tile types=%d\n",&N)) 
+   { fprintf(stderr,"Reading tile file: expected num tile types.\n"); exit(-1); } 
+ rsc;
+ if (1!=fscanf(tilefp,"num binding types=%d\n", &num_bindings))
+   { fprintf(stderr,"Reading tile file: expected num binding types.\n"); exit(-1); } 
+ rsc;
 
  fscanf(tilefp,"tile edges="); rsc;
- units_length = N+1;
- units = (int**) calloc(sizeof(int*),units_length);
- stoic = (double*) calloc(sizeof(double),units_length);
- fscanf(tilefp,"{\n"); rsc;
- units[0] = (int*) calloc(sizeof(int),4);
+ tilet_length = N+1;
+ tilet = (int**) calloc(sizeof(int*),tilet_length);
+ stoic = (double*) calloc(sizeof(double),tilet_length);
+ r=0; fscanf(tilefp,"{\n%n",&r); rsc;
+ if (r!=2) { fprintf(stderr,"Reading tile file: expected tile set start {.\n"); exit(-1); }
+ tilet[0] = (int*) calloc(sizeof(int),4);
  for (j=0;j<4;j++) {
-   units[0][j] = 0;
+   tilet[0][j] = 0;
  }
  stoic[0]=0;
- for (i=1;i<units_length;i++) {
-   units[i] = (int*) calloc(sizeof(int),4);
-   fscanf(tilefp,"{"); 
+ for (i=1;i<tilet_length;i++) {
+   tilet[i] = (int*) calloc(sizeof(int),4);
+   r=0; fscanf(tilefp,"{%n",&r); rsc; 
+   if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d start def {. \n",i); exit(-1); }
    /* XXX we will need to change this too */
    /* read in the four binding types {N E S W} */
    for (j=0;j<4;j++) {
-     fscanf(tilefp,"%d",&units[i][j]);
+     if (1!=fscanf(tilefp,"%d",&tilet[i][j]))
+       { fprintf(stderr,"Reading tile file: expected tile %d bond %d.\n",i,j); exit(-1); } 
    }
-   fscanf(tilefp,"}"); rsc;
+   r=0; fscanf(tilefp,"}%n",&r); rsc; 
+   if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d end def }. \n",i); exit(-1); }
    if (fscanf(tilefp,"[%g]",&stoic_float)) 
      stoic[i]=stoic_float; else stoic[i]=1.0; rsc;
    if (fscanf(tilefp," (%200[^)])",&stringbuffer[0])) {
      tile_colors[i]=(char *)malloc(strlen(stringbuffer)+2);
      strcpy(tile_colors[i],stringbuffer);
    }
-
    fscanf(tilefp,"\n"); rsc;
  }
- fscanf(tilefp,"}\n"); rsc;
+ r=0; fscanf(tilefp,"}%n",&r); rsc; 
+ if (r!=1) { fprintf(stderr,"Reading tile file: expected tile set end }.\n"); exit(-1); }
+ // printf("Tile set loaded (%d tiles)\n",N);
+ // for (i=1;i<tilet_length;i++) {
+ //   for (j=0;j<4;j++) printf("%d ",tilet[i][j]); printf("\n");
+ // }
+
 
  glue = (double **) calloc(sizeof (double *),num_bindings + 1);
  for (i=0;i<=num_bindings;i++) { int j;
@@ -383,23 +399,32 @@ void read_tilefile(FILE *tilefp)
  temp_char = getc (tilefp);
  ungetc(temp_char, tilefp);
  if (temp_char == 'b') {
-   fscanf(tilefp,"binding strengths=\n"); rsc; 
-   fscanf(tilefp,"{");
+   r=0; fscanf(tilefp,"binding strengths=%n",&r); rsc;
+   if (r!=18) { fprintf(stderr,"Reading tile file: expected binding strength defs.\n"); exit(-1); }
+   r=0; fscanf(tilefp,"{%n",&r); rsc;
+   if (r!=1) { fprintf(stderr,"Reading tile file: expected binding strength defs {.\n"); exit(-1); }
    strength[0]=0; /* bond type 0 ("null") always has strength 0 */
    for (i=1;i<=num_bindings;i++) {
-     fscanf(tilefp,"%g",&strength_float);
+     if (1!=fscanf(tilefp,"%g",&strength_float))
+       { fprintf(stderr,"Reading tile file: expected binding strength %d value.\n",i); exit(-1); }
      strength[i]=(double)strength_float;
      // printf("strength for se #%d = %g\n",i,strength[i]);
    } rsc;
-   fscanf(tilefp,"}\n"); rsc;
+   r=0; fscanf(tilefp,"}%n",&r); rsc;
+   if (r!=1) { fprintf(stderr,"Reading tile file: expected binding strength defs }.\n"); exit(-1); }
  }
  while ((temp_char=fgetc(tilefp)) == 'g') {
-   fscanf(tilefp,"(%d,%d)=%g\n",&n,&m,&glue_float);  rsc;
+   if (3!=fscanf(tilefp,"(%d,%d)=%g\n",&n,&m,&glue_float))
+     { fprintf(stderr,"Reading tile file: expected glue def.\n"); exit(-1); } 
+   rsc;
    // printf ("Glue float is g(%d,%d)=%g\n",n,m,glue_float);
    glue[n][m] = (double) glue_float;
    glue[m][n] = (double) glue_float;
  } ungetc(temp_char, tilefp); rsc;
+ // printf("Bond strengths loaded (%d bond types)\n",num_bindings);
+ // for (i=1;i<=num_bindings;i++) printf("%f ",strength[i]); printf("\n");
    
+ rsc;
  while(fgets(&stringbuffer[0],256,tilefp)!=NULL) {
    parse_arg_line(&stringbuffer[0]); rsc;
  }
@@ -871,7 +896,7 @@ void closeargs()
   if (export_fp!=NULL) fclose(export_fp);
 
   // free memory
-  for (i=0;i<=tp->N;i++) free(units[i]); free(units);
+  for (i=0;i<=tp->N;i++) free(tilet[i]); free(tilet);
   for (i=0;i<=tp->N;i++) free(glue[i]); free(glue);
   free(strength); free(stoic);
   
@@ -880,20 +905,24 @@ void closeargs()
   free_tube(tp);  // this frees all the flakes too
 }
 
-#define errortile(i,j) ((fp->Cell(i,j)==0) ? 0: (                    \
-         (units[fp->Cell(i,j)][1] != units[fp->Cell(i,(j)+1)][3] ||  \
-          units[fp->Cell(i,j)][2] != units[fp->Cell((i)+1,j)][0]) ? 2:3)) 
+// (i,j) should not be empty. returns 0 if OK, 1 if mismatches with E or S or N or W, or unbound s.e.
+#define errortile(i,j) (                                                    \
+         (tilet[fp->Cell(i,j)][1] != tilet[fp->Cell(i,(j)+1)][3] ||         \
+          tilet[fp->Cell(i,j)][3] != tilet[fp->Cell(i,(j)-1)][1] ||         \
+          tilet[fp->Cell(i,j)][0] != tilet[fp->Cell((i)-1,j)][2] ||         \
+          tilet[fp->Cell(i,j)][2] != tilet[fp->Cell((i)+1,j)][0]) ? 1 : 0 ) \
 
-#define getcolor(i,j) translate[ (err ?                        \
-         (errortile(i,j)+                                      \
-           (fp->tube->hydro?m*(fp->Cell(i,j)>fp->N/2):0) ) :   \
-                        (fp->Cell(i,j))                      ) ]
+#define getcolor(i,j) ( (fp->Cell(i,j)==0)? translate[0] : (              \
+         (err==1) ? ( errortile(i,j) ? errorcolor : goodcolor ) : (       \
+         (err==2) ? ( (fp->Cell(i,j)>fp->N/2) ?                           \
+                      ( errortile(i,j) ? hydroerrcolor : hydrocolor ) :   \
+                      ( errortile(i,j) ? errorcolor : goodcolor ) ) :     \
+         translate[fp->Cell(i,j)] ) ) )
 
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
 void showpic(flake *fp, int err) /* display the field */
-{int row,col,i1,i2,color,j,j1,j2,blocktop=block, m;
+{int row,col,i1,i2,color,j,j1,j2,blocktop=block;
  char *picture=(*spinimage).data;
- m= 2*(err>1);
  if (block>4) blocktop=block-1;  
  if (8==(*spinimage).depth) {
   if (block>1) /* I wish I knew how to do this faster */
@@ -1066,12 +1095,19 @@ void setpause(int value)
 /* fix up the colors button */
 void setcolor(int value)
 {errorc=value;
- if (errorc==2) 
+ if (hydro) {
+  if (errorc==2) 
    XDrawImageString(display,colorbutton,gcr,0,font_height,"tile/err/HYD",12);
- else if (errorc==1) 
+  else if (errorc==1) 
    XDrawImageString(display,colorbutton,gcr,0,font_height,"tile/ERR/hyd",12);
- else if (errorc==0)
+  else if (errorc==0)
    XDrawImageString(display,colorbutton,gcr,0,font_height,"TILE/err/hyd",12);
+ } else {
+  if (errorc==1) 
+   XDrawImageString(display,colorbutton,gcr,0,font_height,"  tile/ERR  ",12);
+  else if (errorc==0)
+   XDrawImageString(display,colorbutton,gcr,0,font_height,"  TILE/err  ",12);
+ }
 }
 
 /* fix up the export button */
@@ -1124,11 +1160,11 @@ void setfission(int value)
 /* this fixes the window up whenever it is uncovered */
 void repaint()
 {int i=0;
- XDrawString(display,quitbutton,  gcr,0,font_height,"    quit     ",13);
- XDrawString(display,fillbutton,  gcr,0,font_height,"    clear    ",13);
- XDrawString(display,samplebutton,gcr,0,font_height,"   sample    ",13);
- XDrawString(display,flakebutton, gcr,0,font_height,"next/big/prev",13);
- XDrawString(display,tempbutton,  gcr,0,font_height," cool   heat ",13);
+ XDrawString(display,quitbutton,    gcr,0,font_height,"    quit     ",13);
+ XDrawString(display,restartbutton, gcr,0,font_height,"   restart   ",13);
+ XDrawString(display,samplebutton,  gcr,0,font_height,"   sample    ",13);
+ XDrawString(display,flakebutton,   gcr,0,font_height,"next/big/prev",13);
+ XDrawString(display,tempbutton,    gcr,0,font_height," cool   heat ",13);
  setexport(export_mode);
  setpause(paused);
  setcolor(errorc);
@@ -1188,13 +1224,15 @@ void repaint()
                stringbuffer,strlen(stringbuffer));
  }
 
- XDrawString(display,window,gc,WINDOWWIDTH-140,WINDOWHEIGHT-45
-       ,"left: puncture",14); 
- XDrawString(display,window,gc,WINDOWWIDTH-140,WINDOWHEIGHT-25
-       ,"right: Gmc Gse",14); 
+ XDrawString(display,window,gc,WINDOWWIDTH-150,WINDOWHEIGHT-65
+       ," left: puncture",15); 
+ XDrawString(display,window,gc,WINDOWWIDTH-150,WINDOWHEIGHT-45
+       ,"middle:identify",15); 
+ XDrawString(display,window,gc,WINDOWWIDTH-150,WINDOWHEIGHT-25
+       ,"right: Gmc Gse ",15); 
 
  XDrawString(display,window,gc,WINDOWWIDTH-120,WINDOWHEIGHT-5
-       ,"EW '98-'02",10); 
+       ,"EW '98-'03",10); 
 
  if (!sampling) showpic(fp,errorc); 
  else XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
@@ -1239,11 +1277,18 @@ void openwindow(int argc, char **argv)
    }
  black=BlackPixel(display,screen);
  white=WhitePixel(display,screen);
- if (XAllocNamedColor(display,cmap,"firebrick",&colorcell,&xcolor)) {
-   darkcolor=colorcell.pixel;
- }
+ if (XAllocNamedColor(display,cmap,"firebrick",&colorcell,&xcolor))
+              darkcolor=colorcell.pixel;
  if (XAllocNamedColor(display,cmap,"wheat",&colorcell,&xcolor))
               lightcolor=colorcell.pixel;
+ if (XAllocNamedColor(display,cmap,"red",&colorcell,&xcolor))
+              errorcolor=colorcell.pixel;
+ if (XAllocNamedColor(display,cmap,"green",&colorcell,&xcolor))
+              goodcolor=colorcell.pixel;
+ if (XAllocNamedColor(display,cmap,"gold",&colorcell,&xcolor))
+              hydrocolor=colorcell.pixel;
+ if (XAllocNamedColor(display,cmap,"pink",&colorcell,&xcolor))
+              hydroerrcolor=colorcell.pixel;
  if (XAllocNamedColor(display,cmap,"black",&colorcell,&xcolor))
               translate[0]=colorcell.pixel;
 
@@ -1299,19 +1344,19 @@ void openwindow(int argc, char **argv)
 /* make the buttons */
  quitbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-150,120,20,2,black,darkcolor);
- pausebutton=XCreateSimpleWindow(display,window,
+ restartbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-176,120,20,2,black,darkcolor);
- fillbutton=XCreateSimpleWindow(display,window,
+ pausebutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-202,120,20,2,black,darkcolor);
  colorbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-228,120,20,2,black,darkcolor);
- flakebutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-254,120,20,2,black,darkcolor);
  seedbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-280,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-254,120,20,2,black,darkcolor);
  fissionbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-306,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-280,120,20,2,black,darkcolor);
  tempbutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-306,120,20,2,black,darkcolor);
+ flakebutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-332,120,20,2,black,darkcolor);
  samplebutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-358,120,20,2,black,darkcolor);
@@ -1329,7 +1374,7 @@ it will not get redrawn.  I wonder if anyone will notice?  If I put
 the exposuremask in here, things flash irritatingly on being uncovered. */
  XSelectInput(display,quitbutton,event_mask);
  XSelectInput(display,pausebutton,event_mask);
- XSelectInput(display,fillbutton,event_mask);
+ XSelectInput(display,restartbutton,event_mask);
  XSelectInput(display,colorbutton,event_mask);
  XSelectInput(display,flakebutton,event_mask);
  XSelectInput(display,seedbutton,event_mask);
@@ -1375,7 +1420,7 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XMapWindow(display,window);
  XMapWindow(display,quitbutton);
  XMapWindow(display,pausebutton);
- XMapWindow(display,fillbutton);
+ XMapWindow(display,restartbutton);
  XMapWindow(display,colorbutton);
  if (~(fparam->N==1 && fparam->next_param==NULL))  
    XMapWindow(display,flakebutton); 
@@ -1451,10 +1496,10 @@ int main(int argc, char **argv)
    }
 
  if (hydro) { /* automatically double the number of tiles */
-   units=(int**) realloc(units,sizeof(int*)*(2*N+1));
+   tilet=(int**) realloc(tilet,sizeof(int*)*(2*N+1));
    for (i=1;i<=N;i++) {
-     units[i+N]= (int*) calloc(sizeof(int),4);
-     for (j=0;j<4;j++) units[i+N][j] = units[i][j];
+     tilet[i+N]= (int*) calloc(sizeof(int),4);
+     for (j=0;j<4;j++) tilet[i+N][j] = tilet[i][j];
    }
    stoic=(double*) realloc(stoic,sizeof(double)*(2*N+1));
    for (i=1;i<=N;i++) stoic[i+N]= stoic[i];
@@ -1472,7 +1517,7 @@ int main(int argc, char **argv)
  
    /* set initial state */
    tp = init_tube(size_P,N,num_bindings);   
-   set_params(tp,units,strength,glue,stoic,hydro,ratek,
+   set_params(tp,tilet,strength,glue,stoic,hydro,ratek,
           Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
 
    fprm=fparam;
@@ -1583,6 +1628,15 @@ int main(int argc, char **argv)
              x=report.xbutton.x/block;
              y=report.xbutton.y/block;
              b=report.xbutton.button;
+             if (mousing==0) { int i,j,t;
+               i=MIN(MAX(0,y-2),size-1); j=MIN(MAX(0,x-2),size-1); t=fp->Cell(i,j);
+               sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
+                                    "tile #%d = {%d %d %d %d} at (%d,%d)           ",
+                       1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15,
+		       t,tp->tilet[t][0],tp->tilet[t][1],tp->tilet[t][2],tp->tilet[t][3],i,j);
+               XDrawImageString(display,window,gc,5,2*font_height,
+                 stringbuffer,strlen(stringbuffer));
+	     }
              if (mousing==3) {
                /* was sketch(x,y,b); now change Gse & Gmc */
                new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
@@ -1597,29 +1651,49 @@ int main(int argc, char **argv)
              if (!XQueryPointer(display,playground,
                 &root,&child,&window_x,&window_y,
                 &newx,&newy,&keys_buttons))
-                {mousing=0; }
+                {mousing=0; printf("Weird X feature\n"); }
 	}
         break;
        case ButtonRelease:
 	 if (mousing==3) { // change Gmc, Gse w/ visual GUI
+           printf("Changing Gmc -> %f, Gse -> %f \n", new_Gmc, new_Gse);
            reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);
            if (Gfc>0) Gfc+=(new_Gmc-Gmc); 
            fprm=fparam;
            while (fprm!=NULL) {  /* fix up all flake info, for restarting */
-              fprm->Gfc += (new_Gmc-Gmc); fprm=fprm->next_param;
+              if (fprm->Gfc > 0) fprm->Gfc += (new_Gmc-Gmc); 
+              fprm=fprm->next_param;
            } 
            Gse=new_Gse; Gmc=new_Gmc; 
            showpic(fp,errorc); 
 	 } else if (mousing==1) {
            /* clear a region, i.e., "puncture" */
-	   int i,j;
-             x=report.xbutton.x/block;
-             y=report.xbutton.y/block;
-             b=report.xbutton.button;
-           if (clear_x != x && clear_y != y) {
-             for (i=MIN(clear_y,y); i<MAX(clear_y,y); i++)
-               for (j=MIN(clear_x,x); j<MAX(clear_x,x); j++)
-                  change_cell(fp, (i+size)%size, (j+size)%size, 0);
+	   int i,j,mi,Mi,mj,Mj;
+           x=report.xbutton.x/block;
+           y=report.xbutton.y/block;
+           b=report.xbutton.button; 
+           if (clear_y>y) { mi=MIN(MAX(0,y-2),size-1); Mi=MIN(MAX(0,clear_y-2),size-1); }
+	   else           { mi=MIN(MAX(0,clear_y-2),size-1); Mi=MIN(MAX(0,y-2),size-1); }
+           if (clear_x>x) { mj=MIN(MAX(0,x-2),size-1); Mj=MIN(MAX(0,clear_x-2),size-1); }
+	   else           { mj=MIN(MAX(0,clear_x-2),size-1); Mj=MIN(MAX(0,x-2),size-1); }
+           if (mi != Mi && mj != Mj) { int fa=fission_allowed;
+             if (mi<=fp->seed_i && fp->seed_i<=Mi &&
+                 mj<=fp->seed_j && fp->seed_j<=Mj) { int si=fp->seed_i,sj=fp->seed_j;
+                 // better move the seed out of the way, if possible
+		 for (i=mi; i<=Mi; i++) if (fp->Cell(i,mj-1)>0) { si=i; sj=(mj-1+size)%size; }
+		 for (i=mi; i<=Mi; i++) if (fp->Cell(i,Mj+1)>0) { si=i; sj=(Mj+1)%size; }
+		 for (j=mj; j<=Mj; j++) if (fp->Cell(mi-1,j)>0) { si=(mi-1+size)%size; sj=j; }
+		 for (j=mj; j<=Mj; j++) if (fp->Cell(Mi+1,j)>0) { si=(Mi+1)%size; sj=j; }
+                 change_seed(fp,si,sj);
+	     }
+             fission_allowed=1; 
+             for (i=mi; i<=Mi; i++)
+               for (j=mj; j<=Mj; j++) {
+                 if (fp->Cell(i,j)>0) { 
+                     change_cell(fp, i, j, 0); flake_fission(fp,i,j); 
+		 }
+	       }
+	     fission_allowed=fa; 
 	   }
 	 }
         mousing=0; 
@@ -1629,10 +1703,10 @@ int main(int argc, char **argv)
             cleanup();  
         } else if (report.xbutton.window==pausebutton) {
             setpause(1-paused); repaint(); 
-        } else if (report.xbutton.window==fillbutton) {
+        } else if (report.xbutton.window==restartbutton) {
             free_tube(tp); 
             tp = init_tube(size_P,N,num_bindings);   
-            set_params(tp,units,strength,glue,stoic,hydro,ratek,
+            set_params(tp,tilet,strength,glue,stoic,hydro,ratek,
                Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
             fprm=fparam; 
             while (fprm!=NULL) {
@@ -1644,8 +1718,8 @@ int main(int argc, char **argv)
                fprm=fprm->next_param;
             } 
             repaint();
-        } else if (report.xbutton.window==colorbutton) { 
-            setcolor((errorc+1)%3); repaint(); // show tiles or error or hyd
+        } else if (report.xbutton.window==colorbutton) { // show tiles or error or hyd
+	  setcolor(hydro ? (errorc+1)%3 : (errorc+1)%2); repaint(); 
         } else if (report.xbutton.window==seedbutton) {
             setwander(1-wander); repaint(); 
         } else if (report.xbutton.window==fissionbutton) {
@@ -1723,7 +1797,7 @@ int main(int argc, char **argv)
              if (x>60) new_Gse=Gse-0.1; else new_Gse=Gse+0.1;
              reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);
              Gse=new_Gse; Gmc=new_Gmc; repaint();
-        } else if (report.xbutton.window==playground) 
+        } else if (report.xbutton.window==playground) // we're in ButtonPress
             {x=report.xbutton.x/block;
              y=report.xbutton.y/block;
              b=report.xbutton.button;
@@ -1739,6 +1813,15 @@ int main(int argc, char **argv)
                mousing=3; showphase();
 	     } else if (b==1) { // "puncture"
                mousing=1; clear_x=x; clear_y=y;  /* prepare to clear a region */
+	     } else if (b==2) { // "identify"
+               int i,j,t;
+               i=MIN(MAX(0,y-2),size-1); j=MIN(MAX(0,x-2),size-1); t=fp->Cell(i,j);
+               sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
+                                    "tile #%d = {%d %d %d %d} at (%d,%d)           ",
+                       1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15,
+		       t,tp->tilet[t][0],tp->tilet[t][1],tp->tilet[t][2],tp->tilet[t][3],i,j);
+               XDrawImageString(display,window,gc,5,2*font_height,
+                 stringbuffer,strlen(stringbuffer));
 	     }
             }
         else {

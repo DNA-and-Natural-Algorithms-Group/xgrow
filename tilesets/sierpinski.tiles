@@ -1,5 +1,5 @@
 % sierpinski.tiles
-% This tileset contains the 7 tiles corresponsing to a DAE-E tile set
+% This tileset contains the 7 tiles corresponding to a DAE-E tile set
 % RE-01, SE-10, UE-11, VE-00 and the (never designed) corner and border tiles.
 tile edges matches {{N E S W}*}
 num tile types=7

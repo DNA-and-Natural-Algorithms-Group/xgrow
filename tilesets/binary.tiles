@@ -1,5 +1,5 @@
 tile edges matches {{N E S W}*}
-num tile types=29
+num tile types=28
 num binding types=23
 tile edges={
 {16 1 8 0}
