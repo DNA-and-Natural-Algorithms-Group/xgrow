@@ -151,7 +151,7 @@ typedef struct tube_struct {
   double k;            /* forward rate constant for on-events.             */
   double kas,kao,      /* f.r.c (ratio to k) for "hydrolysis" spontaneous, */
          kam,kae,kah;  /* and when input se are mismatched, empty, or      */
-                       /* input tiles are "hydrolyized". kao is the ratio  */
+                       /* input tiles are "hydrolized". kao is the ratio   */
                        /* of output-triggered/input-triggered rates.       */
   double *conc;        /* concentration of each tile type n = 1...N        */
                        /* conc[0] = sum conc[n] from n = 1...N             */
@@ -176,6 +176,11 @@ extern int periodic;    /* simulation on torus */
 extern int wander;      /* of seed tile designation */
 extern int fission_allowed; /* allow dissociation that breaks flake in two? */
 extern int zero_bonds_allowed; /* allow association of tiles that make only 0 strength bonds to flake? */
+extern double blast_rate_alpha;
+extern double blast_rate_beta;
+extern double blast_rate_gamma;
+extern double blast_rate;
+
 
 tube *init_tube(unsigned char P, unsigned char N, int num_bindings);
 flake *init_flake(unsigned char P, unsigned char N,

@@ -1224,7 +1224,7 @@ void error_radius_flake(flake *fp, double rad)
 void simulate(tube *tp, int events, double tmax, int emax, int smax)
 {
   int i,j,n,oldn; double dt; flake *fp; int chunk, seedchunk[4];
-  double total_rate; long int emaxL;
+  double total_rate, total_blast_rate; long int emaxL;
   int size=(1<<tp->P), N=tp->N;  
 
   if (tp->flake_list==NULL) return;  /* no flakes! */
@@ -1250,13 +1250,52 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
    }
 
    total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+   total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
+
    while (tp->events < emaxL && 
           (tmax==0 || tp->t < tmax) && 
           (smax==0 || tp->stat_a-tp->stat_d < smax) &&
-          total_rate > 0) {
+          total_blast_rate+total_rate > 0) {
 
-     dt = -log(drand48()) / total_rate;
+    dt = -log(drand48()) / (total_rate + total_blast_rate);
 
+    if (blast_rate>0 && drand48()*(total_rate+total_blast_rate) < total_blast_rate) {  
+       int kb=size,ii,jj,ic,jc,di,dj,seed_here,flake_n;
+       
+       while(kb==size) { double dr = drand48()*blast_rate;
+         for (kb=1; kb<size; kb++)  // choose blast hole size kb= 1...size
+           if ( ( dr -= blast_rate_alpha * exp(-blast_rate_gamma*(kb-1)) / pow(kb*1.0,blast_rate_beta) ) < 0 )
+              break; 
+       }
+       // printf("zap! %d x %d\n",kb,kb);
+
+       // choose a flake
+       flake_n = random()%(tp->num_flakes); fp=tp->flake_list;  for (i=0; i<flake_n; i++) fp=fp->next_flake;
+
+       ic=random()%size; jc=random()%size;  // corner coordinates for kb x kb square to be removed
+       di=2*(random()%2)-1; dj=2*(random()%2)-1;  // square goes in random direction from ic, jc
+
+       for (seed_here=0, ii=0; ii<kb; ii++) for (jj=0; jj<kb; jj++) { // make sure seed tile is not in square
+         if (periodic) { i=(ic+di*ii+size)%size; j=(jc+dj*jj+size)%size; } else { i=ic+di*ii; j=jc+dj*jj; }
+         if (i==fp->seed_i && j==fp->seed_j) seed_here=1;  // square wraps or is cropped
+       }
+       if (!seed_here) { int vorh=random()%2;
+         for (ii=0; ii<kb; ii++) for (jj=0; jj<kb; jj++) {
+           if (vorh) { if (periodic) { i=(ic+di*ii+size)%size; j=(jc+dj*jj+size)%size; } else { i=ic+di*ii; j=jc+dj*jj; } }
+           else      { if (periodic) { i=(ic+di*jj+size)%size; j=(jc+dj*ii+size)%size; } else { i=ic+di*jj; j=jc+dj*ii; } }
+           if (i>=0 && j>=0 && i<size && j<size && fp->Cell(i,j)>0) {  
+             // might have been removed already by previous fission or was never there; or maybe i j needs to be cropped
+             oldn = fp->Cell(i,j); change_cell(fp,i,j,0);  // now it's gone!
+             if (!locally_fission_proof(fp,i,j,oldn)) // may remove additional tiles (not seed)
+	       if (flake_fission(fp,i,j) && fission_allowed==0) {  // see below under "dissociation" for comments
+		change_cell(fp,i,j,oldn); tp->stat_a--; tp->stat_d--;
+                ii=kb; jj=kb;  // stop the blast (without this, it also works, but looks weird)
+	      }
+           }
+         }
+       }
+    } else { // blast error case above, kTAM / aTAM below
+	
      fp=choose_flake(tp);
 
      /* let the designated seed site wander around */
@@ -1365,6 +1404,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 
         /* hydrolysis happens here */
         if (oldn>0 && n>0) change_cell(fp,i,j,n);
+
         if (n==0) {  /* dissociation: check connectedness */
           int d, dn, di[4], dj[4];
           if      (chunk==0) { dn=1; di[0]=i; dj[0]=j; }
@@ -1403,7 +1443,9 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
        }
      } // else dprintf("can't move seed!\n"); NEW: no error, since this event exists
      d2printf("%d,%d -> %d\n",i,j,n);
-     total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+    } // end of kTAM / aTAM section
+    total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+    total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
    } // end while
 } // simulate
 
