@@ -27,6 +27,8 @@
             Optimized choose_cell() and update_rates() using gprof.
             Put estimated [DX] and temp on display 
                (from thesis pg 63, "Simulations" (1998) pg 10)
+   7/19/02  Major revision for multiple flakes.  
+            Created "tube" structure to keep sim params.
 
   Compiling:  see makecc and makeccprof
     
@@ -81,7 +83,7 @@ char stringbuffer[256];
 Display *display;
 int screen;
 Window window,quitbutton,pausebutton,playground,
-        fillbutton,colorbutton,randombutton,seedbutton,tempbutton;
+        fillbutton,colorbutton,flakebutton,seedbutton,tempbutton;
 GC gc, gcr, gccolor;
 XImage *spinimage=NULL;
 XFontStruct *font=NULL;
@@ -93,24 +95,29 @@ long int darkcolor,lightcolor,black,white;
 
 
 /* simulation parameters */
-flake *fp; double Gse, Gmc, ratek, T;
+tube *tp; flake *fp; 
+double Gse, Gmc, ratek, T;
 double Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc;
 
 
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
 int block=1; /* default to small blocks; calling with argument changes this */
-int wander, periodic, deplete, linear; 
+int wander, periodic, linear; 
 FILE *datafp, *arrayfp, *tilefp;
-double* strength;
+double *strength;
 int N, num_bindings, units_length;
-int** units; double* stoic;
+int **units; double *stoic;
 int hydro;
 double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
 char *stripe_args=NULL;
 int XXX=1;
 
+struct flake_param {
+  int seed_i,seed_j,seed_n,N; double Gfc; struct flake_param *next_param;
+};
+struct flake_param *fparam=NULL, *fprm; 
 
 void parse_arg_line(char *arg)
 {
@@ -131,7 +138,7 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"Gae=",4)==0) {hydro=1; Gae=atof(&arg[4]);}
    if (strncmp(arg,"Gah=",4)==0) {hydro=1; Gah=atof(&arg[4]);}
    if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
-   if (strncmp(arg,"Gfc=",4)==0) {deplete=1; Gfc=atof(&arg[4]);}
+   if (strncmp(arg,"Gfc=",4)==0) {Gfc=atof(&arg[4]);}
    if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
    if (strcmp(arg,"periodic")==0) periodic=!periodic;
    if (strcmp(arg,"wander")==0) wander=!wander;
@@ -141,6 +148,26 @@ void parse_arg_line(char *arg)
       if ((p=strchr(p,','))!=NULL) {
          seed_j=atoi(p+1);
          if ((p=strchr(p+1,','))!=NULL) seed_n=atoi(p+1);
+      }
+   }
+   if (strncmp(arg,"addflakes=",10)==0) {
+      char *p=(&arg[10]);
+      fprm = (struct flake_param *)malloc(sizeof(struct flake_param)); 
+      fprm->seed_i=fprm->seed_j=130; fprm->seed_n=1; fprm->N=1; fprm->Gfc=0;
+      fprm->next_param=fparam;
+      fparam=fprm;
+      fparam->seed_i=atoi(p);
+      if ((p=strchr(p,','))!=NULL) {
+         fparam->seed_j=atoi(p+1);
+         if ((p=strchr(p+1,','))!=NULL) {
+            fparam->seed_n=atoi(p+1);
+            if ((p=strchr(p+1,':'))!=NULL) {
+              fparam->N=atoi(p+1);
+              if ((p=strchr(p+1,'@'))!=NULL) {
+                fparam->Gfc=atof(p+1);
+	      }
+	    }
+	 }
       }
    }
    if (strncmp(arg,"stripe=",7)==0) 
@@ -207,7 +234,7 @@ void read_tilefile(FILE *tilefp)
 
 void getargs(int argc, char **argv)
 {
- int i; 
+ int i; struct flake_param *fprm;
  struct timeval tv; 
  gettimeofday(&tv, NULL); srand48(tv.tv_usec); srandom(tv.tv_usec);
 
@@ -253,7 +280,7 @@ void getargs(int argc, char **argv)
  }
 
  tmax=0; emax=0; smax=0;
- wander=0; periodic=0; deplete=0; linear=0;
+ wander=0; periodic=0; linear=0;
  Gfc=0; datafp=NULL; arrayfp=NULL; 
  Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
  Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
@@ -284,22 +311,35 @@ void getargs(int argc, char **argv)
  WINDOWHEIGHT=(PLAYTOP+MAX(block*NROWS,256)+10);
 
  T=T*Gse;
+
+ /* for consistency's sake, insert seed_i, seed_j, seed_n, Gfc into fparam */
+ /* if no addflake commands were issued */
+ if (fparam==NULL) {
+   fprm = (struct flake_param *)malloc(sizeof(struct flake_param)); 
+   fprm->seed_i=seed_i; fprm->seed_j=seed_j; fprm->seed_n=seed_n; 
+   fprm->N=1; fprm->Gfc=Gfc;
+   fprm->next_param=fparam;
+   fparam=fprm;
+ }
+ 
 }
 
 void closeargs()
 { 
-  int row,col,i;
+  int row,col,i; 
 
-  clean_flake(fp);
+  clean_flake(fp);  // cleans only the currently displayed flake
 
-  for (i=0;i<=fp->N;i++) free(units[i]); free(units);
+  for (i=0;i<=tp->N;i++) free(units[i]); free(units);
   free(strength); free(stoic);
+  while (fparam!=NULL) { fprm=fparam->next_param; free(fparam); fparam=fprm; }
 
+  /* output information for the first flake only */
   if (datafp!=NULL) {
-     if (fp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
+     if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
        Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
-     fprintf(datafp, " %f %f %f %f %d %d %d\n",
-       Gmc,Gse,ratek,fp->t,fp->stat_a-fp->stat_d,fp->mismatches,fp->events);
+     fprintf(datafp, " %f %f %f %f %d %d %ld\n",
+       Gmc,Gse,ratek,tp->t,fp->tiles,fp->mismatches,tp->events);
      fclose(datafp);
   } 
   if (arrayfp!=NULL) {
@@ -311,7 +351,8 @@ void closeargs()
      }
      fclose(arrayfp);
   }
-  free_flake(fp);
+
+  free_tube(tp);  // this frees all the flakes too
 }
   
   
@@ -320,9 +361,10 @@ void closeargs()
          (units[fp->Cell(i,j)][1] != units[fp->Cell(i,(j)+1)][3] ||  \
           units[fp->Cell(i,j)][2] != units[fp->Cell((i)+1,j)][0]) ? 2:3)) 
 
-#define getcolor(i,j) translate[ (err ?                               \
-         (errortile(i,j)+(fp->hydro?m*(fp->Cell(i,j)>fp->N/2):0)) :   \
-                        (fp->Cell(i,j))) ]
+#define getcolor(i,j) translate[ (err ?                        \
+         (errortile(i,j)+                                      \
+           (fp->tube->hydro?m*(fp->Cell(i,j)>fp->N/2):0) ) :   \
+                        (fp->Cell(i,j))                      ) ]
 
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
 void showpic(flake *fp, int err) /* display the field */
@@ -422,21 +464,17 @@ void repaint()
 {int i=0;
  XDrawString(display,quitbutton,  gcr,0,font_height,"    quit     ",13);
  XDrawString(display,fillbutton,  gcr,0,font_height,"    clear    ",13);
- XDrawString(display,randombutton,gcr,0,font_height,"random square",13);
+ XDrawString(display,flakebutton, gcr,0,font_height,"next/big/prev",13);
  XDrawString(display,tempbutton,  gcr,0,font_height," cool   heat ",13);
  setpause(paused);
  setcolor(errorc);
  setwander(wander);
 
  /* write various strings */
- if (wander) 
-  sprintf(stringbuffer,"%d by %d lattice: %s boundary (seed i,j = %d,%d; n = %d)   ",
-       (1<<fp->P),(1<<fp->P),
-        periodic?"periodic":"empty", fp->seed_i,fp->seed_j,fp->seed_n);
- else
-  sprintf(stringbuffer, "%d by %d lattice: %s boundary.", 
-       (1<<fp->P),(1<<fp->P),
-       periodic?"periodic":"empty");
+ sprintf(stringbuffer,"flake %d (%d by %d%s, seed %d @ (%d,%d)): %ld events, %d tiles, %d mismatches         ",
+       fp->flake_ID, (1<<fp->P),(1<<fp->P), periodic?", periodic":"",
+       fp->seed_n, fp->seed_i, fp->seed_j,
+       fp->events, fp->tiles, fp->mismatches);
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
@@ -454,7 +492,7 @@ void repaint()
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
- if (fp->hydro) {
+ if (tp->hydro) {
    sprintf(stringbuffer,"Gmch=%4.1f  Gseh=%4.1f  Ghyd=%4.1f",
                Gmch,Gseh,Ghyd);
    XDrawString(display,window,gc,5,(++i)*font_height,
@@ -465,23 +503,23 @@ void repaint()
                stringbuffer,strlen(stringbuffer));
  }
 
- sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",fp->t, fp->G);
+ sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",tp->t, fp->G);
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
- sprintf(stringbuffer, "%d events (%da,%dd,%dh,%df): %d tiles, %d mismatches   ",
-        fp->events, fp->stat_a, fp->stat_d, fp->stat_h, fp->stat_f,
-        fp->stat_a-fp->stat_d,fp->mismatches);
+ sprintf(stringbuffer, "%ld events (%lda,%ldd,%ldh,%ldf), %ld tiles total       ",
+        tp->events, tp->stat_a, tp->stat_d, tp->stat_h, tp->stat_f,
+        tp->stat_a-tp->stat_d+tp->num_flakes);
  XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
 
- if (deplete) {
+ // if (fp->flake_conc>0) {
   sprintf(stringbuffer, "Gfc=%4.1f; Gmc(%d)=%4.1f Gmc(%d)=%4.1f Gmc(%d)=%4.1f",
-        Gfc, 1, (fp->conc[1]>0)?-log(fp->conc[1]):0,
-             N/2, (fp->conc[N/2]>0)?-log(fp->conc[N/2]):0,
-             N, (fp->conc[N]>0)?-log(fp->conc[N]):0);
+        -log(fp->flake_conc), 1, (tp->conc[1]>0)?-log(tp->conc[1]):0,
+             N/2, (tp->conc[N/2]>0)?-log(tp->conc[N/2]):0,
+             N, (tp->conc[N]>0)?-log(tp->conc[N]):0);
   XDrawImageString(display,window,gc,5,(++i)*font_height,
                stringbuffer,strlen(stringbuffer));
- }
+ // }
 
  XDrawString(display,window,gc,WINDOWWIDTH-120,WINDOWHEIGHT-5
        ,"EW '98-'02",10); 
@@ -615,7 +653,7 @@ void openwindow(int argc, char **argv)
     WINDOWWIDTH-140,WINDOWHEIGHT-102,120,20,2,black,darkcolor);
  colorbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-128,120,20,2,black,darkcolor);
- randombutton=XCreateSimpleWindow(display,window,
+ flakebutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-154,120,20,2,black,darkcolor);
  seedbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-180,120,20,2,black,darkcolor);
@@ -635,7 +673,7 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XSelectInput(display,pausebutton,event_mask);
  XSelectInput(display,fillbutton,event_mask);
  XSelectInput(display,colorbutton,event_mask);
- XSelectInput(display,randombutton,event_mask);
+ XSelectInput(display,flakebutton,event_mask);
  XSelectInput(display,seedbutton,event_mask);
  XSelectInput(display,tempbutton,event_mask);
  event_mask=ButtonReleaseMask|ButtonPressMask|PointerMotionHintMask
@@ -678,7 +716,8 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XMapWindow(display,pausebutton);
  XMapWindow(display,fillbutton);
  XMapWindow(display,colorbutton);
- /* XMapWindow(display,randombutton); */ /* square is not useful */
+ if (~(fparam->N==1 && fparam->next_param==NULL))  
+   XMapWindow(display,flakebutton); 
  XMapWindow(display,seedbutton);
  XMapWindow(display,tempbutton);
  XMapWindow(display,playground);
@@ -758,13 +797,26 @@ int main(int argc, char **argv)
 
  // printf("xgrow: tile set read, beginning simulation\n"); 
  
-   /* set initial state: 2^8 grid */
-   fp = init_flake(size_P,N,num_bindings);   
-   set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc,T);
-   if (stripe_args==NULL) {
-      fp->seed_i=seed_i; fp->seed_j=seed_j; fp->seed_n=seed_n; 
-   } else {
+   /* set initial state */
+   tp = init_tube(size_P,N,num_bindings);   
+   set_params(tp,units,strength,stoic,hydro,ratek,
+          Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
+
+   fprm=fparam;
+   while (fprm!=NULL) {
+     int fn;
+     for (fn=0; fn<fprm->N; fn++) {
+       insert_flake(fp=init_flake(size_P,N,
+            fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp); 
+     }
+     fprm=fprm->next_param;
+   } 
+  
+   //   print_tree(tp->flake_tree,0,'*'); 
+  
+   if (stripe_args!=NULL) {
      /* STRIPE OPTION HAS HARDCODED TILESET NONSENSE -- A BUG */
+     /* SHOULD REPLACE THIS OPTION BY READING INITIAL FLAKE FROM FILE */
       int i,j,k,w; double p; char *s=stripe_args;
       char XOR[2][2]={ {4,7}, {6,5} }; /* XOR[S][E] */ char c,cc;
       i=size-1; j = atoi(s)%size; 
@@ -783,35 +835,38 @@ int main(int argc, char **argv)
                            [(fp->Cell((i-k+size)%size,(j+k+1)%size)-4)/2];
                   if (drand48()<p) do cc=4+random()%4; while (cc==c);
                   change_cell(fp, (i-k+size)%size, (j+k)%size, cc);
-                  fp->events--; /* don't count these as events */
+                  tp->events--; /* don't count these as events */
                   /* ERROR: stats are also modified!!! */
 	       }
 	    }
 	 }
       }
       /* no corner or boundary tiles for stripe simulations */
-      fp->conc[0] -= fp->conc[1]; fp->conc[0]+=(fp->conc[1]=exp(-35));
-      fp->conc[0] -= fp->conc[2]; fp->conc[0]+=(fp->conc[2]=exp(-35));
-      fp->conc[0] -= fp->conc[3]; fp->conc[0]+=(fp->conc[3]=exp(-35));
+      tp->conc[0] -= tp->conc[1]; tp->conc[0]+=(tp->conc[1]=exp(-35));
+      tp->conc[0] -= tp->conc[2]; tp->conc[0]+=(tp->conc[2]=exp(-35));
+      tp->conc[0] -= tp->conc[3]; tp->conc[0]+=(tp->conc[3]=exp(-35));
    }
+
 
    // printf("flake initialized, size_P=%d, size=%d\n",size_P,size);
 
  new_Gse=Gse; new_Gmc=Gmc;
 
  /* loop forever, looking for events */
- while((tmax==0 || fp->t < tmax) && 
-       (emax==0 || fp->events < emax) &&
-       (smax==0 || fp->stat_a-fp->stat_d < smax)) { 
+ while((tmax==0 || tp->t < tmax) && 
+       (emax==0 || tp->events < emax) &&
+       (smax==0 || tp->stat_a-tp->stat_d < smax)) { 
   if (!XXX) 
-     simulate(fp,update_rate,tmax,emax,smax);
+     simulate(tp,update_rate,tmax,emax,smax);
   else {
    if (0==paused && 0==mousing && !XPending(display)) {
-     simulate(fp,update_rate,tmax,emax,smax);
+     simulate(tp,update_rate,tmax,emax,smax);
+     recalc_G(fp); // make sure displayed G is accurate for conc's
+                   // hopefully this won't slow things down too much.
      stat++; if (stat==1) { stat=0; repaint(); }
    }
-   if (paused|mousing|XPending(display))
-    {XNextEvent(display,&report); 
+   if (paused|mousing|XPending(display)) {
+     XNextEvent(display,&report); 
      switch (report.type)
       {case Expose:
         if (report.xexpose.count!=0) break; /* more in queue, wait for them */
@@ -827,7 +882,7 @@ int main(int argc, char **argv)
         break; 
        case MotionNotify:
         if (report.xbutton.window==playground) {
-             if (fp->hydro) break; /* don't know how to reset params */
+             if (tp->hydro) break; /* don't know how to reset params */
              x=report.xbutton.x/block;
              y=report.xbutton.y/block;
              b=report.xbutton.button;
@@ -854,46 +909,75 @@ int main(int argc, char **argv)
 	}
         break;
        case ButtonRelease:
-        reset_params(fp, Gmc, Gse, new_Gmc, new_Gse);
-        if (Gfc>0) Gfc+=(new_Gmc-Gmc);
+        reset_params(tp, Gmc, Gse, new_Gmc, new_Gse);
+        if (Gfc>0) Gfc+=(new_Gmc-Gmc); 
+        fprm=fparam;
+        while (fprm!=NULL) {  /* fix up all flake info, for restarting */
+           fprm->Gfc += (new_Gmc-Gmc); fprm=fprm->next_param;
+        } 
         Gse=new_Gse; Gmc=new_Gmc; 
         showpic(fp,errorc); 
         mousing=0; 
         break;
        case ButtonPress:
-        if (report.xbutton.window==quitbutton)
-            { cleanup(); } 
-        else if (report.xbutton.window==pausebutton) 
-            { setpause(1-paused); repaint(); }
-        else if (report.xbutton.window==fillbutton)
-            {free_flake(fp); fp=init_flake(8,N,num_bindings); 
-             set_params(fp,units,strength,stoic,hydro,ratek,Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,Gfc,T);
-             fp->seed_i=seed_i; fp->seed_j=seed_j; fp->seed_n=seed_n; 
-             repaint();
-            }
-        else if (report.xbutton.window==colorbutton)
+        if (report.xbutton.window==quitbutton) {
+            cleanup();  
+        } else if (report.xbutton.window==pausebutton) {
+            setpause(1-paused); repaint(); 
+        } else if (report.xbutton.window==fillbutton) {
+            free_tube(tp); 
+            tp = init_tube(size_P,N,num_bindings);   
+            set_params(tp,units,strength,stoic,hydro,ratek,
+               Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
+            fprm=fparam; 
+            while (fprm!=NULL) {
+               int fn;
+               for (fn=0; fn<fprm->N; fn++) {
+                  insert_flake(fp=init_flake(size_P,N,
+                     fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp); 
+               }
+               fprm=fprm->next_param;
+            } 
+            repaint();
+        } else if (report.xbutton.window==colorbutton)
             { setcolor((errorc+1)%3); repaint(); }
         else if (report.xbutton.window==seedbutton)
             { setwander(1-wander); repaint(); }
-        else if (report.xbutton.window==randombutton) {
-             for (x=NCOLS/2-10;x<NCOLS/2+10;x++)
-              for (y=NROWS/2-10;y<NROWS/2+10;y++)
-/*               change_cell(fp,x,y,lrand48()%(fp->N+1)); */
-               change_cell(fp,x,y,4+((x+y)%2));  /* bar code */
+        else if (report.xbutton.window==flakebutton) { 
+             flake *tfp=tp->flake_list; 
+             x=report.xbutton.x;
+             y=report.xbutton.y;
+             b=report.xbutton.button;
+             // cycle through flakes.
+             if (x>80) {
+               fp=fp->next_flake;
+               if (fp==NULL) fp=tp->flake_list;
+	     } else if (x<40) {
+               while (tfp->next_flake != NULL && tfp->next_flake != fp) 
+                 tfp=tfp->next_flake;
+	       if (tfp==NULL) fp=tp->flake_list; else fp=tfp;
+	     } else {  // find the biggest flake.
+               fp=tfp;
+               while (tfp->next_flake != NULL) {
+                 tfp=tfp->next_flake;
+                 if (tfp->tiles > fp->tiles) fp=tfp; 
+	       }
+	     } 
+	     //             print_tree(tp->flake_tree,0,'*');  
              repaint();
         } else if (report.xbutton.window==tempbutton) {
              x=report.xbutton.x;
              y=report.xbutton.y;
              b=report.xbutton.button;
-             if (fp->hydro) break; /* don't know how to reset params */
+             if (tp->hydro) break; /* don't know how to reset params */
              if (x>60) new_Gse=Gse-0.1; else new_Gse=Gse+0.1;
-             reset_params(fp, Gmc, Gse, new_Gmc, new_Gse);
+             reset_params(tp, Gmc, Gse, new_Gmc, new_Gse);
              Gse=new_Gse; Gmc=new_Gmc; repaint();
         } else if (report.xbutton.window==playground) 
             {x=report.xbutton.x/block;
              y=report.xbutton.y/block;
              b=report.xbutton.button;
-             if (fp->hydro) break; /* don't know how to reset params */
+             if (tp->hydro) break; /* don't know how to reset params */
              new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
              /* draw current Gse, Gmc values */
              sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",

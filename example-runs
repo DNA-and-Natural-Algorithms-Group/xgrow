@@ -62,3 +62,9 @@ xgrow count.tile T=2 block=2
 xgrow sierpinski.tile T=2
 xgrow AB.tile T=1 seed=130,130,1
 xgrow barcode.tile T=1 seed=130,130,1
+
+%%%%% multiples flakes
+
+xgrow barcode.tile block=3 Gmc=15 Gse=10 addflakes=130,130,1:100@24
+
+xgrow barcode.tile block=3 Gmc=15 Gse=10 addflakes=130,130,1:1@20 addflakes=130,130,1:1@21 addflakes=130,130,1:1@22 addflakes=130,130,1:1@23

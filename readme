@@ -161,3 +161,14 @@ Hydrolysis is now a generic option for any tile set.
     did make a big difference.
 
   Major issue remaining on To-Do list is multiple flakes.
+
+7/20/02
+  * Major revision for multiple flakes.
+    However, there appear to be some bugs & features:
+      Sometimes core dumps on "clear" & re-start.
+      If requested screen area is too large, it Xerrors & dies.
+      #of mismatches appears to be inconsistent; 
+         recalc_G() when params vary can lead to big changes.
+      delta-G is similarly unconstant -- but, with depletion, its
+         not clear how to compute it correctly when all concentrations
+         are changing.
