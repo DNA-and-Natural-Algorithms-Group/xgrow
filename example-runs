@@ -8,7 +8,8 @@ xgrow AB Gse=7 Gmc=13 block=3 addflakes=130,130,1:100@18
 xgrow AB Gse=7 Gmc=11 block=3 seed=130,130,1
 
 % A B tiles growing rapidly
-% note the domain boundaries due to 0-strength bonds 
+% note the domain boundaries due to 0.1-strength bonds 
+% (wouldn't happen if bonds were exactly 0-strength, since xgrow doesn't such add tiles by default)
 xgrow AB Gse=7 Gmc=7 block=3 seed=130,130,1
 
 % A B tiles with limited monomer concentration
