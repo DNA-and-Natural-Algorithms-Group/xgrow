@@ -15,12 +15,17 @@ double exp(); double log();
 #define Cell(i,j) cell[(i)+1][(j)+1]
 /* note i,j here are indexed 0 <= i,j < (1<<P)                     */
 /* 
-   for periodic boundary conditions,  
-   cell[0][*] cell[size+1][*] cell[*][0] cell[*][size+1]
+   for periodic boundary conditions, where size=2^P,  
+    cell[0][*] cell[size+1][*] cell[*][0] cell[*][size+1]
    are maintained with the contents of the opposite wall;
    for non-periodic conditions, they are maintained as 0=empty
+
+  Thus, it is meaningful to request 
+    Cell(-1,j), Cell(size,j), Cell(i,-1), Cell(i,size)
 */
 
+/* for times when it's inconvenience to know if i,j are within bounds */
+#define CellM(i,j) cell[periodic?((i+size)%size):MAX(0,MIN((i)+1,size+1))][periodic?((j+size)%size):MAX(0,MIN((j)+1,size+1))]
 
 
 /* macro definition of summed sticky end bond energy                    */
@@ -36,23 +41,24 @@ double exp(); double log();
 /* definition for total sticky-end strength around a pair or a 2x2 chunk */
 /* -- note that if some site is empty, this still gives the correct      */
 /*    energy for dissociation                                            */
-#define chunk_Gse_EW(fp,i,j) ( \
-        Gse(fp,i,j,fp->Cell(i,j)) +                                             \
-        Gse(fp,i,((j)%size)+1,fp->Cell(i,((j)%size)+1)) -                       \
-        fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ fp->Cell(i,j) ] ) 
-#define chunk_Gse_NS(fp,i,j) ( \
-        Gse(fp,i,j,fp->Cell(i,j)) +                                             \
-        Gse(fp,((i)%size)+1,j,fp->Cell(((i)%size)+1,j)) -                       \
-        fp->tube->Gse_NS[ fp->Cell(i,j) ] [ fp->Cell((i)+1,j) ] ) 
-#define chunk_Gse_2x2(fp,i,j) ( \
-        Gse(fp,i,j,fp->Cell(i,j)) +                                             \
-        Gse(fp,i,((j)%size)+1,fp->Cell(i,((j)%size)+1)) +                       \
-        Gse(fp,((i)%size)+1,j,fp->Cell(((i)%size)+1,j)) +                       \
-        Gse(fp,((i)%size)+1,((j)%size)+1,fp->Cell(((i)%size)+1,((j)%size)+1)) - \
-        fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ fp->Cell(i,j) ] -               \
-        fp->tube->Gse_NS[ fp->Cell(i,j) ] [ fp->Cell((i)+1,j) ] -               \
-        fp->tube->Gse_EW[ fp->Cell((i)+1,(j)+1) ] [ fp->Cell((i)+1,j) ] -       \
-        fp->tube->Gse_NS[ fp->Cell(i,(j)+1) ] [ fp->Cell((i)+1,(j)+1) ]  ) 
+/* Here, 0 <= i,j < 2^P if periodic, and 0 <= i,j < 2^P-1 otherwise.     */
+#define chunk_Gse_EW(fp,i,j,n) ( \
+        Gse(fp,i,j,n) +                                                         \
+        Gse(fp,i,((j)+1)%size,fp->Cell(i,((j)+1)%size)) -                       \
+        2*fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ n ] ) 
+#define chunk_Gse_NS(fp,i,j,n) ( \
+        Gse(fp,i,j,n) +                                                         \
+        Gse(fp,((i)+1)%size,j,fp->Cell(((i)+1)%size,j)) -                       \
+        2*fp->tube->Gse_NS[ n ] [ fp->Cell((i)+1,j) ] ) 
+#define chunk_Gse_2x2(fp,i,j,n) ( \
+        Gse(fp,i,j,n) +                                                         \
+        Gse(fp,i,((j)+1)%size,fp->Cell(i,((j)+1)%size)) +                       \
+        Gse(fp,((i)+1)%size,j,fp->Cell(((i)+1)%size,j)) +                       \
+        Gse(fp,((i)+1)%size,((j)+1)%size,fp->Cell(((i)+1)%size,((j)+1)%size)) - \
+        2*fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ fp->Cell(i,j) ] -             \
+        2*fp->tube->Gse_NS[ fp->Cell(i,j) ] [ fp->Cell((i)+1,j) ] -             \
+        2*fp->tube->Gse_EW[ fp->Cell((i)+1,(j)+1) ] [ fp->Cell((i)+1,j) ] -     \
+        2*fp->tube->Gse_NS[ fp->Cell(i,(j)+1) ] [ fp->Cell((i)+1,(j)+1) ]  ) 
 
 
 /* similar definition to count the number of sides that are mismatched   */
@@ -84,7 +90,7 @@ typedef struct flake_struct {
   unsigned char **cell;/* tile type at [i][j]; array of arrays             */
                        /* note 0 <= i,j <= 2^P+1, allowing for borders     */
   double ***rate;      /* hierarchical rates for events in non-empty cells */
-                       /* rate[p][i][j] has 0 <= i,j <= 2^p                */
+                       /* rate[p][i][j] has 0 <= i,j < 2^p                 */
                        /* rate[P][i][j] = sum rates for Cell(i,j)          */
                        /* rate[p][i][j] =   sum rate[p+1][2*i+di][2*j+dj]  */
                        /*                 (di,dj in {0,1})                 */
