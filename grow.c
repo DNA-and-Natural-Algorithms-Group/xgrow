@@ -1,3 +1,11 @@
+/* grow.c
+
+  This code is freely distributable.
+
+  by Erik Winfree
+*/
+  
+
 
 # include <stdio.h>
 # include <stdlib.h>
@@ -131,7 +139,7 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
   }
   tp->strength = (double*) calloc(sizeof(double),num_bindings+1);
   tp->glue = (double **) calloc(sizeof(double*),num_bindings+1);
-  for (i=0;i<=num_bindings+1;i++) {
+  for (i=0;i<=num_bindings;i++) {
     tp->glue[i] = (double*) calloc(sizeof(double),num_bindings+1);
     for (j=0;j<=num_bindings;j++) { tp->glue[i][j]=0; }  // necessary??  -- EW
   }

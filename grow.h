@@ -1,3 +1,9 @@
+/* grow.h
+
+  This code is freely distributable.
+
+  by Erik Winfree
+*/
 
 
 #define DEBUG 1

@@ -1,4 +1,6 @@
 /*  xgrow
+
+  This code is freely distributable.
            
   History:
    Originally X-Automatalab by Michael Creutz creutz@wind.phy.bnl.gov
@@ -100,7 +102,9 @@
     or simply lead to disconnected assemblies... also yikes!
   * fp->G nan and other discrepencies should be tracked down.
 
-  Compiling:  see makecc and makeccprof
+  Compiling:  see makecc and makeccprof and makeccefence
+
+gcc -O -Wall -g -o xgrow xgrow.c grow.c -I/usr/X11R6/include -L/usr/X11R6/lib -lX11 -lm
     
 */
 
