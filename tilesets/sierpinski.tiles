@@ -1,13 +1,22 @@
+% sierpinski.tiles
+% This tileset contains the 7 tiles corresponsing to a DAE-E tile set
+% RE-01, SE-10, UE-11, VE-00 and the (never designed) corner and border tiles.
 tile edges matches {{N E S W}*}
 num tile types=7
 num binding types=3
 tile edges={
-{1 0 0 1}[.1]
-{1 0 1 2}[.5]
-{2 1 0 1}[.5]
-{3 3 3 3}
-{3 2 2 3}
-{2 3 2 2}
-{2 2 3 2}}
+{1 0 0 1}[.1]   % Corner
+{1 0 1 2}[.5]   % Bright (vertical)
+{2 1 0 1}[.5]   % Bleft  (horizontal)
+{3 3 3 3}       % VE-00
+{3 2 2 3}       % UE-11 
+{2 3 2 2}       % SE-10
+{2 2 3 2}}      % RE-01
+%
+%  VE-00    UE-11    SE-10    RE-01    Bleft    Bright   Corner
+%    3        3        2        2        2        1        1 
+%  3   3    3   2    2   3    2   2    1   1    2   0    1   0
+%    3        2        2        3        0        1        0
+%
 binding strengths=
 {2 1 1}

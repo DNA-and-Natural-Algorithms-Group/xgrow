@@ -187,20 +187,34 @@ void parse_arg_line(char *arg)
    if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
 }
 
+#define rsc read_skip_comment(tilefp)
+void read_skip_comment(FILE *fp)
+     // anything after a "%" gets ignored
+{ int c;
+ c=fgetc(fp); 
+ while (c=='%') {
+   fgets(&stringbuffer[0],256,fp); 
+   fprintf(stderr,"%%%s",stringbuffer);
+   c=fgetc(fp); 
+ }
+ ungetc(c,fp); 
+}
+
 void read_tilefile(FILE *tilefp) 
 { 
  float strength_float, stoic_float; int i,j;
 
- fscanf(tilefp,"tile edges matches {{N E S W}*}\n");
+ rsc;
+ fscanf(tilefp,"tile edges matches {{N E S W}*}\n"); rsc;
 
- fscanf(tilefp,"num tile types=%d\n",&N);
- fscanf(tilefp,"num binding types=%d\n", &num_bindings);
+ fscanf(tilefp,"num tile types=%d\n",&N); rsc;
+ fscanf(tilefp,"num binding types=%d\n", &num_bindings); rsc;
 
- fscanf(tilefp,"tile edges=");
+ fscanf(tilefp,"tile edges="); rsc;
  units_length = N+1;
  units = (int**) calloc(sizeof(int*),units_length);
  stoic = (double*) calloc(sizeof(double),units_length);
- fscanf(tilefp,"{\n");
+ fscanf(tilefp,"{\n"); rsc;
  units[0] = (int*) calloc(sizeof(int),4);
  for (j=0;j<4;j++) {
    units[0][j] = 0;
@@ -208,29 +222,29 @@ void read_tilefile(FILE *tilefp)
  stoic[0]=0;
  for (i=1;i<units_length;i++) {
    units[i] = (int*) calloc(sizeof(int),4);
-   fscanf(tilefp,"{");
+   fscanf(tilefp,"{"); 
    for (j=0;j<4;j++) {
      fscanf(tilefp,"%d",&units[i][j]);
    }
-   fscanf(tilefp,"}"); 
+   fscanf(tilefp,"}"); rsc;
    if (fscanf(tilefp,"[%g]",&stoic_float)) 
-      stoic[i]=stoic_float; else stoic[i]=1.0;
-   fscanf(tilefp,"\n");
+     stoic[i]=stoic_float; else stoic[i]=1.0; rsc;
+   fscanf(tilefp,"\n"); rsc;
  }
- fscanf(tilefp,"}\n");
+ fscanf(tilefp,"}\n"); rsc;
 
- fscanf(tilefp,"binding strengths=\n");
+ fscanf(tilefp,"binding strengths=\n"); rsc;
  strength = (double*) calloc(sizeof(double),num_bindings+1);
  fscanf(tilefp,"{");
  strength[0]=0;         /* bond type 0 ("null") always has strength 0 */
  for (i=1;i<=num_bindings;i++) {
    fscanf(tilefp,"%g",&strength_float);
    strength[i]=(double)strength_float;
- }
- fscanf(tilefp,"}\n");
+ } rsc;
+ fscanf(tilefp,"}\n"); rsc;
 
  while(fgets(&stringbuffer[0],256,tilefp)!=NULL) {
-   parse_arg_line(&stringbuffer[0]);
+   parse_arg_line(&stringbuffer[0]); rsc;
  }
 
  fclose(tilefp);
