@@ -110,6 +110,9 @@
 
    12/30/03 Added fill_cycles and fill_X to fill-in small holes after simulation.
             Added zero_bonds option to allow accretion of tiles that "don't stick".
+    1/4/04  Added fill / clean button to help clarify exactly what this processing
+            does, so error rate stats can be interpretted.
+            (Also fixed Quit so that it exits normally, outputting data if requested.) 
 
 
   TO DO List:
@@ -199,7 +202,7 @@ Display *display;
 int screen;
 Window window,quitbutton,pausebutton,playground,
         restartbutton,colorbutton,flakebutton,seedbutton,tempbutton, 
-        fissionbutton, samplebutton, exportbutton;
+        fissionbutton, samplebutton, exportbutton,cleanbutton;
 GC gc, gcr, gccolor;
 XImage *spinimage=NULL;
 XFontStruct *font=NULL;
@@ -313,8 +316,8 @@ void parse_arg_line(char *arg)
    else if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
    else if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
    else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
-   else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[13]);
-   else if (strncmp(arg,"fill_X=",7)==0) fill_X=atof(&arg[8]);
+   else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[12]);
+   else if (strncmp(arg,"fill_X=",7)==0) fill_X=atof(&arg[7]);
    else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
    else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
    else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
@@ -1214,6 +1217,7 @@ void repaint()
 {int i=0;
  XDrawString(display,quitbutton,    gcr,0,font_height,"    quit     ",13);
  XDrawString(display,restartbutton, gcr,0,font_height,"   restart   ",13);
+ XDrawString(display,cleanbutton,   gcr,0,font_height," clean/fill  ",13);
  XDrawString(display,samplebutton,  gcr,0,font_height,"   sample    ",13);
  XDrawString(display,flakebutton,   gcr,0,font_height,"next/big/prev",13);
  XDrawString(display,tempbutton,    gcr,0,font_height," cool   heat ",13);
@@ -1395,10 +1399,12 @@ void openwindow(int argc, char **argv)
 
 /* make the buttons */
  quitbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-150,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-124,120,20,2,black,darkcolor);
  restartbutton=XCreateSimpleWindow(display,window,
-    WINDOWWIDTH-140,WINDOWHEIGHT-176,120,20,2,black,darkcolor);
+    WINDOWWIDTH-140,WINDOWHEIGHT-150,120,20,2,black,darkcolor);
  pausebutton=XCreateSimpleWindow(display,window,
+    WINDOWWIDTH-140,WINDOWHEIGHT-176,120,20,2,black,darkcolor);
+ cleanbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-202,120,20,2,black,darkcolor);
  colorbutton=XCreateSimpleWindow(display,window,
     WINDOWWIDTH-140,WINDOWHEIGHT-228,120,20,2,black,darkcolor);
@@ -1427,6 +1433,7 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XSelectInput(display,quitbutton,event_mask);
  XSelectInput(display,pausebutton,event_mask);
  XSelectInput(display,restartbutton,event_mask);
+ XSelectInput(display,cleanbutton,event_mask);
  XSelectInput(display,colorbutton,event_mask);
  XSelectInput(display,flakebutton,event_mask);
  XSelectInput(display,seedbutton,event_mask);
@@ -1473,6 +1480,7 @@ the exposuremask in here, things flash irritatingly on being uncovered. */
  XMapWindow(display,quitbutton);
  XMapWindow(display,pausebutton);
  XMapWindow(display,restartbutton);
+ XMapWindow(display,cleanbutton);
  XMapWindow(display,colorbutton);
  if (~(fparam->N==1 && fparam->next_param==NULL))  
    XMapWindow(display,flakebutton); 
@@ -1752,7 +1760,9 @@ int main(int argc, char **argv)
         break;
        case ButtonPress:
         if (report.xbutton.window==quitbutton) {
-            cleanup();  
+            // force regular immediate exit by setting smax to current size
+            smax=tp->stat_a-tp->stat_d;
+	    // (was cleanup(); but this circumvented datafile output, etc.)
         } else if (report.xbutton.window==pausebutton) {
             setpause(1-paused); repaint(); 
         } else if (report.xbutton.window==restartbutton) {
@@ -1779,6 +1789,18 @@ int main(int argc, char **argv)
             setfission(fission_allowed); 
             reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);  // this recalc's all rates
             repaint(); 
+        } else if (report.xbutton.window==cleanbutton) {
+             x=report.xbutton.x;
+             y=report.xbutton.y;
+             b=report.xbutton.button;
+             if (x<60) {  // do a clean_flake cycle
+               printf("Cleaning 1 cycle, clean_X=%f\n",clean_X);
+               clean_flake(fp,clean_X,1); 
+             } else { // do a fill_flake cycle
+               printf("Filling 1 cycle, fill_X=%f\n",fill_X);
+               fill_flake(fp,fill_X,1); 
+	     }
+             repaint();           
         } else if (report.xbutton.window==exportbutton) {
              x=report.xbutton.x;
              y=report.xbutton.y;
