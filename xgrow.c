@@ -67,23 +67,33 @@
    summer 03 Added command-line option to read in initial tile assembly.  (Shaun Lee)
    10/14/03 Changed format of input file to allow a generalized strength function of the form
               g(a,b) = c where a and b are tile types, and c is the floating point strength.
-	      (Rebecca Schulma)
-   11/7/03 Adding chunk_fission option.  
-
-             
-            
+	      (Rebecca Schulman)
+   11/10/03 Adding chunk_fission option.  When set, not only can single tiles dissociate,
+            but pairs of tiles and 2x2 blocks can dissociate.  Implies fission.
+            Should work with periodic and wander options, also.
+            Was a bit hairy, especially with boundary conditions.  
+            Probably a few bugs still lurk here -- I yearn for automated testing.
+            chunk_fission is incompatible with hydrolysis rules.
+              (Erik Winfree)
 
   TO DO List:
   * MAKE SURE "ERR" MODE USES GREEN AND RED, EVEN IF TILE COLORS ARE SPECIFIED
   * add debugging feature so tile # underneath pointer is identified
+  * tile files should allow sticky ends to be specified by string labels rather
+    than numbers.  num_tiles and num_bindings should be ignored, and inferred from
+    the file.  
   * Something like "multiflakes=100@27" argument does "the right thing"
        by adding 100 flakes for each tile type, at Gfc=27+stoich,
            with each seed centered in the field,
        defaults to "wander"
   * Event counter should simply have more bits!
-  * Should CONNECTED be true for mismatched sticky ends??
+  * Should CONNECTED be true for mismatched sticky ends??  Currently, it is.
+    Only not connected if bond 0 is involved.  (But zero-strength bonds connect.)
+    Freaky, but no speckle of tiles around the edge if all zero-strength interactions
+    immediately & instantly dissociate.  
   * In no-fission mode, one can get caught up on very fast -- but disallowed --
-    dissociations, which must be rejected.  This is not good.
+    dissociations, which must be rejected.  This is not good. 
+    (not sure if this is still true.  EW 11/10/03)
   * rubberbanding for "puncture"
   * green dot (current value), red dot (selection cursor) for Gse/Gmc mouse choice
   * puncture can try to erase the seed, leading to disconnected flakes... yikes!
@@ -477,6 +487,7 @@ void getargs(int argc, char **argv)
    parse_arg_line(argv[i]);
  }
  if (tmax==0 && emax==0 && smax==0) XXX=1;
+ if (hydro && fission_allowed==2) fission_allowed=1;
 
  for (size_P=5; (1<<size_P)<size; size_P++);
  size=(1<<size_P); 
@@ -1095,6 +1106,7 @@ void setwander(int value)
 /* fix up the fission mode button */
 void setfission(int value)
 {fission_allowed=value;
+ if (hydro && value==2) fission_allowed=0;
  if (fission_allowed>0) 
    if (fission_allowed==1)
      XDrawImageString(display,fissionbutton,gcr,0,font_height," fission  OK ",13);

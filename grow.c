@@ -433,7 +433,7 @@ void insert_flake(flake *fp, tube *tp)
 /*     EW pair, NS pair, & 2x2 block, individually in [1+N+0]...[1+N+3]    */
 /*  n=0 (empty) is the most common case.  the returned value is sum rv[n]  */
 /* for empty cells i,j, returns 0                                          */
-/* rv must already exist, of size at least fp->N+1                         */
+/* rv must already exist, of size at least fp->N+1 (+4 for chunks)         */
 /* 0 <= i,j < 2^P                                                          */
 double calc_rates(flake *fp, int i, int j, double *rv)
 {
@@ -441,7 +441,7 @@ double calc_rates(flake *fp, int i, int j, double *rv)
   unsigned char nN,nE,nS,nW; int N=fp->N; int size=(1<<fp->P);
   int seedchunk[4]; 
 
-  if (rv!=NULL) for (n=0;n<=N;n++) rv[n]=0;
+  if (rv!=NULL) for (n=0;n<=N+4;n++) rv[n]=0;
   if (tp==NULL) return 0;
   if (tp->T>0) return 0;   /* no off-rates: irreversible Tile Assembly Model */
   n = fp->Cell(i,j);
