@@ -130,6 +130,10 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
    for (j=0;j<4;j++) tp->units[i][j]=0;
   }
   tp->strength = (double*) calloc(sizeof(double),num_bindings+1);
+  tp->glue = (double **) calloc(sizeof(double*),num_bindings+1);
+  for (n=0;n<N+1;n++) {
+    tp->glue[n] = (double*) calloc(sizeof(double),num_bindings+1);
+  }
 
   tp->conc = (double *)calloc(sizeof(double),N+1);
   for (n=0;n<N+1;n++) tp->conc[n]=0;
@@ -171,6 +175,7 @@ void free_tube(tube *tp)
   free(tp->rv); free(tp->Fgroup); free(tp->Fnext);
   
   for (n=0;n<tp->N+1;n++) free(tp->units[n]); free(tp->units);
+  for (n=0;n<tp->N+1;n++) free(tp->glue[n]); free(tp->glue);
   free(tp->strength); 
 
   free_tree(tp->flake_tree);  
@@ -185,7 +190,7 @@ void free_tube(tube *tp)
 
 /* set up info for tile set, in flake data struc  */
 /* fp->seed_n should have a defined value before entering set_params */
-void set_params(tube *tp, int** units, double* strength, double* stoic,
+void set_params(tube *tp, int** units, double* strength, double **glue, double* stoic,
  int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao, double T)
@@ -196,6 +201,11 @@ void set_params(tube *tp, int** units, double* strength, double* stoic,
       can do as it pleases with it's units & strength information */
    for (i=0;i<=tp->N;i++) for (j=0;j<4;j++) tp->units[i][j] = units[i][j];
    for (i=0;i<=tp->num_bindings;i++) tp->strength[i] = strength[i]; 
+   for (i=0;i<=tp->num_bindings;i++) {
+     for (j=0;j<=tp->num_bindings;j++) {
+       tp->glue[i][j] = glue[i][j];
+     }
+   }
 
    tp->hydro = hydro; 
    tp->T=T;
@@ -215,14 +225,17 @@ void set_params(tube *tp, int** units, double* strength, double* stoic,
    if (tp->hydro) for (n=tp->N/2+1; n <= tp->N; n++) tp->Gcb[n]=Ghyd;
 
    /* set Gse_EW Gse_NS from Gse, Gseh rules */
-   /* uses (tp->units)[] and tp->strength[] */
+   /* uses (tp->units)[] and tp->strength[] and tp->glue[] */
+   /* XXX We will want to modify this */
    for (n=1; n<=tp->N; n++)
       for (m=1; m<=tp->N; m++) {
-         tp->Gse_EW[n][m] = ((tp->units)[n][3]==(tp->units)[m][1]) *
-              (tp->strength)[(tp->units)[m][1]] * 
-                (tp->hydro?(((n > tp->N/2) || (m > tp->N/2))?Gseh:Gse):Gse);
-         tp->Gse_NS[n][m] = ((tp->units)[n][2]==(tp->units)[m][0]) *
-              (tp->strength)[(tp->units)[m][0]] * 
+	tp->Gse_EW[n][m] = ((((tp->units)[n][3]==(tp->units)[m][1]) *
+			     (tp->strength)[(tp->units)[m][1]]) +
+			    (tp->glue)[(tp->units)[n][3]][(tp->units)[m][1]])*
+	  (tp->hydro?(((n > tp->N/2) || (m > tp->N/2))?Gseh:Gse):Gse);
+         tp->Gse_NS[n][m] = (((tp->units)[n][2]==(tp->units)[m][0]) *
+			     (tp->strength)[(tp->units)[m][0]] +
+			     (tp->glue)[(tp->units)[n][2]][(tp->units)[m][0]])* 
                 (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
       }
 

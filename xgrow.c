@@ -64,6 +64,11 @@
             actually fixed the simulation event counter wrap-around.
    5/25/03  enhanced tile file definition to allow X named colors.
                e.g., {2 3 5 1}[.4](purple)
+   10/14/03 Changed format of input file to allow a generalized strength function of the form
+              g(a,b) = c where a and b are tile types, and c is the floating point strength.
+	      (Rebecca Schulman)
+             
+            
 
   TO DO List:
   * MAKE SURE "ERR" MODE USES GREEN AND RED, EVEN IF TILE COLORS ARE SPECIFIED
@@ -163,6 +168,7 @@ int block=1; /* default to small blocks; calling with argument changes this */
 int wander, periodic, linear, fission_allowed; 
 FILE *tracefp, *datafp, *arrayfp, *tilefp;
 double *strength;
+double **glue;
 int N, num_bindings, units_length;
 int **units; double *stoic;
 int hydro; int clean_cycles=1; double clean_X=1.0;
@@ -303,7 +309,9 @@ void read_skip_comment(FILE *fp)
 
 void read_tilefile(FILE *tilefp) 
 { 
- float strength_float, stoic_float; int i,j;
+ float strength_float, glue_float, stoic_float; int i,j;
+ int temp_char;
+ int n,m;
 
  rewind(tilefp); 
    // needs to be read twice, 
@@ -328,6 +336,7 @@ void read_tilefile(FILE *tilefp)
  for (i=1;i<units_length;i++) {
    units[i] = (int*) calloc(sizeof(int),4);
    fscanf(tilefp,"{"); 
+   /* XXX we will need to change this too */
    /* read in the four binding types {N E S W} */
    for (j=0;j<4;j++) {
      fscanf(tilefp,"%d",&units[i][j]);
@@ -344,16 +353,32 @@ void read_tilefile(FILE *tilefp)
  }
  fscanf(tilefp,"}\n"); rsc;
 
- fscanf(tilefp,"binding strengths=\n"); rsc;
- strength = (double*) calloc(sizeof(double),num_bindings+1);
- fscanf(tilefp,"{");
- strength[0]=0;         /* bond type 0 ("null") always has strength 0 */
- for (i=1;i<=num_bindings;i++) {
-   fscanf(tilefp,"%g",&strength_float);
-   strength[i]=(double)strength_float;
- } rsc;
- fscanf(tilefp,"}\n"); rsc;
+ glue = (double **) calloc(sizeof (double *),num_bindings + 1);
+ for (i=0;i<=num_bindings;i++) {
+   glue[i] = (double *) calloc(sizeof (double),num_bindings + 1);
+ }
+ strength = (double*) calloc(sizeof(double),num_bindings+1); fscanf(tilefp,"{");
 
+ temp_char = getc (tilefp);
+ ungetc(temp_char, tilefp);
+ if (temp_char == 'b') {
+   fscanf(tilefp,"binding strengths=\n"); rsc; 
+   strength[0]=0; /* bond type 0 ("null") always has strength 0 */
+   for (i=1;i<=num_bindings;i++) {
+     fscanf(tilefp,"%g",&strength_float);
+     strength[i]=(double)strength_float;
+   } rsc;
+   fscanf(tilefp,"}\n"); rsc;
+ }
+ while (fgetc(tilefp) == 'g') {
+   fscanf(tilefp,"(%d,%d)=%g\n",&n,&m,&glue_float);
+   printf ("n is %d\n",n);
+   printf ("m is %d\n",m);
+   printf ("Glue float is %g\n",glue_float);
+   glue[n][m] = (double) glue_float;
+   glue[m][n] = (double) glue_float;
+ }
+   
  while(fgets(&stringbuffer[0],256,tilefp)!=NULL) {
    parse_arg_line(&stringbuffer[0]); rsc;
  }
@@ -823,7 +848,9 @@ void closeargs()
 
   // free memory
   for (i=0;i<=tp->N;i++) free(units[i]); free(units);
+  for (i=0;i<=tp->N;i++) free(glue[i]); free(glue);
   free(strength); free(stoic);
+  
   while (fparam!=NULL) { fprm=fparam->next_param; free(fparam); fparam=fprm; }
 
   free_tube(tp);  // this frees all the flakes too
@@ -1417,7 +1444,7 @@ int main(int argc, char **argv)
  
    /* set initial state */
    tp = init_tube(size_P,N,num_bindings);   
-   set_params(tp,units,strength,stoic,hydro,ratek,
+   set_params(tp,units,strength,glue,stoic,hydro,ratek,
           Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
 
    fprm=fparam;
@@ -1577,7 +1604,7 @@ int main(int argc, char **argv)
         } else if (report.xbutton.window==fillbutton) {
             free_tube(tp); 
             tp = init_tube(size_P,N,num_bindings);   
-            set_params(tp,units,strength,stoic,hydro,ratek,
+            set_params(tp,units,strength,glue,stoic,hydro,ratek,
                Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T);
             fprm=fparam; 
             while (fprm!=NULL) {

@@ -93,7 +93,10 @@ typedef struct flake_tree_struct {
 
 typedef struct tube_struct {
   int **units;         /* tile types */
-  double *strength;    /* bond strengths */
+  double *strength;    /* bond strengths.  assumes tile types stick to
+			  each other and not other types of tiles          */
+  double **glue;       /* A generalized version of the strength function:
+			  The level of "glue" between various tile types   */
   int num_bindings;    /* length of strength */
   
   unsigned char N, P;  /* # non-empty tile types; 2^P active cell grid     */
@@ -147,8 +150,8 @@ void free_tube(tube *tp);
 void insert_flake(flake *fp, tube *tp);
 void print_tree(flake_tree *ftp, int L, char s);
 void clean_flake(flake *fp, double X, int iters);
-void set_params(tube *tp, int** units, double* strength, double* stoic,
- int hydro, double k, double Gmc, double Gse,
+void set_params(tube *tp, int** units, double* strength, double **glue, 
+ double* stoic,int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao, double T);
 void reset_params(tube *tp, double old_Gmc, double old_Gse,
