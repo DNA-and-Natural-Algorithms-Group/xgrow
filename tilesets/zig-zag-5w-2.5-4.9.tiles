@@ -15,9 +15,9 @@ tile edges={
 }
 binding strengths=
 {1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1.96 1.96}
-size=128
+size=64
 block=8
-seed=64,64,8
+seed=32,32,8
 wander
 %smax=80
 Gmc=10
