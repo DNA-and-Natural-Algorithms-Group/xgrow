@@ -260,7 +260,7 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
          then they've all been erased now */
       ring[i] = (n==0);
    }
-}
+} // set_params()
 
 /* recalculate flake energy & rates from scratch                    */
 /* assume locations not adjacent to a tile correctly have zero rate */
@@ -290,7 +290,7 @@ void recalc_G(flake *fp)
      }
    fp->mismatches/=2;
    update_tube_rates(fp);
-}
+} // recalc_G()
 
 /* calculate the dG of the flake, excluding concentration effects */
 double calc_dG_bonds(flake *fp)
@@ -306,7 +306,7 @@ double calc_dG_bonds(flake *fp)
        }
      }
    return dG; 
-}
+} // calc_dG_bonds()
 
 /* calculate the perimeter of the flake */
 int calc_perimeter(flake *fp)
@@ -323,8 +323,7 @@ int calc_perimeter(flake *fp)
        }
      }
    return perimeter;
-}
-
+} // calc_perimeter()
 
 
 void reset_params(tube *tp, double old_Gmc, double old_Gse, 
@@ -370,7 +369,7 @@ void reset_params(tube *tp, double old_Gmc, double old_Gse,
 
   }
  }
-}
+} // reset_params()
 
 /* put flake in the binary tree, somewhat balancing rates       */
 /* (more principled would be to build Huffman tree bottom-up)   */
@@ -431,7 +430,7 @@ void insert_flake(flake *fp, tube *tp)
   fp->next_flake=tp->flake_list;
   tp->flake_list=fp;
   fp->flake_ID=++tp->num_flakes;
-}
+} // insert_flake()
 
 
 /* gives concentration-independent rates                                   */
@@ -528,7 +527,7 @@ double calc_rates(flake *fp, int i, int j, double *rv)
   } 
 
   return sumr;
-}
+} // calc_rates()
 
 
 /* figure the delta_rate for this cell, and propagate up.           */
@@ -580,7 +579,7 @@ void update_rates(flake *fp, int ii, int jj)
          ii = (ii>>1); jj = (jj>>1);
       }
    }
-}
+} // update_rates()
 
 void update_tube_rates(flake *fp)
 {
@@ -598,7 +597,7 @@ void update_tube_rates(flake *fp)
     ftp=ftp->up;
   }
   
-}
+} // update_tube_rates()
 
 
 /* convert Cell(i,j) to type n.                                       */
@@ -674,7 +673,7 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
    }
 
    if (tp!=NULL) update_tube_rates(fp);
-}
+} // change_cell()
 
 void change_seed(flake *fp, int new_i, int new_j)
 {  int old_i=fp->seed_i; int old_j=fp->seed_j;
@@ -691,7 +690,7 @@ void change_seed(flake *fp, int new_i, int new_j)
    // motion during WANDER.
    if (fp->seed_n==0) 
      printf("seed wandered to empty site %d,%d!\n",new_i,new_j);
-}
+} // change_seed()
 
 
 /* use rates & empty & conc to choose a cell to change,      */
@@ -753,7 +752,7 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
     }
   }
   *np = n;
-}
+} // choose_cell()
 
 flake *choose_flake(tube *tp)
 {
@@ -778,7 +777,7 @@ flake *choose_flake(tube *tp)
   }
   // upon exit, ftp is now a leaf; ftp->fp is our chosen flake
   return ftp->fp;
-}
+} // choose_flake()
 
 /*************** the fill routine for checking connectedness ***********/
 
@@ -1092,6 +1091,28 @@ void fill_flake(flake *fp, double X, int iters)
   }
 
 } // fill_flake()
+
+/* recalculate # mismatches counting only tiles w/o an empty space within rad.       */
+/* (also see recalc_G for original #mismatches count, as displayed in window always) */
+void error_radius_flake(flake *fp, double rad)
+{
+  int n,i,j,ii,jj,size=(1<<fp->P),solid; 
+
+   fp->mismatches=0; 
+   for (i=0;i<size;i++)
+     for(j=0;j<size;j++) {
+       if ((n=fp->Cell(i,j))>0 && Mism(fp,i,j,n)) {
+         solid=1;
+         for (ii=MAX(0,floor(i-rad)); ii<=MIN(size-1,ceil(i+rad)); ii++)
+           for (jj=MAX(0,floor(j-rad)); jj<=MIN(size-1,ceil(j+rad)); jj++)
+             if ( (ii-i)*(ii-i)+(jj-j)*(jj-j) < rad*rad && fp->Cell(ii,jj)==0 ) solid=0;
+         fp->mismatches += solid;
+       }
+     }
+   fp->mismatches/=2;  // errors right on boundary of radius may not be counted twice.
+
+} // error_radius_flake()
+
 
 /* simulates 'events' events */
 void simulate(tube *tp, int events, double tmax, int emax, int smax)

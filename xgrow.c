@@ -113,7 +113,9 @@
     1/4/04  Added fill / clean button to help clarify exactly what this processing
             does, so error rate stats can be interpretted.
             (Also fixed Quit so that it exits normally, outputting data if requested.) 
-
+    1/6/04  Added error_radius option.  I am worried that major counted error rates
+            are temporary growth front mishaps, when internal errors are very very small.
+            Testing...
 
   TO DO List:
   
@@ -231,7 +233,8 @@ double *strength;
 double **glue;
 int N, num_bindings, tileb_length;
 int **tileb; double *stoic;
-int hydro; int clean_cycles=1; double clean_X=1.0; int fill_cycles=1; double fill_X=1.0;
+int hydro; int clean_cycles=0; double clean_X=1.0; int fill_cycles=0; double fill_X=1.0;
+double error_radius=0.0;
 double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
 char *stripe_args=NULL;
@@ -318,6 +321,7 @@ void parse_arg_line(char *arg)
    else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
    else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[12]);
    else if (strncmp(arg,"fill_X=",7)==0) fill_X=atof(&arg[7]);
+   else if (strncmp(arg,"error_radius=",13)==0) error_radius=atof(&arg[13]);
    else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
    else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
    else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
@@ -529,11 +533,13 @@ void getargs(int argc, char **argv)
    printf("  emax=                 quit after e events have occurred\n");
    printf("  smax=                 quit when the fragment is size s\n");
    printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles?\n"
-	  "                        [default=1]\n");
+	  "                        [default=0]\n");
    printf("  clean_X=              for cleaning, minimal ratio of off-rate to on-rate [default=1.0]\n");
    printf("  fill_cycles=          at end, add how many layers of strongly attached tiles?\n"
-	  "                        [default=1]\n");
+	  "                        [default=0]\n");
    printf("  fill_X=               for filling, minimal ratio of off-rate to on-rate [default=1.0]\n");
+   printf("  error_radius=         when writing to file, #mismatches counts only those for which \n"
+          "                        all surounding tiles are present (after clean/fill) [default=0]\n");
    printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events, perimeter, dG, dG_bonds\n");
    printf("  arrayfile=            output MATLAB-format flake array information on exit (after cleaning)\n");
    printf("  exportfile=           on-request output of MATLAB-format flake array information\n");
@@ -616,7 +622,7 @@ void write_datalines(FILE *out, char *text)
    if (strcmp(text,"")==0) fpp=fp;
    perimeter=calc_perimeter(fpp);
    dG_bonds = calc_dG_bonds(fpp);
-   if (tp->hydro) fprintf(datafp, " %f %f %f %f %f %f %f %f %f ",
+   if (tp->hydro) fprintf(out, " %f %f %f %f %f %f %f %f %f ",
 			  Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
    fprintf(out, " %f %f %f %f %d %d %ld %d %f %f%s",
 	   Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events,
@@ -936,6 +942,12 @@ void closeargs()
   // fills in all flakes  (adds tiles in holes or on growth edge that "ought" to be there)
   for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
     fill_flake(fpp,fill_X,fill_cycles); 
+
+  // recalc's all mismatch #'s if error_radius is given
+  if (error_radius>.5) {
+    for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
+      error_radius_flake(fpp,error_radius); 
+  }
 
   /* output information for *all* flakes */
   if (datafp!=NULL) {

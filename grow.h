@@ -186,6 +186,7 @@ void insert_flake(flake *fp, tube *tp);
 void print_tree(flake_tree *ftp, int L, char s);
 void clean_flake(flake *fp, double X, int iters);
 void fill_flake(flake *fp, double X, int iters);
+void error_radius_flake(flake *fp, double rad);
 void set_params(tube *tp, int** tileb, double* strength, double **glue, 
  double* stoic,int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
