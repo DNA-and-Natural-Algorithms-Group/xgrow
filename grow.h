@@ -33,7 +33,6 @@ double exp(); double log();
 /* for times when it's inconvenience to know if i,j are within bounds */
 #define CellM(i,j) cell[periodic?((i+size)%size):MAX(0,MIN((i)+1,size+1))][periodic?((j+size)%size):MAX(0,MIN((j)+1,size+1))]
 
-
 /* macro definition of summed sticky end bond energy                    */
 /* computes energy IF Cell(i,j) were n, given its current neighbors     */
 /* assumes "fp" arg is a simple variable, but others can be expressions */
@@ -142,6 +141,18 @@ typedef struct tube_struct {
 			If it doesn't have one, or the tile is the  
 			right half of a double tile, the value 
 			here is 0 */
+  int tinybox;         /* If this value is nonzero, indicates that
+			  each kind of two tile flake should be
+			  dynamically created at a rate
+			  tinybox*k_f*e^{-Gmc} */
+  double anneal_g,     /* Used if annealing is on.  If so, adjust Gse over */
+     anneal_t;         /* time, with time constant anneal_t                */  
+  double Gse_final;    /* Gse to approach asymptotically in anneal         */
+  double update_freq;     /* Number of times to update the interval per time 
+			  constant                                         */
+  int updates;         /* Number of updates that have taken place          */
+  double Gse;          /* Current Gse                                      */
+  double next_update_t;   /* Precompute next update time                      */
   unsigned char N, P;  /* # non-empty tile types; 2^P active cell grid     */
 
   int num_flakes;      /* how many flakes do we have here?                 */
@@ -179,6 +190,12 @@ typedef struct tube_struct {
   int ewrapped;        /* has the event counter wrapped around?            */
   double *rv;          /* scratch space, size fp->1+N+4 (for chunk_fission)*/
   int *Fnext, *Fgroup; /* size x size array for fill scratch space         */
+  /* Testing variables */
+  int testing;         /* true if we are testing xgrow, false otherwise */
+  int chains;          /* Number of chains that we are going to follow for 
+			  testing purposes */
+  unsigned char ***chain; /* Current state of each of the chains that we 
+			     use for testing purposes */
 } tube;          
 
 extern int periodic;    /* simulation on torus */
@@ -203,9 +220,9 @@ void fill_flake(flake *fp, double X, int iters);
 void error_radius_flake(flake *fp, double rad);
 void repair_flake(flake *fp, double T, double Gse);
 void set_params(tube *tp, int** tileb, double* strength, double **glue, 
- double* stoic, int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
+ double* stoic, double anneal_g, double anneal_t, int updates_per_RC,int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
- double Gas, double Gam, double Gae, double Gah, double Gao, double T);
+ double Gas, double Gam, double Gae, double Gah, double Gao, double T, int tinybox);
 void reset_params(tube *tp, double old_Gmc, double old_Gse,
  double new_Gmc, double new_Gse, double Gseh);
 void recalc_G(flake *fp);

@@ -3,9 +3,10 @@
 This code is freely distributable.
 
 by Erik Winfree
+
+
 */
   
-
 
 # include <stdio.h>
 # include <stdlib.h>
@@ -236,15 +237,33 @@ void free_tube(tube *tp)
   /* NOTE because init_flake is not safe to out-of-mem, this could die */
 }
 
+void set_Gses(tube *tp, double Gse, double Gseh) {
+  int n,m;
+  for (n=1; n<=tp->N; n++)
+    for (m=1; m<=tp->N; m++) {
+      
+      tp->Gse_EW[n][m] = ((((tp->tileb)[n][3]==(tp->tileb)[m][1]) *
+			   (tp->strength)[(tp->tileb)[m][1]]) +
+			  (tp->glue)[(tp->tileb)[n][3]][(tp->tileb)[m][1]])*
+	(tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
+      tp->Gse_NS[n][m] = (((tp->tileb)[n][2]==(tp->tileb)[m][0]) *
+			  (tp->strength)[(tp->tileb)[m][0]] +
+			  (tp->glue)[(tp->tileb)[n][2]][(tp->tileb)[m][0]])* 
+	(tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
+    }
+}
+
 
 /* set up info for tile set, in flake data struc  */
 /* fp->seed_n should have a defined value before entering set_params */
 void set_params(tube *tp, int** tileb, double* strength, double **glue, double* stoic,
+		double anneal_g, double anneal_t, int updates_per_RC,
 		int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
 		double Gmch, double Gseh, double Ghyd, 
-		double Gas, double Gam, double Gae, double Gah, double Gao, double T)
+		double Gas, double Gam, double Gae, double Gah, double Gao, double T,
+		int tinybox)
 {
-  int i,j,n,m;
+  int i,j,n;
 
   /* make our own copy of tile set and strengths, so the calling program
      can do as it pleases with it's tileb & strength information */
@@ -268,8 +287,24 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
   for (n=1; n <= tp->N; n++) 
     tp->conc[0]+=
       (tp->conc[n]=exp(-((n>tp->N/2&&tp->hydro)?Gmch:Gmc))*stoic[n]);
+  if (anneal_t && Gse < anneal_g) {
+    fprintf(stderr,"Final Gse must be larger than initial Gse for an anneal.\n");
+    exit(-1);
+  }
+  tp->anneal_g = anneal_g;
+  tp->anneal_t = anneal_t;
+  tp->Gse_final = Gse;
+  if (tp->anneal_t) {
+    tp->Gse = anneal_g;
+  } else {
+    tp->Gse = Gse;
+  }
+  tp->updates = 1;
+  tp->update_freq = updates_per_RC;
+  tp->next_update_t = exp(-(((double) tp->updates)*tp->anneal_t*log(2))/tp->update_freq);
   tp->dt_right = dt_right;
   tp->dt_left = dt_left;
+  tp->tinybox = tinybox;
   /* set tp->Gcb from Ghyd */
   for (n=0; n <= tp->N; n++) tp->Gcb[n]=0;
   if (tp->hydro) for (n=tp->N/2+1; n <= tp->N; n++) tp->Gcb[n]=Ghyd;
@@ -277,17 +312,7 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
   /* set Gse_EW Gse_NS from Gse, Gseh rules */
   /* uses (tp->tileb)[] and tp->strength[] and tp->glue[] */
   /* XXX We will want to modify this */  /* See also (change also!) reset_params */
-  for (n=1; n<=tp->N; n++)
-    for (m=1; m<=tp->N; m++) {
-      tp->Gse_EW[n][m] = ((((tp->tileb)[n][3]==(tp->tileb)[m][1]) *
-			   (tp->strength)[(tp->tileb)[m][1]]) +
-			  (tp->glue)[(tp->tileb)[n][3]][(tp->tileb)[m][1]])*
-	(tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
-      tp->Gse_NS[n][m] = (((tp->tileb)[n][2]==(tp->tileb)[m][0]) *
-			  (tp->strength)[(tp->tileb)[m][0]] +
-			  (tp->glue)[(tp->tileb)[n][2]][(tp->tileb)[m][0]])* 
-	(tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
-    }
+  set_Gses(tp,Gse,Gseh);
 
   /* make sure ring[] has entries */
   ring[0]=1; ring[255]=1;
@@ -335,7 +360,6 @@ void recalc_G(flake *fp)
   fp->mismatches/=2;
   update_tube_rates(fp);
 } // recalc_G()
-
 /* calculate the dG of the flake, excluding concentration effects */
 double calc_dG_bonds(flake *fp)
 {
@@ -497,8 +521,8 @@ double calc_rates(flake *fp, int i, int j, double *rv)
   if (tp->T>0) return 0;   /* no off-rates: irreversible Tile Assembly Model */
   n = fp->Cell(i,j);
   if (n==0) return 0;                           /* no off-rate for empties   */
-  if (tp->dt_left[n]) return 0;                 /* similarly, no off-rate for the  */
-  /* right side of a double tile */
+  if (tp->dt_left[n]) return 0;                 /* similarly, no off-rate for the  
+						   right side of a double tile */
   // NOTE: w/o wander, seed site can't dissociate.  So set rate to zero.
   //       w/  wander, seed site can dissociate if there is a neighbor to
   //           move the seed to.  So set rate to zero if flake is monomer.
@@ -512,7 +536,7 @@ double calc_rates(flake *fp, int i, int j, double *rv)
   if (seedchunk[0] && (!wander || fp->tiles==1 || (fp->tiles==2 && fp->seed_is_double_tile)))
     r=0; 
   if (tp->dt_right[n]) {
-    r *= exp(-Gse(fp,i,j+1,tp->dt_right[n]));
+    r *= exp(-Gse(fp,i,j+1,tp->dt_right[n])+2*fp->tube->Gse_EW[tp->dt_right[n]][n]);
     //printf("Setting right rate to %e.\n",r);
   }
   sumr=r;
@@ -666,6 +690,7 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 
   if (fp->Cell(i,j)==n) return;  // nothing to change!
   if (tp!=NULL) { /* flake has been added to a tube */
+    //printf("Changing %d, %d from %d to %d.\n",i,j,fp->Cell(i,j),n);
     if (fp->Cell(i,j)==0) {                         /* tile addition */
       if (tp->conc[n]<=fp->flake_conc) return; // conc's can't go to zero!
       if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) return; // ditto
@@ -699,7 +724,6 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
       /* by our rules, hydrolyzed tiles have same se types as non-hyd. */
     }
     tp->events++; fp->events++;
-    //usleep(200000);
   }
 
   fp->Cell(i,j)=n; 
@@ -1255,7 +1279,7 @@ int double_tile_allowed(tube *tp, flake *fp, int i, int j, int n) {
 }
 
 int not_in_block(int i,int j,const int *di,const int *dj,int t,int n) {
-  int x, outside=0;
+  int x, outside=1;
   for (x = 0; x < n; x++) {
     if (x == t) { continue; }
     if (di[x] == i && dj[x] == j) {
@@ -1266,30 +1290,30 @@ int not_in_block(int i,int j,const int *di,const int *dj,int t,int n) {
   return outside;
 }
 
+int adjacent_tiles(int i_one, int j_one, int i_two, int j_two, int size) {
+  return ((i_one == i_two && j_one == j_two + 1) ||
+	  (i_one == i_two && j_one == j_two - 1) ||
+	  (i_one == i_two + 1 && j_one == j_two) ||
+	  (i_one == i_two - 1 && j_one == j_two) ||
+	  (periodic && i_one == i_two && 
+	   ((j_one+1+size)%size == (j_two+size)%size ||
+	    (j_one-1+size)%size == (j_two+size)%size)));
+}
+
 void order_removals(tube *tp, flake *fp,
 		    int n, const int *di,const int *dj,int removals[]) {
   int index,t;
   int already_chosen, outside_neighbors, adjacent_to_already_chosen;
-  int x, y;
+  int x;
+  int size;
   // Remove tiles one by one in an order that satisfies the following
   // properties (before any removals occur)
   // 1.  The last tile to be removed is bound to a tile not to be removed.
   // 2.  Each preceding tile is either bound to a tile to be removed after
   // it or satisfies (1).
-  
-  if (n == 1) {
-    removals[0] = 0;
-    return;
-  } else {
-    // remove this when the feature is done:
-    for (x = 0; x < n; x++) {
-      removals[x] = x;
-    }
-    return;
-  }
-
 
   index = n-1;
+  size = (1<<tp->P);
   // index = place in removal order
   // t = place in unordered chunk
   for (index = n-1; index >= 0; index--) {
@@ -1302,41 +1326,71 @@ void order_removals(tube *tp, flake *fp,
 	}
       }
       if (!already_chosen) {
+	int di_up, di_down, dj_left, dj_right;
+	if (periodic) {
+	  di_up = (di[t]-1+size)%size;
+	  di_down = (di[t]+1+size)%size;
+	  dj_left = (dj[t]-1+size)%size;
+	  dj_right = (dj[t]+1+size)%size;
+	}
+	else {
+	  di_up = di[t]-1;
+	  di_down = di[t]+1;
+	  dj_left = dj[t] - 1;
+	  dj_right = dj[t] + 1;
+	}
 	outside_neighbors = 0;
+
 	// Check bottom
-	if (fp->Cell(di[t]+1,dj[t]) && 
-	    not_in_block(di[t]+1,dj[t],di,dj,t,n)) {
+	if (fp->Cell(di_down,dj[t]) && 
+	    not_in_block(di_down,dj[t],di,dj,t,n)) {
 	  outside_neighbors = 1;
 	}
 	// Top 
-	if (fp->Cell(di[t]-1,dj[t]) && 
-	    not_in_block(di[t]-1,dj[t],di,dj,t,n)) {
+	if (fp->Cell(di_up,dj[t]) && 
+	    not_in_block(di_up,dj[t],di,dj,t,n)) {
 	  outside_neighbors = 1;
 	}
 	// Left
-	if (fp->Cell(di[t],dj[t]-1) && 
-	    not_in_block(di[t],dj[t]-1,di,dj,t,n)) {
+	if (fp->Cell(di[t],dj_left) && 
+	    not_in_block(di[t],dj_left,di,dj,t,n)) {
 	  outside_neighbors = 1;
 	}
 	// Right
-	if (fp->Cell(di[t],dj[t]+1) && 
-	    not_in_block(di[t],dj[t]+1,di,dj,t,n)) {
+	if (fp->Cell(di[t],dj_right) && 
+	    not_in_block(di[t],dj_right,di,dj,t,n)) {
 	  outside_neighbors = 1;
 	}
 	if (outside_neighbors) {
 	  removals[index] = t;
 	  break;
 	}
-      } 
-      else {
-	adjacent_to_already_chosen = 0;
-	if (adjacent_to_already_chosen) {
-	  removals[index] = t;
-	  break;
-	}   
+	else {
+	  adjacent_to_already_chosen = 0;
+	  size = (1<<tp->P);
+	  for (x = n-1; x > index; x--) {
+	    if (adjacent_tiles(di[removals[x]],dj[removals[x]],di[t],dj[t],size)) {
+	      adjacent_to_already_chosen = 1;
+	    }
+	  }
+	  if (adjacent_to_already_chosen) {
+	    removals[index] = t;
+	    break;
+	  }   
+	}
       }
     }
+    if (t ==n) {
+     printf("arg!\n");
+    }
     assert(t < n);
+  }
+}
+
+void update_all_rates(tube *tp) {
+  flake *fp;
+  for (fp = tp->flake_list; fp != NULL; fp=fp->next_flake) {
+    recalc_G(fp);
   }
 }
 
@@ -1344,7 +1398,7 @@ void order_removals(tube *tp, flake *fp,
 void simulate(tube *tp, int events, double tmax, int emax, int smax)
 {
   int i,j,n,oldn; double dt; flake *fp; int chunk, seedchunk[4];
-  double total_rate, total_blast_rate; long int emaxL;
+  double total_rate, total_blast_rate, new_flake_rate, event_choice; long int emaxL;
   int size=(1<<tp->P), N=tp->N;  
 
   if (tp->flake_list==NULL) return;  /* no flakes! */
@@ -1362,7 +1416,6 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 
   emaxL = (emax==0 || tp->events+events<emax)?(tp->events+events):emax;
 
-  /* make sure seed tiles are in place (is this really needed?) */
   fp=tp->flake_list; 
   while (fp!=NULL) {  
     /*
@@ -1390,14 +1443,27 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
    total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
    total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
 
+   //new_flake_rate = tinybox*tp->k*tp->conc[0];
+   new_flake_rate = 0;
+   
    while (tp->events < emaxL && 
           (tmax==0 || tp->t < tmax) && 
           (smax==0 || tp->stat_a-tp->stat_d < smax) &&
-          total_blast_rate+total_rate > 0) {
+          total_blast_rate+total_rate+new_flake_rate > 0) {
 
-    dt = -log(drand48()) / (total_rate + total_blast_rate);
+     /* First check if time is such that we need to update the temperature */
+     if (tp->anneal_t && (tp->t > tp->next_update_t)) {
+       tp->Gse = tp->Gse_final- (tp->Gse_final - tp->anneal_g)*exp(-tp->t/tp->anneal_t);
+       set_Gses(tp,tp->Gse,0);
+       /* Now we have to update all rates */
+       tp->updates++;
+       tp->next_update_t = tp->updates*tp->anneal_t*log(2)/tp->update_freq;
+       update_all_rates (tp);
+     }
+    dt = -log(drand48()) / (total_rate + total_blast_rate + new_flake_rate);
+    event_choice = drand48()*(total_rate+total_blast_rate+new_flake_rate);
 
-    if (blast_rate>0 && drand48()*(total_rate+total_blast_rate) < total_blast_rate) {  
+    if (blast_rate>0 && event_choice < total_blast_rate) {  
        int kb=size,ii,jj,ic,jc,di,dj,seed_here,flake_n;
        
        while(kb==size) { double dr = drand48()*blast_rate;
@@ -1432,7 +1498,11 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
            }
          }
        }
-    } else { // blast error case above, kTAM / aTAM below
+    } else if (new_flake_rate && event_choice < (total_blast_rate + new_flake_rate)) {
+      // Nothing for now
+    }
+
+    else { // blast error case above, kTAM / aTAM below
 	
      fp=choose_flake(tp);
 
@@ -1466,14 +1536,15 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
     if (fission_allowed==2 && n==0) { // must choose either single tile, EW/NS pairs, or block
       double sum=0, rsum; 
       sum = calc_rates(fp,i,j,tp->rv); 
+      rsum=sum*drand48();
       if (sum == 0) {
 	// In this case, which chunk to choose is arbitrary, but we'll select 0
 	chunk = 0;
-	break;
       }
-      rsum=sum*drand48();
-      for (chunk=0; chunk<4; chunk++) 
-	if (rsum<tp->rv[1+N+chunk]) break; else rsum-=tp->rv[1+N+chunk];
+      else {
+	for (chunk=0; chunk<4; chunk++) 
+	  if (rsum<tp->rv[1+N+chunk]) break; else rsum-=tp->rv[1+N+chunk];
+      }
       if (chunk<0 || chunk>3) printf("impossible chunk chosen!!!\n");
     }
     seedchunk[0] = ((i   == fp->seed_i && j   == fp->seed_j) ||
@@ -1609,7 +1680,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	
 	/* hydrolysis happens here */
 	if (oldn>0 && n>0) change_cell(fp,i,j,n);
-	if (n==0 && !tp->dt_left[oldn]) {  /* dissociation: check connectedness */
+	if (n==0) {  /* dissociation: check connectedness */
           int d, k, dn, di[4], dj[4], oldns[4], removals[4];
           if      (chunk==0 && !tp->dt_right[oldn]) { 
 	    dn=1; di[0]=i; dj[0]=j; 
@@ -1638,15 +1709,13 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	    if (i==fp->seed_i && j==fp->seed_j)
 	      printf("removing seed at %d, %d! chunk=%d from %d,%d\n",i,j,chunk,di[0],dj[0]);
 	    change_cell(fp,i,j,0);
-	    if (!locally_fission_proof(fp,i,j,oldn)) { /* couldn't quickly confirm... */
+	    if (!locally_fission_proof(fp,i,j,oldns[removals[d]])) { /* couldn't quickly confirm... */
 	      if (flake_fission(fp,i,j)) {
 		if (fission_allowed==0) {
 		  // re-attach cell:
 		  // dissociation was chosen, but rejected because it would
 		  // cause fission. (note that flake_fission calculates but
 		  // doesn't remove cells if fission_allowed==0.)
-		  /* If removing second half of the double tile breaks things,
-		     put back both parts of the double tile */
 		  for (k=0; k<=d; k++) {
 		    change_cell(fp,di[removals[k]],dj[removals[k]],oldns[removals[k]]); tp->stat_a--; tp->stat_d--;
 		  }
