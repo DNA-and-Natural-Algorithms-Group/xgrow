@@ -228,6 +228,7 @@ gcc -O -Wall -g -o xgrow xgrow.c grow.c -I/usr/X11R6/include -L/usr/X11R6/lib -l
 # include <gsl/gsl_math.h>
 
 # include "grow.h"
+# include "xgrow-tests.h"
 
   /* lattice dimensions (plus two for boundaries): */
   /* NCOLS should be a multiple of bytes per long word (BPW) */
@@ -262,6 +263,9 @@ int update_rate=10000;
 static char *progname;
 char stringbuffer[256];
 char tileset_name[256];
+int testing = 0;
+int initial_rc = 1;
+
 
 /* various window stuff */
 Display *display;
@@ -461,6 +465,9 @@ int parse_arg_line(char *arg)
   else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
   else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
   else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
+  else if (strncmp(arg,"testing",7) == 0) {
+    testing = 1;
+  }
   else if (strncmp(arg,"importfile",10)==0)
     {
       char *p=(&arg[11]);
@@ -743,6 +750,7 @@ void getargs(int argc, char **argv)
     printf("  importfile=FILENAME   import all flakes from FILENAME.\n");
     printf("  importfile            import all flakes from xgrow_export_output.\n");
     printf("  pause                 start in paused state; wait for user to request simulation to start.\n");
+    printf("  testing               run automated tests instead of a simulation.\n");
     exit (0);
   }
 
@@ -1856,10 +1864,14 @@ int main(int argc, char **argv)
    return 0;
  }
 
- //if (testing) {
-   //run_xgrow_tests(Gmc,Gse);
- //  return 0;
- //}
+ if (testing) {
+  tp = init_tube(size_P,N,num_bindings);   
+  set_params(tp,tileb,strength,glue,stoic,0,initial_rc,updates_per_RC,
+	     dt_right, dt_left, hydro,ratek,
+	     Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox);
+  run_xgrow_tests(tp,Gmc,Gse,seed_i,seed_j,seed_n,size);
+   return 0;
+ }
  
  if (XXX) openwindow(argc,argv);
 
