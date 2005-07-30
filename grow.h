@@ -6,6 +6,10 @@
 */
 
 
+#ifndef __GROW_H__
+#define __GROW_H__
+
+
 #define DEBUG 1
 #define dprintf if (DEBUG) printf
 #define d2printf if (DEBUG==2) printf
@@ -13,9 +17,12 @@
 double drand48(); long lrand48(); 
 double exp(); double log();
 
+#ifndef MIN
 #define MIN(a,b) ((a)<(b)?(a):(b))
+#endif
+#ifndef MAX
 #define MAX(a,b) ((a)>(b)?(a):(b))
-
+#endif
 /* make off-by-one error less likely : include a boundary of empty */
 /* cells that will never be modified                               */
 #define Cell(i,j) cell[(i)+1][(j)+1]
@@ -117,6 +124,11 @@ typedef struct flake_struct {
   struct flake_struct *next_flake;  /* for NULL-terminated linked list     */
   struct flake_tree_struct *tree_node;  /* for tree of flakes              */
   int flake_ID;        /* which flake is this (for display use only)       */
+  void *chain_hash;    /* When flake has visited particular states;        */
+		       /* used for testing purposes                        */
+  int chain_state;     /* If we're currently at a configuration that has an*/
+		       /* indicator variable, the hash code for that state */
+
 } flake;          
 
 typedef struct flake_tree_struct {
@@ -125,6 +137,10 @@ typedef struct flake_tree_struct {
   int empty; double rate;            /* analogous to empty & rate in flake */
 } flake_tree;
 
+typedef struct assembly_list_struct {
+  struct assembly_list_struct *next;
+  unsigned char **assembly;
+} assembly_list;
 
 typedef struct tube_struct {
   int **tileb;         /* {N E S W} bond types for each tile type */
@@ -152,7 +168,8 @@ typedef struct tube_struct {
 			  constant                                         */
   int updates;         /* Number of updates that have taken place          */
   double Gse;          /* Current Gse                                      */
-  double next_update_t;   /* Precompute next update time                      */
+  double Gmc;          /* Gmc                                              */
+  double next_update_t;   /* Precompute next update time                   */
   unsigned char N, P;  /* # non-empty tile types; 2^P active cell grid     */
 
   int num_flakes;      /* how many flakes do we have here?                 */
@@ -191,11 +208,17 @@ typedef struct tube_struct {
   double *rv;          /* scratch space, size fp->1+N+4 (for chunk_fission)*/
   int *Fnext, *Fgroup; /* size x size array for fill scratch space         */
   /* Testing variables */
-  int testing;         /* true if we are testing xgrow, false otherwise */
+  int watching_states; /* true if we are testing xgrow, false otherwise */
   int chains;          /* Number of chains that we are going to follow for 
 			  testing purposes */
-  unsigned char ***chain; /* Current state of each of the chains that we 
-			     use for testing purposes */
+  void *chain_states;  /* Hash of assemblies that are indicator variables; 
+			  use for testing purposes */
+  int tracking_seen_states;     /* tracking states that are seen             */
+  int states_seen_count;    /* For use in testing --find a time at which */
+  void  *states_seen_hash;   /* hash that records which states we have been to. */
+  unsigned char ***start_states;
+  double *start_state_Gs;
+
 } tube;          
 
 extern int periodic;    /* simulation on torus */
@@ -237,7 +260,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax);
 void linear_simulate( double ratek, double Gmc, double Gse,
                       double tmax, int emax, int smax);
 
-
+#endif /* ifdef __GROW_H__ */
 
 
 

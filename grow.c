@@ -16,6 +16,7 @@ by Erik Winfree
 # include <unistd.h>
 
 # include "grow.h"
+# include "xgrow-tests.h"
 
 /* index is 8 bits N NE E SE S SW W NW where                         */
 /*  N  E  S  W    refer to where there is a tile present, and        */
@@ -207,6 +208,7 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
   tp->flake_list=NULL;
   tp->flake_tree=NULL;
 
+
   /* set_params() will have to put reasonable values in place */
   /* NOTE this routine is not "proper" -- assumes all allocs are OK */
 
@@ -264,7 +266,6 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
 		int tinybox)
 {
   int i,j,n;
-
   /* make our own copy of tile set and strengths, so the calling program
      can do as it pleases with it's tileb & strength information */
   for (i=0;i<=tp->N;i++) for (j=0;j<4;j++) tp->tileb[i][j] = tileb[i][j];
@@ -291,6 +292,7 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
     fprintf(stderr,"Final Gse must be larger than initial Gse for an anneal.\n");
     exit(-1);
   }
+  tp->Gmc = Gmc;
   tp->anneal_g = anneal_g;
   tp->anneal_t = anneal_t;
   tp->Gse_final = Gse;
@@ -313,7 +315,8 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
   /* uses (tp->tileb)[] and tp->strength[] and tp->glue[] */
   /* XXX We will want to modify this */  /* See also (change also!) reset_params */
   set_Gses(tp,Gse,Gseh);
-
+  tp->watching_states  = 0;
+  tp->tracking_seen_states = 0;
   /* make sure ring[] has entries */
   ring[0]=1; ring[255]=1;
   for (i=1; i<255; i++) {
@@ -654,6 +657,7 @@ void update_rates(flake *fp, int ii, int jj)
       ii = (ii>>1); jj = (jj>>1);
     }
   }
+  assert (fp->rate[0][0][0] >= 0);
 } // update_rates()
 
 void update_tube_rates(flake *fp)
@@ -665,15 +669,35 @@ void update_tube_rates(flake *fp)
  
   oldrate = ftp->rate; oldempty=ftp->empty;
   newrate = fp->rate[0][0][0]; newempty=fp->empty[0][0][0];
-
+  assert (newrate >= 0);
   while (ftp!=NULL) {
     ftp->rate+=newrate-oldrate;
+    if (ftp->rate < -0.1) {
+      printf("Old rate was %e, new rate is %e.\n",oldrate,newrate);
+      printf("Bad news -- negative rate.\n");
+    }
+    else {
+      oldrate = oldrate +0;
+    }
     ftp->empty+=newempty-oldempty;
     ftp=ftp->up;
   }
   
 } // update_tube_rates()
 
+
+int between_double_tile (flake *fp, tube *tp, int i, int j, unsigned char n) {
+  if (n == 0) {
+    return (tp->dt_right[fp->Cell(i,j-1)] || tp->dt_left[fp->Cell(i,j+1)]);
+  }
+  if (tp->dt_right[n]) {
+    return (fp->Cell(i,j+1) != tp->dt_right[n]);
+  }
+  if (tp->dt_left[n]) {
+    return (fp->Cell(i,j-1) != tp->dt_left[n]);
+  }
+  return 0;
+}
 
 /* convert Cell(i,j) to type n.                                       */
 /* update all hierarchical rates and empty counts, in flake and tube. */
@@ -725,7 +749,9 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
     }
     tp->events++; fp->events++;
   }
-
+  if (tp && tp->watching_states && fp->chain_state) {
+    update_state_off_indicator(fp);
+  }
   fp->Cell(i,j)=n; 
   if (periodic) { int size=(1<<fp->P);
   if (i==0)      fp->Cell(size,j)=n;
@@ -733,7 +759,17 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
   if (j==0)      fp->Cell(i,size)=n;
   if (j==size-1) fp->Cell(i,-1)=n;
   }
-
+  
+  // If we've changed to a state we haven't seen before, and we're counting
+  // unique visited states, record it.
+  if (tp && tp->tracking_seen_states && !between_double_tile (fp,tp,i,j,n) &&
+      !assembly_is_a_duplicate(tp->states_seen_hash,
+			       fp->cell,size)) {
+    add_assembly_to_seen(tp);
+  }
+  if (tp && tp->watching_states && !between_double_tile (fp,tp,i,j,n)){
+    update_state_on_indicator(fp, fp->cell, size);
+  }
   // note: this recalculates all these rates from scratch, although we know only some can change
   update_rates(fp,i,j);
   update_rates(fp,i+1,j);
@@ -758,16 +794,20 @@ void change_seed(flake *fp, int new_i, int new_j)
  //printf("Seed is now tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
  update_rates(fp, old_i, old_j);  // no longer being seed may allow dissoc => rates change
  update_rates(fp, old_i-1, old_j); 
+ update_rates(fp, old_i+1, old_j); 
  update_rates(fp, old_i, old_j-1); 
- update_rates(fp, old_i-1, old_j-1); 
+ update_rates(fp, old_i, old_j+1); 
  update_rates(fp, new_i, new_j);  // now being seed may prevent dissoc => rates change
  update_rates(fp, new_i-1, new_j); 
- update_rates(fp, new_i, new_j-1); 
+ update_rates(fp, new_i+1, new_j); 
+ update_rates(fp, new_i+1, new_j-1); 
  update_rates(fp, new_i-1, new_j-1); 
  // all this updating is painfully slow, since it must be done with every seed
  // motion during WANDER.
  if (fp->seed_n==0) 
    printf("seed wandered to empty site %d,%d!\n",new_i,new_j);
+ if (fp->tube != NULL) 
+   update_tube_rates(fp);
 } // change_seed()
 
 
@@ -844,6 +884,8 @@ flake *choose_flake(tube *tp)
     kL = ftp->left->rate+kc*ftp->left->empty;
     kR = ftp->right->rate+kc*ftp->right->empty;
     /* always fix-up any numerical error that could have accumulated here */
+    assert (ftp->left->rate >= -0.1);
+    assert (ftp->right->rate >= -0.1);
     ftp->rate = ftp->left->rate+ftp->right->rate;
     ftp->empty = ftp->left->empty+ftp->right->empty; // shouldn't be necessary
     do {
@@ -1443,6 +1485,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
    total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
    total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
 
+   assert (total_rate >= 0);
    //new_flake_rate = tinybox*tp->k*tp->conc[0];
    new_flake_rate = 0;
    
@@ -1520,9 +1563,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	if (fp->Cell(new_i,new_j) != 0 && (new_i != fp->seed_i || new_j != fp->seed_j)) { 
 	  change_seed(fp,new_i,new_j);
 	  fp->seed_is_double_tile = (tp->dt_right[fp->seed_n] || tp->dt_left[fp->seed_n]);
-#ifdef DEBUG
 	  assert(!fp->seed_is_double_tile || fp->tiles > 1);
-#endif
 	}
       }
       // pick a new seed if 0 of the old one are left, and we are a single tile
@@ -1739,6 +1780,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
     d2printf("%d,%d -> %d\n",i,j,n);
     } // end of kTAM / aTAM section
     total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+    assert (total_rate >= 0);
     total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
    } // end while
 } // simulate
