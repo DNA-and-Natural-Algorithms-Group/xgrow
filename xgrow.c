@@ -413,10 +413,10 @@ int parse_arg_line(char *arg)
       }
     }
   }
-  else if (strncmp(arg,"tinybox=",8)==0) {
-    char *p=(&arg[8]);
-    tinybox = atof(p);
-  }
+  //else if (strncmp(arg,"tinybox=",8)==0) {
+  //char *p=(&arg[8]);
+  //tinybox = atof(p);
+  //}
   else if (strncmp(arg,"stripe=",7)==0) 
     { stripe_args=(&arg[7]); periodic=1; wander=1; }
   else if (strcmp(arg,"-nw")==0) XXX=0;
