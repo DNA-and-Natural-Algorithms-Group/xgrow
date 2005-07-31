@@ -163,8 +163,8 @@ sequentially as tiles in the square are being removed, rather than
 after the whole square has been removed. 
 
 5/14/05 Added an anneal feature, at which Gse starts at some value and
-declines by a time constant until it reaches its final value.  It shouldn't be hard to implement a melt feature, with the exact reverse behavior, but right now we require that Gse initial be higher than Gse final.  Note that it would be horribly inefficient to implement an exact annealing feature of this type, because all rates would have to be updated after every event.  As a compromise we update Gse (and therefore the rates) some fixed number of (for now 100) times per time constant.
-
+declines by a time constant until it reaches its final value.  It shouldn't be hard to implement a melt feature, with the exact reverse behavior, but right now we require that Gse initial be higher than Gse final.  Note that it would be horribly inefficient to implement an exact annealing feature of this type, because all rates would have to be updated after every event.  As a compromise we update Gse (and therefore the rates) some fixed number of (for now 100) times per time constant. -- RS
+7/30/05 Added testing to xgrow -- new option "testing" will test whether a tile set obeys detailed balance once it reaches equilibrium.  Takes a while to do, and effectively forever if you choose a tile set that takes a looooong time to reach equilibrium, like the Sierpinski set. -- RS
 TO DO List:
   
 * If the tile set specifies a stoichiometry of 0 (e.g. for the seed), the simulation can freak out.
@@ -200,7 +200,7 @@ defaults to "wander"
 * Event counter should simply have more bits!
 * In no-fission mode, one can get caught up on very fast -- but disallowed --
 dissociations, which must be rejected.  This is not good. 
-(not sure if this is still true.  EW 11/10/03  I think it's fixed. EW 1/9/04)
+(not sure if this is still true.  EW 11/10/03  I think it is fixed. EW 1/9/04)
 
 * rubberbanding for "puncture"
 * green dot (current value), red dot (selection cursor) for Gse/Gmc mouse choice
@@ -314,7 +314,7 @@ int clean_cycles=0; double clean_X=1.0; int fill_cycles=0; double fill_X=1.0;
 double error_radius=0.0; double repair_unique_T=2.0; int repair_unique=0;
 double tmax; int emax, smax;
 int seed_i,seed_j,seed_n;
-int tinybox;
+double tinybox = 0;
 int anneal_g, anneal_t = 0;
 char *stripe_args=NULL;
 int XXX=1;  /* If 1, draw the simulation, otherwise don't.  (as inferred from the effect of -nw)*/
@@ -412,6 +412,10 @@ int parse_arg_line(char *arg)
 	}
       }
     }
+  }
+  else if (strncmp(arg,"tinybox=",8)==0) {
+    char *p=(&arg[8]);
+    tinybox = atof(p);
   }
   else if (strncmp(arg,"stripe=",7)==0) 
     { stripe_args=(&arg[7]); periodic=1; wander=1; }
@@ -1868,7 +1872,7 @@ int main(int argc, char **argv)
   tp = init_tube(size_P,N,num_bindings);   
   set_params(tp,tileb,strength,glue,stoic,0,initial_rc,updates_per_RC,
 	     dt_right, dt_left, hydro,ratek,
-	     Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox);
+	     Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox, seed_i, seed_j, Gfc);
   run_xgrow_tests(tp,Gmc,Gse,seed_i,seed_j,seed_n,size);
    return 0;
  }
@@ -1880,10 +1884,11 @@ int main(int argc, char **argv)
  /* set initial state */
  tp = init_tube(size_P,N,num_bindings);   
  set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,dt_right, dt_left, hydro,ratek,
-	    Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox);
+	    Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,Gfc);
 
  fprm=fparam;
-
+ 
+ 
  /* initialize flakes */
  while (fprm!=NULL)
    {
@@ -2075,7 +2080,8 @@ int main(int argc, char **argv)
 	     tp = init_tube(size_P,N,num_bindings);   
 	     set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,
 			dt_right, dt_left, hydro,ratek,
-			Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox);
+			Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,
+			Gfc);
 	     fprm=fparam; 
 	     while (fprm!=NULL) {
 	       int fn;
