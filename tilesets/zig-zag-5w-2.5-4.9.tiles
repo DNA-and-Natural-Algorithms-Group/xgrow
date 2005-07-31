@@ -15,16 +15,18 @@ tile edges={
 }
 binding strengths=
 {1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1.96 1.96}
-size=32
+size=64
 block=8
-seed=62,62,8
+seed=31,31,8
 wander
-smax=80
-Gmc=10
-Gse=6
-%anneal=2,10000
+%smax=80
+Gmc=17
+Gse=9
+Gfc=18
 doubletile=10,9
 doubletile=5,6
-%update_rate=10
 periodic
 %testing
+%update_rate=1
+%tinybox=1e-13
+

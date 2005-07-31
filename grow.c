@@ -26,7 +26,7 @@ by Erik Winfree
 unsigned char ring[256];
 #define ROTATE(i)          ((((i)&1)<<7) + ((i)>>1))
 #define ROTATE_CLEAR(i)    (               ((i)>>1))
-
+#define AVAGADROS_NUMBER 6.022e23
 
 /*************** the fill routine for checking connectedness ***********/
 
@@ -263,7 +263,7 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
 		int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
 		double Gmch, double Gseh, double Ghyd, 
 		double Gas, double Gam, double Gae, double Gah, double Gao, double T,
-		int tinybox)
+		double tinybox, int seed_i, int seed_j, double Gfc)
 {
   int i,j,n;
   /* make our own copy of tile set and strengths, so the calling program
@@ -307,6 +307,10 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
   tp->dt_right = dt_right;
   tp->dt_left = dt_left;
   tp->tinybox = tinybox;
+  tp->default_seed_i = seed_i;
+  tp->default_seed_j = seed_j;
+  tp->initial_Gfc = Gfc;
+
   /* set tp->Gcb from Ghyd */
   for (n=0; n <= tp->N; n++) tp->Gcb[n]=0;
   if (tp->hydro) for (n=tp->N/2+1; n <= tp->N; n++) tp->Gcb[n]=Ghyd;
@@ -721,9 +725,18 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
       fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n);   
       tp->conc[n] -= fp->flake_conc; 
       tp->conc[0] -= fp->flake_conc;
-      if (fp->tiles==1 || (fp->tiles==2 && fp->seed_is_double_tile)) { // monomer flakes don't deplete []; now no longer monomer!
+      if (fp->tiles==1 || (fp->tiles==2 && fp->seed_is_double_tile)) { 
+	// monomer flakes don't deplete []; now no longer monomer!
         tp->conc[fp->seed_n] -= fp->flake_conc; 
         tp->conc[0]          -= fp->flake_conc;
+	if (tp->dt_right[fp->seed_n]) {
+	  tp->conc[tp->dt_right[fp->seed_n]] -= fp->flake_conc;
+	  tp->conc[0]          -= fp->flake_conc;
+	}
+	if (tp->dt_left[fp->seed_n]) {
+	  tp->conc[tp->dt_left[fp->seed_n]] -= fp->flake_conc;
+	  tp->conc[0]          -= fp->flake_conc;
+	}
       }
       tp->stat_a++; fp->tiles++; 
       fp->mismatches += Mism(fp,i,j,n);
@@ -734,9 +747,18 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 
       // monomer flakes don't deplete []; just became monomer!
       // zzz check this
-      if (fp->tiles==2 || (fp->tiles==3 && tp->dt_right[fp->Cell(i,j)])) { 
+      //if (fp->tiles==2 || (fp->tiles==3 && tp->dt_right[fp->Cell(i,j)])) { 
+      if (fp->tiles==2 || (fp->tiles==3 && fp->seed_is_double_tile)) { 
         tp->conc[fp->seed_n] += fp->flake_conc; 
         tp->conc[0]          += fp->flake_conc;
+	if (tp->dt_right[fp->seed_n]) {
+	  tp->conc[tp->dt_right[fp->seed_n]] += fp->flake_conc;
+	  tp->conc[0]          += fp->flake_conc;
+	}
+	if (tp->dt_left[fp->seed_n]) {
+	  tp->conc[tp->dt_left[fp->seed_n]] += fp->flake_conc;
+	  tp->conc[0]          += fp->flake_conc;
+	}
       }
       tp->stat_d++; fp->tiles--; 
       fp->mismatches -= Mism(fp,i,j,fp->Cell(i,j));
@@ -810,6 +832,26 @@ void change_seed(flake *fp, int new_i, int new_j)
    update_tube_rates(fp);
 } // change_seed()
 
+
+int choose_tile_type (tube *tp) {
+  double r, cum;
+  int oops, n;
+  // This is exactly the same code as inside choose_cell,
+  // but because that code is used so often, and this will be used for
+  // adding a flake, which we imagine doing much less often, the
+  // other code was left inline.
+  r = drand48();
+  do {
+    r = r * tp->conc[0];  cum = 0;  oops=0;
+    for (n=1; n<=tp->N; n++) if (r < (cum += tp->conc[n])) break; 
+    if (n>tp->N) { // apparently conc[0] is not the sum of conc[n], oops
+      printf("Concentration sum error!!! %f =!= %f\n",tp->conc[0],cum); 
+      r=drand48(); oops=1; 
+      tp->conc[0]=0; for (n=1; n <= tp->N; n++) tp->conc[0]+=tp->conc[n];
+    }
+  } while (oops);
+  return n;
+}
 
 /* use rates & empty & conc to choose a cell to change,      */
 /* and call calc_rates to identify what change to make.      */
@@ -1320,11 +1362,12 @@ int double_tile_allowed(tube *tp, flake *fp, int i, int j, int n) {
 
 }
 
-int not_in_block(int i,int j,const int *di,const int *dj,int t,int n) {
+int not_in_block(int i,int j,const int *di,const int *dj,int t,int n, int size) {
   int x, outside=1;
   for (x = 0; x < n; x++) {
     if (x == t) { continue; }
-    if (di[x] == i && dj[x] == j) {
+    if ((di[x] == i && dj[x] == j) || 
+	(periodic && ((di[x] + size)%size) == i && ((dj[x] + size)%size == j))) { 
       outside = 0;
       break;
     }
@@ -1385,22 +1428,22 @@ void order_removals(tube *tp, flake *fp,
 
 	// Check bottom
 	if (fp->Cell(di_down,dj[t]) && 
-	    not_in_block(di_down,dj[t],di,dj,t,n)) {
+	    not_in_block(di_down,dj[t],di,dj,t,n,size)) {
 	  outside_neighbors = 1;
 	}
 	// Top 
 	if (fp->Cell(di_up,dj[t]) && 
-	    not_in_block(di_up,dj[t],di,dj,t,n)) {
+	    not_in_block(di_up,dj[t],di,dj,t,n,size)) {
 	  outside_neighbors = 1;
 	}
 	// Left
 	if (fp->Cell(di[t],dj_left) && 
-	    not_in_block(di[t],dj_left,di,dj,t,n)) {
+	    not_in_block(di[t],dj_left,di,dj,t,n,size)) {
 	  outside_neighbors = 1;
 	}
 	// Right
 	if (fp->Cell(di[t],dj_right) && 
-	    not_in_block(di[t],dj_right,di,dj,t,n)) {
+	    not_in_block(di[t],dj_right,di,dj,t,n,size)) {
 	  outside_neighbors = 1;
 	}
 	if (outside_neighbors) {
@@ -1443,7 +1486,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
   double total_rate, total_blast_rate, new_flake_rate, event_choice; long int emaxL;
   int size=(1<<tp->P), N=tp->N;  
 
-  if (tp->flake_list==NULL) return;  /* no flakes! */
+  if (tp->flake_list==NULL && tp->tinybox == 0) return;  /* no flakes! */
 
   //   if (tp->events + 2*events > INT_MAX) {
   if (tp->events + 2*events > 1000000000) {
@@ -1458,15 +1501,9 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 
   emaxL = (emax==0 || tp->events+events<emax)?(tp->events+events):emax;
 
+
   fp=tp->flake_list; 
   while (fp!=NULL) {  
-    /*
-    change_cell(fp, fp->seed_i, fp->seed_j, fp->seed_n);
-    if (tp->dt_right[fp->seed_n]) 
-      change_cell(fp, fp->seed_i, fp->seed_j+1, tp->dt_right[fp->seed_n]);
-    if (tp->dt_left[fp->seed_n]) 
-      change_cell(fp, fp->seed_i, fp->seed_j-1, tp->dt_left[fp->seed_n]);
-    */
     //printf("Seed is tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
     if (periodic) {
       assert(fp->Cell((fp->seed_i+size)%size,(fp->seed_j+size)%size) == fp->seed_n);
@@ -1475,24 +1512,33 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
     }
 
 
-    if (tp->dt_right[fp->seed_n]) 
+    if (tp->dt_right[fp->seed_n]) {
       assert(fp->Cell(fp->seed_i,fp->seed_j+1) == tp->dt_right[fp->seed_n]);
-    if (tp->dt_left[fp->seed_n]) 
+    }
+    if (tp->dt_left[fp->seed_n]) {
       assert(fp->Cell(fp->seed_i,fp->seed_j-1) == tp->dt_left[fp->seed_n]);
+    }
     fp=fp->next_flake;
   }
 
    total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
    total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
+   new_flake_rate = tp->k*tp->conc[0]*tp->conc[0]*tp->tinybox*AVAGADROS_NUMBER;
 
    assert (total_rate >= 0);
-   //new_flake_rate = tinybox*tp->k*tp->conc[0];
-   new_flake_rate = 0;
    
    while (tp->events < emaxL && 
           (tmax==0 || tp->t < tmax) && 
           (smax==0 || tp->stat_a-tp->stat_d < smax) &&
           total_blast_rate+total_rate+new_flake_rate > 0) {
+     for (i = 0; i < N; i++) {
+       if (tp->dt_right[i]) {
+	 if (tp->conc[i] != tp->conc[tp->dt_right[i]]) {
+	   printf("Concentrations are off!\n");
+	 }
+	 assert (tp->conc[i] == tp->conc[tp->dt_right[i]]);
+       }
+     }
 
      /* First check if time is such that we need to update the temperature */
      if (tp->anneal_t && (tp->t > tp->next_update_t)) {
@@ -1542,10 +1588,66 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
          }
        }
     } else if (new_flake_rate && event_choice < (total_blast_rate + new_flake_rate)) {
-      // Nothing for now
+      int m,r,x,d,di,dj,c;
+      // Add a new flake
+      // Select the seed tile for the new flake
+      n = choose_tile_type (tp);
+
+      m = choose_tile_type (tp);
+      // Choose a second cell to add to the new tile to
+      // Determine an orientation for the two tiles
+      r = random();
+
+      x = ((r>>2) % 2) * 2 - 1;
+      d = r % 2;
+      // Determine whether the two are connected
+      if (d) {
+	// Connect up and down
+	dj = 0;
+	di = x;
+	if (x > 0) {
+	  c = tp->Gse_NS[m][n];
+	} else { c = tp->Gse_NS[n][m]; }
+      }
+      else {
+	// Connect left or right
+	dj = x;
+	di = 0;
+	if ((tp->dt_left[n] && dj < 0) ||
+	    (tp->dt_right[n] && dj > 0)) {
+	  c = 0;
+	}
+	else {
+	  if (x > 0) { 
+	    c = tp->Gse_EW[m][n]; 
+	  } else { c = tp->Gse_EW[n][m]; }
+	}
+      }
+      if (c) {
+	fp = init_flake (tp->P,tp->N,tp->default_seed_i, tp->default_seed_j, n, tp->initial_Gfc);
+	
+	insert_flake (fp, tp);
+	if (tp->dt_right[n]) {
+	  change_cell(fp, tp->default_seed_i, tp->default_seed_j+1,tp->dt_right[n]);
+	}
+	if (tp->dt_left[n]) {
+	  change_cell(fp, tp->default_seed_i, tp->default_seed_j-1,tp->dt_left[n]);
+	}
+	change_cell(fp,tp->default_seed_i+di,tp->default_seed_j+dj,m);
+	if (tp->dt_right[m]) {
+	  change_cell(fp, tp->default_seed_i+di, tp->default_seed_j+dj+1,tp->dt_right[m]);
+	}
+	if (tp->dt_left[m]) {
+	  change_cell(fp, tp->default_seed_i+di, tp->default_seed_j+dj-1,tp->dt_left[m]);
+	}
+	printf("There are now %d flakes.\n",tp->num_flakes);
+      }
+      else {
+	tp->stat_a++; tp->stat_d++; tp->events+=2; 
+      }       
     }
 
-    else { // blast error case above, kTAM / aTAM below
+    else { // blast error case and new flake case above, kTAM / aTAM below
 	
      fp=choose_flake(tp);
 
@@ -1567,8 +1669,27 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	}
       }
       // pick a new seed if 0 of the old one are left, and we are a single tile
-      if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) {
-        fp->seed_n=(random()%N)+1; change_cell(fp,fp->seed_i,fp->seed_j,fp->seed_n); 
+      if ((fp->tiles==1 || (fp->tiles==2 && fp->seed_is_double_tile)) && 
+	  tp->conc[fp->seed_n]<=fp->flake_conc) {
+	int e,i;
+	// Assuming there is enough of any free tile left:
+	e = 0;
+	for (i = 1; i < N; i++) {
+	  if (tp->conc[i] > fp->flake_conc) { e=1; }
+	}
+	if (!e) { fprintf(stderr,"All tiles are used up!.\n");  exit(-1); }
+	// Find a random new tile
+	while (tp->conc[fp->seed_n] < fp->flake_conc) {
+	  fp->seed_n=(random()%N)+1; 
+	}
+	change_cell(fp,fp->seed_i,fp->seed_j,0);
+	change_cell(fp,fp->seed_i,fp->seed_j,fp->seed_n); 
+	if (tp->dt_right[fp->seed_n]) {
+	  change_cell(fp,fp->seed_i,fp->seed_j+1,tp->dt_right[fp->seed_n]); 
+	}
+	if (tp->dt_left[fp->seed_n]) {
+	  change_cell(fp,fp->seed_i,fp->seed_j-1,tp->dt_left[fp->seed_n]); 
+	}
       }
     }
 

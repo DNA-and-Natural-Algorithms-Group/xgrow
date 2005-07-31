@@ -157,14 +157,14 @@ typedef struct tube_struct {
 			If it doesn't have one, or the tile is the  
 			right half of a double tile, the value 
 			here is 0 */
-  int tinybox;         /* If this value is nonzero, indicates that
+  double tinybox;         /* If this value is nonzero, indicates that
 			  each kind of two tile flake should be
 			  dynamically created at a rate
-			  tinybox*k_f*e^{-Gmc} */
+			  tinybox*k_f*tp->conc[0]^2 */
   double anneal_g,     /* Used if annealing is on.  If so, adjust Gse over */
      anneal_t;         /* time, with time constant anneal_t                */  
   double Gse_final;    /* Gse to approach asymptotically in anneal         */
-  double update_freq;     /* Number of times to update the interval per time 
+  double update_freq;  /* Number of times to update the interval per time 
 			  constant                                         */
   int updates;         /* Number of updates that have taken place          */
   double Gse;          /* Current Gse                                      */
@@ -175,7 +175,10 @@ typedef struct tube_struct {
   int num_flakes;      /* how many flakes do we have here?                 */
   flake *flake_list;   /* for NULL-terminated linked list                  */
   flake_tree *flake_tree; /* binary tree for fast event selection          */
-
+  int default_seed_i,   /* The last seed_i stated, which is used in creating
+			   new flakes */
+    default_seed_j;
+  double initial_Gfc;
   unsigned char hydro; /* does this tile set use hydrolysis rules?         */
                        /* in this case, N must be even, and tiles          */
                        /* 1...N/2 are non-hydrolized; tiles N/2+1...N are  */
@@ -245,7 +248,8 @@ void repair_flake(flake *fp, double T, double Gse);
 void set_params(tube *tp, int** tileb, double* strength, double **glue, 
  double* stoic, double anneal_g, double anneal_t, int updates_per_RC,int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
- double Gas, double Gam, double Gae, double Gah, double Gao, double T, int tinybox);
+ double Gas, double Gam, double Gae, double Gah, double Gao, double T, double tinybox,
+		int seed_i, int seed_j, double Gfc);
 void reset_params(tube *tp, double old_Gmc, double old_Gse,
  double new_Gmc, double new_Gse, double Gseh);
 void recalc_G(flake *fp);
