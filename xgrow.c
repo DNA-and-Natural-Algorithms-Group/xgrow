@@ -312,7 +312,7 @@ int **tileb; double *stoic;
 int hydro; 
 int clean_cycles=0; double clean_X=1.0; int fill_cycles=0; double fill_X=1.0; 
 double error_radius=0.0; double repair_unique_T=2.0; int repair_unique=0;
-double tmax; int emax, smax;
+double tmax; int emax, smax, fsmax;
 int seed_i,seed_j,seed_n;
 double tinybox = 0;
 int anneal_g, anneal_t = 0;
@@ -413,10 +413,10 @@ int parse_arg_line(char *arg)
       }
     }
   }
-  //else if (strncmp(arg,"tinybox=",8)==0) {
-  //char *p=(&arg[8]);
-  //tinybox = atof(p);
-  //}
+  else if (strncmp(arg,"tinybox=",8)==0) {
+    char *p=(&arg[8]);
+    tinybox = atof(p);
+  }
   else if (strncmp(arg,"stripe=",7)==0) 
     { stripe_args=(&arg[7]); periodic=1; wander=1; }
   else if (strcmp(arg,"-nw")==0) XXX=0;
@@ -460,6 +460,7 @@ int parse_arg_line(char *arg)
   else if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
   else if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
   else if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
+  else if (strncmp(arg,"fsmax=",6)==0) fsmax=atoi(&arg[6]);
   else if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
   else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
   else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[12]);
@@ -736,7 +737,8 @@ void getargs(int argc, char **argv)
     printf("  movie                 export MATLAB-format flake array information EVERY so-many events\n");
     printf("  tmax=                 quit after time t has passed\n");
     printf("  emax=                 quit after e events have occurred\n");
-    printf("  smax=                 quit when the fragment is size s\n");
+    printf("  smax=                 quit when the fragment or total size of fragments is size s\n");
+    printf("  fsmax=                 quit when a single fragment reaches size s\n");
     printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles?\n"
 	   "                        [default=0]\n");
     printf("  clean_X=              for cleaning, minimal ratio of off-rate to on-rate [default=1.0]\n");
@@ -758,7 +760,7 @@ void getargs(int argc, char **argv)
     exit (0);
   }
 
-  tmax=0; emax=0; smax=0;
+  tmax=0; emax=0; smax=0; fsmax=0;
   wander=0; periodic=0; linear=0; fission_allowed=0; zero_bonds_allowed=0;
   Gfc=0; datafp=NULL; arrayfp=NULL; 
   Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
@@ -781,7 +783,7 @@ void getargs(int argc, char **argv)
   for (i=2; i<argc; i++) {
     parse_arg_line(argv[i]);
   }
-  if (tmax==0 && emax==0 && smax==0) XXX=1;
+  if (tmax==0 && emax==0 && smax==0 && fsmax==0) XXX=1;
   if (hydro && fission_allowed==2) {
     printf("* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(0);
   }
@@ -833,7 +835,8 @@ void getargs(int argc, char **argv)
     fprm = (struct flake_param *)malloc(sizeof(struct flake_param)); 
     fprm->seed_i=seed_i; fprm->seed_j=seed_j; fprm->seed_n=seed_n; 
     fprm->import_from=NULL;
-    fprm->N=1; fprm->Gfc=Gfc;
+    fprm->N= (tinybox == 0); 
+    fprm->Gfc=Gfc;
     fprm->next_param=fparam;
     fparam=fprm;
   }
@@ -843,7 +846,9 @@ void getargs(int argc, char **argv)
     while (fprm->seed_i>=size) fprm->seed_i/=2;
     while (fprm->seed_j>=size) fprm->seed_j/=2;
   }
-  seed_i=fparam->seed_i; seed_j=fparam->seed_j;
+  if (fparam != NULL) {
+    seed_i=fparam->seed_i; seed_j=fparam->seed_j;
+  }
 
   if (!XXX) {
     printf(" Starting simulation (1st seed=%d,%d,%d) on %d x %d board.\n",
@@ -1515,12 +1520,14 @@ void repaint()
  setfission(fission_allowed);
 
  /* write various strings */
- sprintf(stringbuffer,"flake %d (%d by %d%s, seed %d @ (%d,%d)): %ld events, %d tiles, %d mismatches         ",
-	 fp->flake_ID, (1<<fp->P),(1<<fp->P), periodic?", periodic":"",
-	 fp->seed_n, fp->seed_i, fp->seed_j,
-	 fp->events, fp->tiles, fp->mismatches);
- XDrawImageString(display,window,gc,5,(++i)*font_height,
-		  stringbuffer,strlen(stringbuffer));
+ if (fp) {
+   sprintf(stringbuffer,"flake %d (%d by %d%s, seed %d @ (%d,%d)): %ld events, %d tiles, %d mismatches         ",
+	   fp->flake_ID, (1<<fp->P),(1<<fp->P), periodic?", periodic":"",
+	   fp->seed_n, fp->seed_i, fp->seed_j,
+	   fp->events, fp->tiles, fp->mismatches);
+   XDrawImageString(display,window,gc,5,(++i)*font_height,
+		    stringbuffer,strlen(stringbuffer));
+ }
 
  sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    ",
 	 1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15);
@@ -1546,9 +1553,10 @@ void repaint()
    XDrawString(display,window,gc,5,(++i)*font_height,
 	       stringbuffer,strlen(stringbuffer));
  }
-
- sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",tp->t, 
-	 wander ? fp->G : (fp->G+log(tp->conc[fp->seed_n])));           
+ if (fp) {
+   sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",tp->t, 
+	   wander ? fp->G : (fp->G+log(tp->conc[fp->seed_n])));           
+ }
  XDrawImageString(display,window,gc,5,(++i)*font_height,
 		  stringbuffer,strlen(stringbuffer));
  sprintf(stringbuffer, "%ld events (%lda,%ldd,%ldh,%ldf), %ld tiles total %s      ",
@@ -1557,7 +1565,7 @@ void repaint()
  XDrawImageString(display,window,gc,5,(++i)*font_height,
 		  stringbuffer,strlen(stringbuffer));
 
- if (1 || fp->flake_conc>0) { int tl;
+ if (fp && fp->flake_conc>0) { int tl;
  sprintf(stringbuffer, "Gfc=%4.1f; Gmc=[", -log(fp->flake_conc)); 
  for (tl=1; tl<=tp->N && strlen(stringbuffer)<230; tl++)
    sprintf(stringbuffer+strlen(stringbuffer)," %4.1f",
@@ -1577,7 +1585,7 @@ void repaint()
  XDrawString(display,window,gc,WINDOWWIDTH-120,WINDOWHEIGHT-5
 	     ,"EW '98-'04",10); 
 
- if (!sampling) showpic(fp,errorc); 
+ if (!sampling && fp) showpic(fp,errorc); 
  else XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
 }
  
@@ -1956,18 +1964,22 @@ int main(int argc, char **argv)
  /* loop forever, looking for events */
  while((tmax==0 || tp->t < tmax) && 
        (emax==0 || tp->events < emax) &&
-       (smax==0 || tp->stat_a-tp->stat_d < smax)) { 
+       (smax==0 || tp->stat_a-tp->stat_d < smax) &&
+       (fsmax==0 || tp->largest_flake_size < fsmax)) { 
 
    if (!XXX) {
-     simulate(tp,update_rate,tmax,emax,smax);
+     simulate(tp,update_rate,tmax,emax,smax,fsmax);
      if (tracefp!=NULL) write_datalines(tracefp,"\n");
      if (export_mode==2 && export_movie==1) export_flake("movie",fp);
    } else {
      if (0==paused && 0==mousing && !XPending(display)) {
-       simulate(tp,update_rate,tmax,emax,smax);
+       simulate(tp,update_rate,tmax,emax,smax,fsmax);
+       fp = tp->flake_list;
+       assert (!fp || !tp->tinybox ||
+	       ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
        if (tracefp!=NULL) write_datalines(tracefp,"\n");
        if (export_mode==2 && export_movie==1) export_flake("movie",fp);
-       if (fp->flake_conc>0) recalc_G(fp);
+       if (fp && fp->flake_conc>0) recalc_G(fp);
        // make sure displayed G is accurate for conc's
        // hopefully this won't slow things down too much.
        stat++; if (stat==1) { stat=0; repaint(); }
@@ -2168,14 +2180,16 @@ int main(int argc, char **argv)
 	       fp=fp->next_flake;
 	       if (fp==NULL) fp=tp->flake_list;
 	     } else if (x<40) {
-	       while (tfp->next_flake != NULL && tfp->next_flake != fp) 
+	       while (tfp && tfp->next_flake != NULL && tfp->next_flake != fp) 
 		 tfp=tfp->next_flake;
 	       if (tfp==NULL) fp=tp->flake_list; else fp=tfp;
 	     } else {  // find the biggest flake.
 	       fp=tfp;
-	       while (tfp->next_flake != NULL) {
-		 tfp=tfp->next_flake;
-		 if (tfp->tiles > fp->tiles) fp=tfp; 
+	       if (fp) {
+		 while (tfp->next_flake != NULL) {
+		   tfp=tfp->next_flake;
+		   if (tfp->tiles > fp->tiles) fp=tfp; 
+		 }
 	       }
 	     } 
 	     //             print_tree(tp->flake_tree,0,'*');  
