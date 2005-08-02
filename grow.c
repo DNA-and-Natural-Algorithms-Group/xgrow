@@ -172,7 +172,8 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
   tube *tp = (tube *)malloc(sizeof(tube));
 
   tp->P = P; tp->N = N; tp->num_bindings = num_bindings;
-  tp->hydro=0;  tp->num_flakes=0;
+  tp->hydro=0;  tp->num_flakes=0; tp->total_flakes = 0;
+  tp->largest_flake_size = 0;
 
   tp->tileb = (int**) calloc(sizeof(int*),N+1);
   for (i=0;i<=N;i++) {
@@ -459,7 +460,9 @@ void insert_flake(flake *fp, tube *tp)
     printf("flake and tube incompatible!!\n"); exit(1);
   }
 
+
   fp->tube=tp; recalc_G(fp); 
+  
 
   kc    = tp->k*tp->conc[0];
   rate  = fp->rate[0][0][0];
@@ -504,9 +507,79 @@ void insert_flake(flake *fp, tube *tp)
   }  
   fp->next_flake=tp->flake_list;
   tp->flake_list=fp;
-  fp->flake_ID=++tp->num_flakes;
+  fp->flake_ID=++tp->total_flakes;
+  tp->num_flakes++;
 } // insert_flake()
 
+
+/* This function is used with the tinybox option to remove a flake
+   that has become just a single tile.  It doesn't try to balance
+   anything for now, and since flakes will be entering and leaving
+   quickly, the tree should be rebalanced again soon.  */
+void remove_flake(flake *fp) {
+  tube *tp;
+  flake_tree *ftp, *tmp, *u;
+  flake *f;
+
+  tp=fp->tube;
+  ftp = fp->tree_node;
+  assert (ftp != NULL);
+  u = ftp->up;
+  if (u) {
+    /* Get rid of the node in the tree and merge the other child with
+     the parent*/
+    if (u->right == ftp) {
+      tmp = u->left;
+    }
+    else {
+      assert (u->left == ftp);
+      tmp = u->right;
+    }
+    u->fp = tmp->fp;
+    if (u->fp) {
+      u->fp->tree_node = u;
+    }
+    u->rate = tmp->rate;
+    u->empty = tmp->empty;
+    u->right = tmp->right;
+    if (u->right) {
+      u->right->up = u;
+    }
+    u->left = tmp->left;
+    if (u->left) { 
+      u->left->up = u;
+    }
+    free (tmp);
+    /* Now propagate the rate change up the tree */
+    u = u->up;
+    while (u) {
+      //u->rate -= ftp->rate;
+      //u->empty -= ftp->empty;
+      u->rate = u->left->rate + u->right->rate;
+      u->empty = u->left->empty + u->right->empty;
+      u = u->up;
+    }
+  }
+  else {
+    /* Tree is now empty */
+    tp->flake_tree = NULL;
+  }
+  free (ftp);
+  // Remove the flake from the flake list
+  if (fp == tp->flake_list) {
+    tp->flake_list = fp->next_flake;
+  }
+  else {
+    for (f = tp->flake_list; f != NULL; f = f->next_flake) {
+      if (f->next_flake == fp) {
+	f->next_flake = fp->next_flake;
+	break;
+      }
+    }
+  }
+  free_flake (fp);
+  tp->num_flakes--;
+}
 
 /* gives concentration-independent rates                                   */
 /* for non-empty cells i,j, computes rate rv[n] to convert to type n       */
@@ -677,7 +750,7 @@ void update_tube_rates(flake *fp)
   while (ftp!=NULL) {
     ftp->rate+=newrate-oldrate;
     if (ftp->rate < -0.1) {
-      printf("Old rate was %e, new rate is %e.\n",oldrate,newrate);
+      printf("Old rate was %e, new rate is %e.\n",oldrate,ftp->rate);
       printf("Bad news -- negative rate.\n");
     }
     else {
@@ -739,6 +812,11 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 	}
       }
       tp->stat_a++; fp->tiles++; 
+      if (fp->tiles > tp->largest_flake_size) {
+	tp->largest_flake = fp->flake_ID;
+	tp->largest_flake_size = fp->tiles;
+	printf("Incrementing largest size to %d.\n",fp->tiles);
+      }
       fp->mismatches += Mism(fp,i,j,n);
     } else if (n==0) {                              /* tile loss */
       tp->conc[0] += fp->flake_conc; 
@@ -761,6 +839,11 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 	}
       }
       tp->stat_d++; fp->tiles--; 
+      if (fp->tiles == tp->largest_flake_size && 
+	  tp->largest_flake == fp->flake_ID) {
+	tp->largest_flake_size--;
+	printf("Decrementing largest size to %d.\n",fp->tiles);
+      }
       fp->mismatches -= Mism(fp,i,j,fp->Cell(i,j));
     } else {                               /* tile hydrolysis or replacement */
       fp->G += Gse(fp,i,j,fp->Cell(i,j)) - Gse(fp,i,j,n) +
@@ -1480,7 +1563,7 @@ void update_all_rates(tube *tp) {
 }
 
 /* simulates 'events' events */
-void simulate(tube *tp, int events, double tmax, int emax, int smax)
+void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
 {
   int i,j,n,oldn; double dt; flake *fp; int chunk, seedchunk[4];
   double total_rate, total_blast_rate, new_flake_rate, event_choice; long int emaxL;
@@ -1504,6 +1587,9 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 
   fp=tp->flake_list; 
   while (fp!=NULL) {  
+     assert (!tp->tinybox ||
+	     ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
+     
     //printf("Seed is tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
     if (periodic) {
       assert(fp->Cell((fp->seed_i+size)%size,(fp->seed_j+size)%size) == fp->seed_n);
@@ -1520,47 +1606,54 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
     }
     fp=fp->next_flake;
   }
+  for (i = 0; i < N; i++) {
+    if (tp->dt_right[i]) {
+      if (tp->conc[i] != tp->conc[tp->dt_right[i]]) {
+	printf("Concentrations are off!\n");
+      }
+      assert (tp->conc[i] == tp->conc[tp->dt_right[i]]);
+    }
+  }
 
-   total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
-   total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
-   new_flake_rate = tp->k*tp->conc[0]*tp->conc[0]*tp->tinybox*AVAGADROS_NUMBER;
-
-   assert (total_rate >= 0);
-   
-   while (tp->events < emaxL && 
-          (tmax==0 || tp->t < tmax) && 
+  if (tp->flake_tree) {
+    total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+  }
+  else {
+    total_rate = 0;
+  }
+  total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
+  // This isn't quite right -- doesn't take into account double tiles
+  new_flake_rate = 4*tp->k*tp->conc[0]*tp->conc[0]*tp->tinybox*AVAGADROS_NUMBER;
+  
+  assert (total_rate + total_blast_rate + new_flake_rate > 0);
+  
+  while (tp->events < emaxL && 
+	 (tmax==0 || tp->t < tmax) && 
           (smax==0 || tp->stat_a-tp->stat_d < smax) &&
-          total_blast_rate+total_rate+new_flake_rate > 0) {
-     for (i = 0; i < N; i++) {
-       if (tp->dt_right[i]) {
-	 if (tp->conc[i] != tp->conc[tp->dt_right[i]]) {
-	   printf("Concentrations are off!\n");
-	 }
-	 assert (tp->conc[i] == tp->conc[tp->dt_right[i]]);
-       }
-     }
+	 (fsmax==0 || tp->largest_flake_size < fsmax) &&
+	 total_blast_rate+total_rate+new_flake_rate > 0) {
 
-     /* First check if time is such that we need to update the temperature */
-     if (tp->anneal_t && (tp->t > tp->next_update_t)) {
-       tp->Gse = tp->Gse_final- (tp->Gse_final - tp->anneal_g)*exp(-tp->t/tp->anneal_t);
-       set_Gses(tp,tp->Gse,0);
-       /* Now we have to update all rates */
-       tp->updates++;
-       tp->next_update_t = tp->updates*tp->anneal_t*log(2)/tp->update_freq;
-       update_all_rates (tp);
-     }
+    /* First check if time is such that we need to update the temperature */
+    if (tp->anneal_t && (tp->t > tp->next_update_t)) {
+      tp->Gse = tp->Gse_final- (tp->Gse_final - tp->anneal_g)*exp(-tp->t/tp->anneal_t);
+      set_Gses(tp,tp->Gse,0);
+      /* Now we have to update all rates */
+      tp->updates++;
+      tp->next_update_t = tp->updates*tp->anneal_t*log(2)/tp->update_freq;
+      update_all_rates (tp);
+    }
     dt = -log(drand48()) / (total_rate + total_blast_rate + new_flake_rate);
     event_choice = drand48()*(total_rate+total_blast_rate+new_flake_rate);
-
+    
     if (blast_rate>0 && event_choice < total_blast_rate) {  
-       int kb=size,ii,jj,ic,jc,di,dj,seed_here,flake_n;
-       
-       while(kb==size) { double dr = drand48()*blast_rate;
+      int kb=size,ii,jj,ic,jc,di,dj,seed_here,flake_n;
+      
+      while(kb==size) { double dr = drand48()*blast_rate;
          for (kb=1; kb<size; kb++)  // choose blast hole size kb= 1...size
            if ( ( dr -= blast_rate_alpha * exp(-blast_rate_gamma*(kb-1)) / pow(kb*1.0,blast_rate_beta) ) < 0 )
-              break; 
-       }
-       // printf("zap! %d x %d\n",kb,kb);
+	     break; 
+      }
+      // printf("zap! %d x %d\n",kb,kb);
 
        // choose a flake
        flake_n = random()%(tp->num_flakes); fp=tp->flake_list;  for (i=0; i<flake_n; i++) fp=fp->next_flake;
@@ -1624,23 +1717,33 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	}
       }
       if (c) {
+	/* printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
+	   n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); */
 	fp = init_flake (tp->P,tp->N,tp->default_seed_i, tp->default_seed_j, n, tp->initial_Gfc);
-	
+	fp->seed_is_double_tile = tp->dt_right[fp->seed_n] || tp->dt_left[fp->seed_n];
 	insert_flake (fp, tp);
+	//printf("1.  New flake contains %d tiles.\n",fp->tiles);
 	if (tp->dt_right[n]) {
 	  change_cell(fp, tp->default_seed_i, tp->default_seed_j+1,tp->dt_right[n]);
 	}
+	//printf("2.  New flake contains %d tiles.\n",fp->tiles);
 	if (tp->dt_left[n]) {
 	  change_cell(fp, tp->default_seed_i, tp->default_seed_j-1,tp->dt_left[n]);
 	}
+	//printf("3.  New flake contains %d tiles.\n",fp->tiles);
 	change_cell(fp,tp->default_seed_i+di,tp->default_seed_j+dj,m);
+	//printf("4.  New flake contains %d tiles.\n",fp->tiles);
 	if (tp->dt_right[m]) {
 	  change_cell(fp, tp->default_seed_i+di, tp->default_seed_j+dj+1,tp->dt_right[m]);
 	}
+	//printf("5.  New flake contains %d tiles.\n",fp->tiles);
 	if (tp->dt_left[m]) {
 	  change_cell(fp, tp->default_seed_i+di, tp->default_seed_j+dj-1,tp->dt_left[m]);
 	}
-	printf("There are now %d flakes.\n",tp->num_flakes);
+	//printf("6.  New flake contains %d tiles.\n",fp->tiles);
+	//printf("\n");
+	assert (!tp->tinybox ||
+	       ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
       }
       else {
 	tp->stat_a++; tp->stat_d++; tp->events+=2; 
@@ -1650,6 +1753,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
     else { // blast error case and new flake case above, kTAM / aTAM below
 	
      fp=choose_flake(tp);
+     assert (!tp->tinybox ||
+	     (fp->seed_is_double_tile && fp->tiles > 2) || fp->tiles > 1);
 
      /* let the designated seed site wander around */
      /* must do this very frequently, else treadmilling would get stuck */
@@ -1677,18 +1782,19 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	for (i = 1; i < N; i++) {
 	  if (tp->conc[i] > fp->flake_conc) { e=1; }
 	}
-	if (!e) { fprintf(stderr,"All tiles are used up!.\n");  exit(-1); }
-	// Find a random new tile
-	while (tp->conc[fp->seed_n] < fp->flake_conc) {
-	  fp->seed_n=(random()%N)+1; 
-	}
-	change_cell(fp,fp->seed_i,fp->seed_j,0);
-	change_cell(fp,fp->seed_i,fp->seed_j,fp->seed_n); 
-	if (tp->dt_right[fp->seed_n]) {
-	  change_cell(fp,fp->seed_i,fp->seed_j+1,tp->dt_right[fp->seed_n]); 
-	}
-	if (tp->dt_left[fp->seed_n]) {
-	  change_cell(fp,fp->seed_i,fp->seed_j-1,tp->dt_left[fp->seed_n]); 
+	if (e) {
+	  // Find a random new tile
+	  while (tp->conc[fp->seed_n] < fp->flake_conc) {
+	    fp->seed_n=(random()%N)+1; 
+	  }
+	  change_cell(fp,fp->seed_i,fp->seed_j,0);
+	  change_cell(fp,fp->seed_i,fp->seed_j,fp->seed_n); 
+	  if (tp->dt_right[fp->seed_n]) {
+	    change_cell(fp,fp->seed_i,fp->seed_j+1,tp->dt_right[fp->seed_n]); 
+	  }
+	  if (tp->dt_left[fp->seed_n]) {
+	    change_cell(fp,fp->seed_i,fp->seed_j-1,tp->dt_left[fp->seed_n]); 
+	  }
 	}
       }
     }
@@ -1895,12 +2001,27 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax)
 	      }
 	    }
 	  } i=di[0]; j=dj[0];
+	  // If we are using tinybox and only a single tile is left, remove the flake
+	  //if (tp->tinybox && 
+	  //   (fp->tiles == 1 || (fp->tiles == 2 && fp->seed_is_double_tile))) {
+	  //remove_flake(fp);
+	    //printf("Removed flake.  There are now %d flakes remaining.\n",tp->num_flakes);
+	  //}
 	}
       } 
     } // else dprintf("can't move seed!\n"); NEW: no error, since this event exists
+    // If we are using tinybox and only a single tile is left, remove the flake
+    if (tp->tinybox && 
+	(fp->tiles == 1 || (fp->tiles == 2 && fp->seed_is_double_tile))) {
+      remove_flake(fp);
+      //printf("Removed flake.  There are now %d flakes remaining.\n",tp->num_flakes);
+    }
     d2printf("%d,%d -> %d\n",i,j,n);
     } // end of kTAM / aTAM section
-    total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+    if (tp->flake_tree) 
+      total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+    else
+      total_rate = 0;
     assert (total_rate >= 0);
     total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
    } // end while
