@@ -68,6 +68,7 @@ unsigned char ring[256];
 /* all of these can only be used for 0 <= i,j < size                     */
 
 int num_flakes=0;
+int double_tile_count=0;
 flake *blank_flakes = NULL;
 
 /* sets up data structures for a flake -- cell field, hierarchical rates... */
@@ -309,6 +310,11 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
   tp->next_update_t = exp(-(((double) tp->updates)*tp->anneal_t*log(2))/tp->update_freq);
   tp->dt_right = dt_right;
   tp->dt_left = dt_left;
+  for (n=0; n< tp->N; n++) {
+    if (tp->dt_right[n]) {
+      double_tile_count++;
+    }
+  }
   tp->tinybox = tinybox;
   tp->default_seed_i = seed_i;
   tp->default_seed_j = seed_j;
@@ -1663,7 +1669,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
   }
   total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
   // This isn't quite right -- doesn't take into account double tiles
-  new_flake_rate = 4*tp->k*tp->conc[0]*tp->conc[0]*tp->tinybox*AVAGADROS_NUMBER;
+  new_flake_rate = (2+3*double_tile_count)*
+    tp->k*tp->conc[0]*tp->conc[0]*tp->tinybox*AVAGADROS_NUMBER;
   
   assert (total_rate + total_blast_rate + new_flake_rate > 0);
   
@@ -1762,9 +1769,9 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
 	if ((fp = recover_flake (tp->default_seed_i,tp->default_seed_j,n,tp->initial_Gfc)) == NULL) {
 	  fp = init_flake (tp->P,tp->N,tp->default_seed_i, tp->default_seed_j, n, tp->initial_Gfc);
 	}
+	insert_flake (fp, tp);
 	fp->tiles = 1;
 	fp->seed_is_double_tile = tp->dt_right[fp->seed_n] || tp->dt_left[fp->seed_n];
-	insert_flake (fp, tp);
 	//printf("1.  New flake contains %d tiles.\n",fp->tiles);
 	if (tp->dt_right[n]) {
 	  change_cell(fp, tp->default_seed_i, tp->default_seed_j+1,tp->dt_right[n]);
