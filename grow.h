@@ -173,6 +173,10 @@ typedef struct tube_struct {
   unsigned char N, P;  /* # non-empty tile types; 2^P active cell grid     */
 
   int num_flakes;      /* how many flakes do we have here?                 */
+  int total_flakes;    /* how many flakes have we made, total 
+			  (in tinybox may not be the same as num_flakes)   */
+  int largest_flake;    /* id of largest flake                              */
+  int largest_flake_size; /* size of largest flake                          */
   flake *flake_list;   /* for NULL-terminated linked list                  */
   flake_tree *flake_tree; /* binary tree for fast event selection          */
   int default_seed_i,   /* The last seed_i stated, which is used in creating
@@ -260,7 +264,7 @@ void update_tube_rates(flake *fp);
 void change_cell(flake *fp, int i, int j, unsigned char n);
 void change_seed(flake *fp, int new_i, int new_j);
 int flake_fission(flake *fp, int i, int j);
-void simulate(tube *tp, int events, double tmax, int emax, int smax);
+void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax);
 void linear_simulate( double ratek, double Gmc, double Gse,
                       double tmax, int emax, int smax);
 

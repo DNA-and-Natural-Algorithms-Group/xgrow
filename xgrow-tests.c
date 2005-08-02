@@ -470,7 +470,7 @@ void generate_initial_chain_states (tube *tp, int seed_i, int seed_j, int seed_n
       time_to_run = tp->anneal_t*time_constants_to_run;
       tp->tracking_seen_states = 1;
       while (tp->t < time_to_run) {
-	simulate (tp, UPDATE_RATE, time_to_run, 0, 0);
+	simulate (tp, UPDATE_RATE, time_to_run, 0, 0, 0);
       }
       if (((double) tp->states_seen_count / ok_seen_states_ratio) <= last_seen_states && 
 	  tp->states_seen_count - STATES_TO_ADD_PER_ANNEAL > total_states_added  &&
@@ -752,7 +752,7 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
   while (1) {
     printf("Simulating block %d.\n",i);
     while (tp->t < BLOCK_TIME*i) {
-      simulate (tp, UPDATE_RATE, BLOCK_TIME*i, 0, 0);
+      simulate (tp, UPDATE_RATE, BLOCK_TIME*i, 0, 0, 0);
       //printf("Time is %e.\n",tp->t);
     }
     /* After running a block, recalculate parameters to see if we are past burn */
