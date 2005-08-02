@@ -14,6 +14,7 @@ by Erik Winfree
 # include <assert.h>
 # include <limits.h>
 # include <unistd.h>
+# include <string.h>
 
 # include "grow.h"
 # include "xgrow-tests.h"
@@ -67,6 +68,7 @@ unsigned char ring[256];
 /* all of these can only be used for 0 <= i,j < size                     */
 
 int num_flakes=0;
+flake *blank_flakes = NULL;
 
 /* sets up data structures for a flake -- cell field, hierarchical rates... */
 flake *init_flake(unsigned char P, unsigned char N, 
@@ -511,6 +513,47 @@ void insert_flake(flake *fp, tube *tp)
   tp->num_flakes++;
 } // insert_flake()
 
+void add_flake_to_reserve_list(flake *fp) {
+  int p, i, j;
+  int size;
+  // First clear flake
+  size = (1<< (fp->P));
+  for (i=0;i<2+size;i++) 
+    memset(fp->cell[i],0,2+size*sizeof(char));
+  for (p=0;p<=fp->P;p++) {
+    size = (1<<p);
+    for (i=0;i<size;i++) {
+      //memset(fp->empty[p][i],size,sizeof(int));      
+      for (j=0;j<size;j++) {
+	fp->empty[p][i][j]=0;
+	fp->rate[p][i][j]=0;
+      }
+    }
+  }
+  fp->G=0; fp->mismatches=0; fp->tiles=1; fp->events=0;
+  fp->tree_node = NULL;
+  fp->next_flake = blank_flakes;
+  blank_flakes = fp;
+}
+
+/* Returns a flake from the list of blank flakes, if any are available */
+flake * recover_flake (int seed_i, int seed_j, int seed_n, int Gfc) {
+  flake *fp;
+  if (blank_flakes) {
+    fp = blank_flakes;
+    fp->seed_i = seed_i;
+    fp->seed_j = seed_j;
+    fp->seed_n = seed_n;
+    fp->flake_conc= (Gfc>0)?exp(-Gfc):0;
+    change_cell(fp,seed_i,seed_j,seed_n);  
+
+    blank_flakes = blank_flakes->next_flake;
+    return fp;
+  }
+  else {
+    return NULL;
+  }
+}
 
 /* This function is used with the tinybox option to remove a flake
    that has become just a single tile.  It doesn't try to balance
@@ -577,7 +620,8 @@ void remove_flake(flake *fp) {
       }
     }
   }
-  free_flake (fp);
+  add_flake_to_reserve_list(fp);
+  //free_flake (fp);
   tp->num_flakes--;
 }
 
@@ -839,11 +883,6 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 	}
       }
       tp->stat_d++; fp->tiles--; 
-      if (fp->tiles == tp->largest_flake_size && 
-	  tp->largest_flake == fp->flake_ID) {
-	tp->largest_flake_size--;
-	printf("Decrementing largest size to %d.\n",fp->tiles);
-      }
       fp->mismatches -= Mism(fp,i,j,fp->Cell(i,j));
     } else {                               /* tile hydrolysis or replacement */
       fp->G += Gse(fp,i,j,fp->Cell(i,j)) - Gse(fp,i,j,n) +
@@ -1479,7 +1518,8 @@ void order_removals(tube *tp, flake *fp,
   // 1.  The last tile to be removed is bound to a tile not to be removed.
   // 2.  Each preceding tile is either bound to a tile to be removed after
   // it or satisfies (1).
-
+  // First, we must leave at least one tile:
+  assert (n < fp->tiles);
   index = n-1;
   size = (1<<tp->P);
   // index = place in removal order
@@ -1699,8 +1739,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
 	dj = 0;
 	di = x;
 	if (x > 0) {
-	  c = tp->Gse_NS[m][n];
-	} else { c = tp->Gse_NS[n][m]; }
+	  c = tp->Gse_NS[n][m];
+	} else { c = tp->Gse_NS[m][n]; }
       }
       else {
 	// Connect left or right
@@ -1717,9 +1757,12 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
 	}
       }
       if (c) {
-	/* printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
-	   n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); */
-	fp = init_flake (tp->P,tp->N,tp->default_seed_i, tp->default_seed_j, n, tp->initial_Gfc);
+	//printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
+	//     n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
+	if ((fp = recover_flake (tp->default_seed_i,tp->default_seed_j,n,tp->initial_Gfc)) == NULL) {
+	  fp = init_flake (tp->P,tp->N,tp->default_seed_i, tp->default_seed_j, n, tp->initial_Gfc);
+	}
+	fp->tiles = 1;
 	fp->seed_is_double_tile = tp->dt_right[fp->seed_n] || tp->dt_left[fp->seed_n];
 	insert_flake (fp, tp);
 	//printf("1.  New flake contains %d tiles.\n",fp->tiles);
@@ -2001,12 +2044,6 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
 	      }
 	    }
 	  } i=di[0]; j=dj[0];
-	  // If we are using tinybox and only a single tile is left, remove the flake
-	  //if (tp->tinybox && 
-	  //   (fp->tiles == 1 || (fp->tiles == 2 && fp->seed_is_double_tile))) {
-	  //remove_flake(fp);
-	    //printf("Removed flake.  There are now %d flakes remaining.\n",tp->num_flakes);
-	  //}
 	}
       } 
     } // else dprintf("can't move seed!\n"); NEW: no error, since this event exists

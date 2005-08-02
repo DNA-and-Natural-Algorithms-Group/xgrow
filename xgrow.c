@@ -749,7 +749,7 @@ void getargs(int argc, char **argv)
 	   "                        all surounding tiles are present (after clean/fill) [default=0]\n");
     printf("  repair_unique_T=      alternative clean/fill, called Rx: remove mismatches, fill in interior sites \n"
 	   "                        if there is a unique strength-T tile, then fill in by strongest tile\n");
-    printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events, perimeter, dG, dG_bonds\n");
+    printf("  datafile=             append Gmc, Gse, ratek, time, size, #mismatched se, events, perimeter, dG, dG_bonds for each flake\n");
     printf("  arrayfile=            output MATLAB-format flake array information on exit (after cleaning)\n");
     printf("  exportfile=           on-request output of MATLAB-format flake array information\n");
     printf("                        [defaults to 'xgrow_export_output']\n");
