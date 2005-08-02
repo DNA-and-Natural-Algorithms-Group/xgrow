@@ -225,7 +225,6 @@ gcc -O -Wall -g -o xgrow xgrow.c grow.c -I/usr/X11R6/include -L/usr/X11R6/lib -l
 # include <unistd.h>
 # include <math.h>
 # include <assert.h>
-# include <gsl/gsl_math.h>
 
 # include "grow.h"
 # include "xgrow-tests.h"
@@ -1905,6 +1904,12 @@ int main(int argc, char **argv)
        {
 	 insert_flake(fp=init_flake(size_P,N,
 				    fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp);
+	 if (tp->dt_right[fprm->seed_n]) {
+	   change_cell (fp,seed_i,seed_j+1,tp->dt_right[fprm->seed_n]);
+	 }
+	 if (tp->dt_left[fprm->seed_n]) {
+	   change_cell (fp,seed_i,seed_j-1,tp->dt_left[fprm->seed_n]);
+	 }
 	   
 	 if (fprm->import_from != NULL)
 	   {
@@ -2100,6 +2105,12 @@ int main(int argc, char **argv)
 	       for (fn=0; fn<fprm->N; fn++) {
 		 insert_flake(fp=init_flake(size_P,N,
 					    fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp); 
+		 if (tp->dt_right[fprm->seed_n]) {
+		   change_cell (fp,seed_i,seed_j+1,tp->dt_right[fprm->seed_n]);
+		 }
+		 if (tp->dt_left[fprm->seed_n]) {
+		   change_cell (fp,seed_i,seed_j-1,tp->dt_left[fprm->seed_n]);
+		 }
 	       }
 	       fprm=fprm->next_param;
 	     } 
