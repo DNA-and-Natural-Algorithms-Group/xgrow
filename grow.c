@@ -865,7 +865,6 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
       if (fp->tiles > tp->largest_flake_size) {
 	tp->largest_flake = fp->flake_ID;
 	tp->largest_flake_size = fp->tiles;
-	printf("Incrementing largest size to %d.\n",fp->tiles);
       }
       fp->mismatches += Mism(fp,i,j,n);
     } else if (n==0) {                              /* tile loss */
@@ -1668,9 +1667,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
     total_rate = 0;
   }
   total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
-  // This isn't quite right -- doesn't take into account double tiles
-  new_flake_rate = (2+3*double_tile_count)*
-    tp->k*tp->conc[0]*tp->conc[0]*tp->tinybox*AVAGADROS_NUMBER;
+  new_flake_rate = tp->k*2*tp->conc[0]*tp->conc[0]*tp->tinybox*AVAGADROS_NUMBER ;
   
   assert (total_rate + total_blast_rate + new_flake_rate > 0);
   
