@@ -11,6 +11,7 @@ void run_xgrow_tests (tube *tp,double Gmc, double Gse, int seed_i, int seed_j, i
 int assembly_is_a_duplicate (void *assemblies, 
 			     Assembly a, int size);
 void add_assembly_to_seen (tube *tp);
+void remove_assembly_from_seen (tube *tp);
 
 void update_state_on_indicator(flake *fp, Assembly a, int size);
 void update_state_off_indicator(flake *fp);

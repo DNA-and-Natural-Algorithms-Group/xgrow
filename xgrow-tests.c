@@ -326,6 +326,7 @@ void print_assembly (Assembly cell, int size) {
       }
     }
   }
+  printf("\n");
 }
 
 Assembly copy_assembly (Assembly cell, int size) {
@@ -344,14 +345,18 @@ Assembly copy_assembly (Assembly cell, int size) {
 void add_assembly_to_seen (tube *tp) {
   Assembly cur;
   int size, *hash;
-  
+
+
   cur = tp->flake_list->cell;
   size = (1<<(tp->flake_list->P));
+  //printf("Adding.\n");
+  //print_assembly (cur,size);  
   hash = malloc(sizeof(int));
   *hash = hash_assembly (cur, size);
   g_hash_table_insert ((GHashTable *) tp->states_seen_hash, hash, copy_assembly (cur, size));
   tp->states_seen_count++;
 }
+
 
 void free_assembly (Assembly x, int size) {
   int i;
@@ -361,6 +366,30 @@ void free_assembly (Assembly x, int size) {
   }
   free (x);
 }
+
+
+
+/* Sometimes, change cell "adds" an assembly that it then removes,
+   because it is disconnected.  We should not consider a seen state
+   either */
+void remove_assembly_from_seen (tube *tp) {
+  Assembly cur;
+  int size, *hash;
+  Assembly a;
+
+
+  cur = tp->flake_list->cell;
+  size = (1<<(tp->flake_list->P));
+  //printf("Removing.\n");
+  //print_assembly (cur,size);  
+  hash = malloc(sizeof(int));
+  *hash = hash_assembly (cur, size);
+  a = g_hash_table_lookup ((GHashTable *) tp->states_seen_hash, hash);
+  free_assembly (a, size);
+  g_hash_table_remove ((GHashTable *) tp->states_seen_hash, hash);
+  tp->states_seen_count--;
+} 
+  
 
 
 void free_key (gpointer key,
@@ -447,7 +476,7 @@ void generate_initial_chain_states (tube *tp, int seed_i, int seed_j, int seed_n
   printf("Finding indicator variables.\n");
   last_seen_states = 0;
   time_constants_to_run = 1;
-  tp->anneal_t = 1;
+  tp->anneal_t = 0.001;
   total_states_added = 0;
   while (total_states_added < tp->chains) {
     while (1) {

@@ -2027,10 +2027,18 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
 	    if (!locally_fission_proof(fp,i,j,oldns[removals[d]])) { /* couldn't quickly confirm... */
 	      if (flake_fission(fp,i,j)) {
 		if (fission_allowed==0) {
+		  // If we are collecting seen states, remove this
+		  // state from the list of seen states, since it was
+		  // never really "seen".
+		  if (tp->tracking_seen_states && 
+		      !between_double_tile(fp,tp,i,j,0)) {
+		    remove_assembly_from_seen (tp);
+		  }
 		  // re-attach cell:
 		  // dissociation was chosen, but rejected because it would
 		  // cause fission. (note that flake_fission calculates but
 		  // doesn't remove cells if fission_allowed==0.)
+
 		  for (k=0; k<=d; k++) {
 		    change_cell(fp,di[removals[k]],dj[removals[k]],oldns[removals[k]]); tp->stat_a--; tp->stat_d--;
 		  }
