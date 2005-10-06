@@ -724,7 +724,7 @@ void getargs(int argc, char **argv)
     printf("  chunk_fission         allow pairs & 2x2 blocks to dissociate as one (implies fission)\n");
     printf("  blast_rate_alpha      square kxk holes are blasted with this per-tile rate for 1x1 [default=0]\n"
 	   "                         (rate relative to tile addition, i.e. scaled by total concentration)\n");
-    printf("  blast_rate_beta        rate scales as 1/k^beta [default=10]\n");
+    printf("  blast_rate_beta        rate scales as 1/k^beta [default=4]\n");
     printf("  blast_rate_gamma       rate also scales as exp(-gamma*(k-1)) [default=0]\n");
     printf("  zero_bonds            can tiles be added if they bond with 0 strength?\n");
     printf("  no_zero_bonds          the answer is no [default]\n");
