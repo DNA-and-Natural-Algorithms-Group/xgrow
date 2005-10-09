@@ -67,7 +67,7 @@
 #define SAMPLING_RATE 0.001
 #define CHAIN_COUNT 20
 #define STATES_TO_ADD_PER_ANNEAL 2
-#define BLOCK_TIME 100
+#define BLOCK_TIME 1
 #define SCALE_REDUCTION_LIMIT 1.1
 
 #define FLOAT_TOLERANCE 1e-7
@@ -85,6 +85,11 @@ typedef struct interval_list {
   double start_t;
   double end_t;
 }  interval_list;
+
+typedef struct chain_state_record {
+  double start_t;
+  int intervals;
+} chain_state_record;
 
 typedef struct indicator_data {
   int assembly;               /* The hash code of the assembly */
@@ -560,27 +565,16 @@ int sample_count (double start_time, double end_time) {
 
 double variance_total (flake *flake, double mean, int assembly_code, double cur_time) {
   double v;
-  double last_end_t, end_t;
-  interval_list *interval;
-  gpointer interval_p;
+  chain_state_record *c;
 
-  last_end_t = 0;
-  v = 0;
-  for (interval_p = g_hash_table_lookup (flake->chain_hash, &assembly_code); 
-       interval_p != NULL; interval_p = interval->next) {
-    interval = (interval_list *) interval_p;
-    assert(interval->end_t == 0 || interval->end_t + FLOAT_TOLERANCE > interval->start_t);
-    if (interval->end_t) {
-      end_t = interval->end_t;
-    }
-    else {
-      end_t = cur_time;
-	}
-    v += sample_count(last_end_t,interval->start_t) * pow(mean,2);
-    v += sample_count(interval->start_t, end_t) * pow(1 - mean,2);
-    last_end_t = end_t;
+  c = g_hash_table_lookup (flake->chain_hash, &assembly_code); 
+  if (c) {
+    v = c->intervals * pow(1 - mean,2) + 
+      (sample_count (0, cur_time) - c->intervals) * pow(mean,2);
   }
-  v += sample_count(last_end_t, cur_time) * pow(mean,2);
+  else {
+    v = 0;
+  }
   return v;
 }
 
@@ -590,7 +584,7 @@ int converged (tube *tp, indicator_data *data) {
   int size, i, j, count_total;
   flake *flake;
   double n,m;
-  interval_list *interval;
+  chain_state_record *c;
 
   for (j = 0; j < tp->chains; j++) {
 #ifdef DEBUG_CONVERGED
@@ -609,17 +603,13 @@ int converged (tube *tp, indicator_data *data) {
     data[j].mean_of_square_means = 0;
     for (flake = tp->flake_list; flake != NULL; flake = flake->next_flake) {
       count_total = 0;
-      for (interval = g_hash_table_lookup (flake->chain_hash, &(data[j].assembly)); 
-	   interval != NULL; interval = interval->next) {
-	assert(interval->end_t == 0 || interval->end_t + FLOAT_TOLERANCE > interval->start_t);
-	if (interval->end_t) {
-	  count_total += sample_count (interval->start_t,interval->end_t);
-	}
-	else {
-	  count_total += sample_count (interval->start_t, tp->t);
-	}
+      c = g_hash_table_lookup (flake->chain_hash, &(data[j].assembly)); 
+      if (c) {
+	data[j].means[i] = c->intervals / n;
       }
-      data[j].means[i] = count_total / n;
+      else {
+	data[j].means[i] = 0;
+      }
 #ifdef DEBUG_CONVERGED
       printf("Mean %d is %e.\n",i,data[j].means[i]);
 #endif
@@ -772,7 +762,8 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
     fp->seed_n = fp->Cell(l,m);
     recalc_G(fp);
     tp->start_state_Gs[i] = fp->G;
-    fp->chain_hash = g_hash_table_new (g_int_hash, g_int_equal);
+    fp->chain_hash = g_hash_table_new_full (g_int_hash, g_int_equal, 
+					    free, free);
     update_state_on_indicator(fp,tp->start_states[i], size);
   }
   tp->watching_states = 1;
@@ -798,27 +789,25 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
 
 void update_state_on_indicator(flake *fp, Assembly a, int size) {
   int h, *k;
-  interval_list *j;
+  chain_state_record *j;
   tube *tp;
 
   tp = fp->tube;
   h = hash_assembly (a, size);
   if (g_hash_table_lookup(tp->chain_states, &h)) {
-    j = malloc(sizeof (interval_list));
-    j->next = g_hash_table_lookup(fp->chain_hash, &h);
-    j->start_t = tp->t;
-    j->end_t = 0;
-    k = malloc (sizeof (int));
-    *k = h;
-    if (j->next) {
-      // TODO : This is a memory leak, but not sure how to fix.
-      g_hash_table_replace(fp->chain_hash, k, j);
+    if ((j = g_hash_table_lookup (fp->chain_hash, &h))) {
+      j->start_t = tp->t;
     }
     else {
+      j = (chain_state_record *) malloc(sizeof (chain_state_record));
+      j->start_t = tp->t;
+      j->intervals = 0;
+      k = (int *) malloc(sizeof(int));
+      *k = h;
       g_hash_table_insert(fp->chain_hash, k, j);
     }
     fp->chain_state = h;
-//printf("Entering chain state %d for flake %p.\n",fp->chain_state,fp);
+    //printf("Entering chain state %d for flake %p.\n",fp->chain_state,fp);
   }
   else {
     //printf("Rejecting state %d:\n",h);
@@ -827,11 +816,11 @@ void update_state_on_indicator(flake *fp, Assembly a, int size) {
 }
 
 void update_state_off_indicator(flake *fp) {
-  interval_list *i;
+  chain_state_record *i;
   //printf("Turning off chain state %d for flake %p.\n",fp->chain_state,fp);
   i = g_hash_table_lookup(fp->chain_hash, &fp->chain_state);
   assert (i);
-  i->end_t = (fp->tube)->t;
+  i->intervals += sample_count (i->start_t, fp->tube->t);
   fp->chain_state = 0;
 }
 

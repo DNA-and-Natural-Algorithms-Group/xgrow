@@ -16,7 +16,7 @@ block=8
 seed=16,16,5
 doubletile=5,6
 doubletile=4,2
-Gse=1.9
+Gse=1.7
 Gmc=4
 wander
 %fsmax=80
