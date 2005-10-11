@@ -67,12 +67,12 @@
 #define SAMPLING_RATE 0.001
 #define CHAIN_COUNT 20
 #define STATES_TO_ADD_PER_ANNEAL 2
-#define BLOCK_TIME 1
+#define BLOCK_TIME 10
 #define SCALE_REDUCTION_LIMIT 1.1
 
 #define FLOAT_TOLERANCE 1e-7
 #define CONFIDENCE_CONSTANT 1.96
-#define MINIMUM_STATES_SEEN 100
+#define MINIMUM_STATES_SEEN 35
 
 double ok_seen_states_ratio = 1.01;
 int time_constants_to_run = 10;
@@ -751,11 +751,11 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
       }
     }
     assert (not_empty);
-    l = size * (((double)rand()) / ((double)RAND_MAX));
-    m = size * (((double)rand()) / ((double)RAND_MAX));
+    l = size * (((double)random()) / ((double)RAND_MAX));
+    m = size * (((double)random()) / ((double)RAND_MAX));
     while ((fp->Cell(l,m)) == 0) {
-      l = size * (((double)rand()) / ((double)RAND_MAX));
-      m = size * (((double)rand()) / ((double)RAND_MAX));
+      l = size * (((double)random()) / ((double)RAND_MAX));
+      m = size * (((double)random()) / ((double)RAND_MAX));
     }
     fp->seed_i = l;
     fp->seed_j = m;
@@ -873,17 +873,26 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
       r = d.means[i] / d.means[j];
       est_variance = 1/(n * pow(d.means[j],2)) * 
 	(r*r*d.variances[j] + d.variances[i] - 2*r*d.covariances[i][j]);
-      printf("Estimated variance is %e.\n",est_variance);
+      //printf("Estimated variance is %e.\n",est_variance);
       est_mean = r + 1/(n * pow(d.means[j],2)) * 
 	(r*pow(d.variances[j],2) - 2*r*d.covariances[i][j]);
-      confidence_interval = CONFIDENCE_CONSTANT * pow(abs(est_variance),0.5);
+      if (est_variance >= 0) {
+	confidence_interval = CONFIDENCE_CONSTANT * sqrt(est_variance);
+      }
+      else {
+	confidence_interval = CONFIDENCE_CONSTANT * sqrt(-est_variance);
+      }
       confidence_ratio = confidence_interval/correct_state_ratio;
-      printf("True ratio of variables %d and %d is %f.\n",j,i,correct_state_ratio);
-      printf("Simulated ratio is %e.  Confidence interval is %e, or %2.1e%%.\n",
+      printf("\nTrue ratio of variables %d and %d is %f.\n",j,i,correct_state_ratio);
+      printf("Simulated ratio is %f.  Confidence interval is %f, or %2.1f%%.\n",
 	     est_mean, confidence_interval,100*confidence_ratio);
-      if (confidence_interval > 3*est_variance) {
-	printf("Ratio is too high.\n");
-	return 0;
+      if (est_mean - 3*confidence_interval > correct_state_ratio) {
+	printf("Estimated ratio is too high.\n");
+	//return 0;
+      }
+      if (est_mean + 3*confidence_interval < correct_state_ratio) {
+	printf("Estimated ratio is too low.\n");
+	//return 0;
       }
     }
   }
