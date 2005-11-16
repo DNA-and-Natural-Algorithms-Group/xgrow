@@ -56,6 +56,7 @@
 #include <assert.h>
 #include <glib-2.0/glib.h>
 #include <limits.h>
+#include <openssl/md4.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,18 +68,19 @@
 #define SAMPLING_RATE 0.001
 #define CHAIN_COUNT 20
 #define STATES_TO_ADD_PER_ANNEAL 2
-#define BLOCK_TIME 10
-#define SCALE_REDUCTION_LIMIT 1.1
+#define BLOCK_TIME 100
+#define SCALE_REDUCTION_LIMIT 1.01
 
 #define FLOAT_TOLERANCE 1e-7
 #define CONFIDENCE_CONSTANT 1.96
-#define MINIMUM_STATES_SEEN 35
+#define MINIMUM_STATES_SEEN 5
 
 double ok_seen_states_ratio = 1.01;
 int time_constants_to_run = 10;
 
 double delta = 1;
 
+int seed_i, seed_j, seed_n;
 
 typedef struct interval_list {
   struct interval_list *next;
@@ -88,14 +90,17 @@ typedef struct interval_list {
 
 typedef struct chain_state_record {
   double start_t;
+  double old_start_t;
   int intervals;
+  double times;
 } chain_state_record;
 
 typedef struct indicator_data {
-  int assembly;               /* The hash code of the assembly */
+  unsigned char *assembly;    /* The hash code of the assembly */
   double *means;              /* Means of the indicator variance, for each chain */
   int n;                   /* The number of sampling iterations */
   double mean_of_means;       /* Mean of the means - the target mean */
+  double total_time;         /* The total amount of time spent by all chains in this state */
   double mean_of_square_means; /* Mean of the squares means (needed for covariance calculations) */
   double B;                   /* Variance of the means */
   double *variances;          /* Variances of the indicator variance, for each chain */
@@ -153,120 +158,61 @@ int assembly_is_a_duplicate_in_array (Assembly *assemblies,
   }
   return 0;
 }
+unsigned char *hash_assembly(Assembly a, int size) {
+  int blocks=0, in_block=0, non_zero_cells=0;
+  int i,j, pos, len;
+  unsigned char *result;
 
-const int primes[] = { 503653,503663,503707,503717,503743,503753,
-		       503771,503777,503779,503791,503803,
-		       24523987,24524009,24524021,24524023,
-		       24524033,24524057,24524063,24524089,24524099,24524119,
-		       24524173,24524189,24524221,24524243,93851,
-		       93871,93887,93889,93893,93901,93911,93913,93923,
-		       93937,93941,93949,93967,93971,93979,93983,93997,
-		       94007,94009,94033,94049,94057,94063,94079,94099,94109,
-		       94111,94117,94121,94151,94153,94169,94201,94207,94219,
-		       94229,94253,94261,94273,94291,94307,94309,94321,94327,94331,94343,
-		       88747,88771,88789,88793,88799,88801,88807,88811,88813,88817,88819,
-		       88843,88853,88861,88867,88873,88883,88897,88903, 97423,97429,97441,
-		       97453,97459,97463,97499,97501,97511,97523,97547,97549,97553,97561,
-		       97571,97577,97579,97583,97607,97609,97613,97649,97651,97673,97687,
-		       97711,97729,97771,97777,97787,97789,97813,97829,97841,97843,97847,
-		       97849,97859,97861,97871,97879,97883,97919,97927,97931,97943, 2736637,
-		       2736673,2736689,2736691,2736707,2736733,2736737,2736757,2736787,
-		       2736863,2736869,2736889,2736911,2736917,2736941,2736947,2736961,2736967,
-		       8237461,8237477,8237497,8237513,8237527,8237533,8237543,8237561,
-		       8237617,8237627,8237629,8237681,8237683,8237687,8237693,8237699,
-		       8237701,8237729,8237753,8237767,8237777,8237783,8237821,8237839,
-		       8237869,8237881,8237891,8237899,8237903,8237921,8237923,8237951,
-		       8237969,8237981,8238011,8238023,8238029,8238053,8238067,8238101,
-		       8238121,8238151,8238169,8238179,823757989,823757993,823758007,
-		       823758037,823758077,823758083,823758107,823758109,823758139,823758157,
-		       823758163,823758197,823758203,823758211,823758227,823758251,823758263,
-		       823758283,823758293,823758337,823758373,823758379,823758421,823758461,
-		       823758469,823758473,823758487,823758497,823758503,823758521,823758541,
-		       823758557,823758589,823758599,823758641,823758643,78700087,78700091,78700099,
-		       78700129,78700133,78700151,78700183,
-		       78700199,78700207,78700211,78700217,
-		       78700247,78700267,78700301,78700313,
-		       78700331,78700373,78700381,78700387,
-		       78700397,78700399,78700421,78700423,
-		       78700471,78700481,78700483,78700493,
-		       78700499,78700529,78700541,78700543,
-		       78700571,78700579,78700597,78700613,
-		       78700619,78700649,78700681,78700691,
-		       78700709,78700711,78700753,78700759,
-		       78700763,78700777,78700807,78700819,
-		       78700823,78700829,78700841,78700861,
-		       78700891,78700903,78700927,78700931,
-		       78700933,78700949,78700967,78700969,
-		       78700981,78701023,78701039,78701083,
-		       78701087,78701089,78701093,78701107,
-		       78701111,78701113,78701141,78701149,
-		       78701179,78701191,78701197,78701213,
-		       78701243,78701251,78701261,78701291,
-		       78701317,78701369,78701411,78701419,
-		       78701429,78701437,78701443,78701489,
-		       78701503,78701527,78701531,78701533,
-		       78701549,78701569,78701593,78701611,
-		       78701633,78701657,78701663,78701669,
-		       78701671,78701681,78701723,78701729,
-		       78701731,78701747,78701759,78701761,
-		       78701771,78701783,78701807,78701827,
-		       78701863,78701869,78701879,78701897,
-		       78701921,78701941,78701977,78701981,
-		       78701999,78702007,78702053,78702073,
-		       78702101,78702131,78702133,78702157,
-		       78702181,78702187,78702203,78702227,
-		       78702229,78702233,78702263,78702269,
-		       78702277,78702301,78702307,78702347,
-		       78702391,78702413,78702419,78702443,
-		       78702451,78702467,78702479,78702497,
-		       78702499,78702511,78702523,78702539,
-		       78702553,78702649,78702653,78702661,
-		       78702671,78702677,78702683,78702697,
-		       78702713,78702751,78702763,78702797,
-		       78702817,78702829,78702847,78702853,
-		       78702859,78702917,78702919,78702929,
-		       78702931,78702947,78702961,78702971,
-		       78702977,78703061,78703087,78703103,
-		       78703127,78703133,78703147,78703151,
-		       78703153,78703159,78703241,78703243,
-		       78703253,78703267,78703283,78703321,
-		       78703337,78703351,78703363,78703367,
-		       78703393,78703399,78703487,78703507,
-		       78703561,78703579,78703589,78703657,
-		       78703673,78703721,78703753,78703759,
-		       78703783,78703787,78703789,78703799,
-		       78703813,78703831,78703841,78703873,
-		       78703901,78703913,78703939,78703949,
-		       78703967,78704027,78704039,78704063,
-		       78704089,78704107,78704113,78704123,
-		       78704159,78704167,78704191,78704207,
-		       78704221,78704267,78704317,78704357,
-		       78704363,78704377,78704389,78704393,
-		       78704399,78704401,78704419,78704429};
-
-/* Don't use the edges of the assembly for hashing */
-int hash_assembly (Assembly a, int size) {
-  int i,*j,k;
-  int h, hash = 0;
-  for (i = 1; i < (size + 1); i++) {
-    h = 0;
-    for (k = 1; k < (size + 1); k+=4) {
-      j = (int *) (a[i] + k);
-      h += (*j << ((k - i) % 32)) + (*j >> (32 - (k-i)%32));
+  for (i = 0; i < (size+1); i++) {
+    for (j = 0; j < (size+1); j++) {
+      if (a[i][j]) {
+	non_zero_cells++;
+	if (!in_block) {
+	  in_block = 1;
+	  blocks++;
+	}
+      }
+      else if (in_block) {
+	in_block = 0;
+      }
     }
-    hash += h % primes[i];
   }
-  return hash;
+  len = non_zero_cells + 3*blocks;
+  result = (unsigned char *) malloc_err ((len + 1)*sizeof (unsigned char));
+  pos = 0;
+  in_block = 0;
+  for (i = 0; i < (size+1); i++) {
+    for (j = 0; j < (size+1); j++) {
+      assert (pos <= len);
+      if (a[i][j]) {
+	if (in_block) {
+	  result[pos++] = a[i][j];
+	}
+	else {
+	  result[pos++] = 255;
+	  result[pos++] = i;
+	  result[pos++] = j;
+	  result[pos++] = a[i][j];
+	  in_block = 1;
+	}
+      }
+      else {
+	in_block = 0;
+      }
+    }
+  }
+  result[pos] = 0;
+  return result;
 }
-
 
 int assembly_is_a_duplicate (void *states_seen,
 			     Assembly a, int size) {
-  int key;
-  int dup;
-
+   int dup;
+  unsigned char *key;
+  
   key = hash_assembly (a, size);
-  dup = (g_hash_table_lookup ((GHashTable *) states_seen, &key) != NULL);
+  dup = (g_hash_table_lookup ((GHashTable *) states_seen, key) != NULL);
+  free (key);
   //printf ("Is duplicate : %d.\n",dup);
   return dup;
 }
@@ -276,7 +222,7 @@ void reset_tube (tube *tp) {
   int i,j;
 
   tp->states_seen_count = 0;
-  tp->states_seen_hash = g_hash_table_new (g_int_hash, g_int_equal);
+  tp->states_seen_hash = g_hash_table_new (g_str_hash, g_str_equal);
   tp->t = 0;
   tp->events = 0;
   tp->stat_a = 0;
@@ -349,15 +295,15 @@ Assembly copy_assembly (Assembly cell, int size) {
 
 void add_assembly_to_seen (tube *tp) {
   Assembly cur;
-  int size, *hash;
-
+  int size;
+  unsigned char *hash;
 
   cur = tp->flake_list->cell;
   size = (1<<(tp->flake_list->P));
   //printf("Adding.\n");
   //print_assembly (cur,size);  
-  hash = malloc(sizeof(int));
-  *hash = hash_assembly (cur, size);
+  hash = hash_assembly (cur, size);
+  //printf("hash %s.\n",hash);
   g_hash_table_insert ((GHashTable *) tp->states_seen_hash, hash, copy_assembly (cur, size));
   tp->states_seen_count++;
 }
@@ -379,19 +325,19 @@ void free_assembly (Assembly x, int size) {
    either */
 void remove_assembly_from_seen (tube *tp) {
   Assembly cur;
-  int size, *hash;
+  int size;
   Assembly a;
-
+  unsigned char *hash;
 
   cur = tp->flake_list->cell;
   size = (1<<(tp->flake_list->P));
   //printf("Removing.\n");
   //print_assembly (cur,size);  
-  hash = malloc(sizeof(int));
-  *hash = hash_assembly (cur, size);
+  hash = hash_assembly (cur, size);
   a = g_hash_table_lookup ((GHashTable *) tp->states_seen_hash, hash);
   free_assembly (a, size);
   g_hash_table_remove ((GHashTable *) tp->states_seen_hash, hash);
+  free (hash);
   tp->states_seen_count--;
 } 
   
@@ -430,35 +376,33 @@ typedef struct maybe_add_data {
 void maybe_add_to_chain_states (gpointer key,
 				gpointer value,
 				gpointer user_data) {
-  int *assembly_hash;
-  int *assembly_code;
+  unsigned char *assembly_hash;
+  unsigned char *assembly_code;
   maybe_add_data *data;
   tube *tp;
   int size;
   Assembly a;
 
-  assembly_hash = (int *) key;
+  assembly_hash = (unsigned char *) key;
   data = (maybe_add_data *) user_data;
   tp = data->tp;
   size = 1<<(tp->P);
-  
   if (data->total_states_added < tp->chains &&
       data->states_added_this_anneal < STATES_TO_ADD_PER_ANNEAL &&
-      random () > ((tp->states_seen_count - tp->chains) / 
-		   tp->states_seen_count) * RAND_MAX &&
+      drand48() < ((double) STATES_TO_ADD_PER_ANNEAL  /
+		   (double) tp->states_seen_count) &&
       !g_hash_table_lookup (tp->chain_states, assembly_hash)) {
-    
-    assembly_code = (int *) malloc (sizeof (int));
-    assembly_code = assembly_hash;
+    assembly_code = (unsigned char *) malloc_err((strlen((char *) assembly_hash)+1)*sizeof (unsigned char));
+    memcpy(assembly_code, assembly_hash, strlen((char *) assembly_hash) + 1);
     g_hash_table_insert (tp->chain_states, assembly_code, assembly_code);
     a = g_hash_table_lookup (tp->states_seen_hash, assembly_code);
     assert (a);
     tp->start_states[data->total_states_added] = 
       copy_assembly(a,size);
-
+    
     printf("Assembly %d:\n",data->total_states_added);
     print_assembly (tp->start_states[data->total_states_added],size);
-    //printf("Assembly hash code is %d.\n",*assembly_code);
+    printf("Assembly hash code is %s.\n\n",assembly_code);
     data->total_states_added++;
     data->states_added_this_anneal++;
   }
@@ -474,7 +418,7 @@ void generate_initial_chain_states (tube *tp, int seed_i, int seed_j, int seed_n
   maybe_add_data data_s;
   int total_states_added, states_added_this_anneal;
   
-  tp->chain_states = g_hash_table_new (g_int_hash, g_int_equal);
+  tp->chain_states = g_hash_table_new (g_str_hash, g_str_equal);
   tp->start_states = (Assembly *) malloc_err(tp->chains * sizeof(Assembly));
   tp->start_state_Gs = (double *) malloc_err(tp->chains * sizeof(double));
 
@@ -503,6 +447,7 @@ void generate_initial_chain_states (tube *tp, int seed_i, int seed_j, int seed_n
       printf("Time to run is %e.\n",time_to_run);
       time_to_run = tp->anneal_t*time_constants_to_run;
       tp->tracking_seen_states = 1;
+      add_assembly_to_seen(tp);
       while (tp->t < time_to_run) {
 	simulate (tp, UPDATE_RATE, time_to_run, 0, 0, 0);
       }
@@ -563,11 +508,11 @@ int sample_count (double start_time, double end_time) {
   return contains_an_interval_sample + extra_samples;
 }
 
-double variance_total (flake *flake, double mean, int assembly_code, double cur_time) {
+double variance_total (flake *flake, double mean, unsigned char *assembly_code, double cur_time) {
   double v;
   chain_state_record *c;
 
-  c = g_hash_table_lookup (flake->chain_hash, &assembly_code); 
+  c = g_hash_table_lookup (flake->chain_hash, assembly_code); 
   if (c) {
     v = c->intervals * pow(1 - mean,2) + 
       (sample_count (0, cur_time) - c->intervals) * pow(mean,2);
@@ -600,20 +545,24 @@ int converged (tube *tp, indicator_data *data) {
     /* Calculate mean of the indicator variable for each chain */
     i = 0;
     data[j].mean_of_means = 0;
+    data[j].total_time = 0;
     data[j].mean_of_square_means = 0;
     for (flake = tp->flake_list; flake != NULL; flake = flake->next_flake) {
       count_total = 0;
-      c = g_hash_table_lookup (flake->chain_hash, &(data[j].assembly)); 
+      c = g_hash_table_lookup (flake->chain_hash, (data[j].assembly)); 
       if (c) {
 	data[j].means[i] = c->intervals / n;
+	data[j].total_time += c->times;
       }
       else {
 	data[j].means[i] = 0;
+	data[j].total_time = 0;
       }
 #ifdef DEBUG_CONVERGED
       printf("Mean %d is %e.\n",i,data[j].means[i]);
 #endif
       data[j].mean_of_means += data[j].means[i];
+
       data[j].mean_of_square_means += pow(data[j].means[i],2);
       i++;
     }
@@ -730,15 +679,17 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
   reset_tube(tp);
   tp->anneal_t = 0;
   tp->Gse = tp->Gse_final;
-  data = (indicator_data *) malloc (tp->chains*sizeof(indicator_data));
+  set_Gses(tp,tp->Gse,0);
+  data = (indicator_data *) malloc_err (tp->chains*sizeof(indicator_data));
   for (j = 0; j < tp->chains; j++) {
-    data[j].means = (double *) malloc(tp->chains*sizeof(double));
-    data[j].variances = (double *) malloc(tp->chains*sizeof(double));
+    data[j].means = (double *) malloc_err(tp->chains*sizeof(double));
+    data[j].variances = (double *) malloc_err(tp->chains*sizeof(double));
   }
 
   for (i = 0; i < tp->chains; i++) {
-    //printf("Setting up flake %d.\n",i);
+    printf("Setting up flake %d.\n",i);
     fp=init_flake(tp->P,tp->N,1,1,1,0);
+
     insert_flake(fp, tp);    
     not_empty = 0;
     for (j = 1; j < size + 1; j++) {
@@ -751,19 +702,33 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
       }
     }
     assert (not_empty);
-    l = size * (((double)random()) / ((double)RAND_MAX));
-    m = size * (((double)random()) / ((double)RAND_MAX));
-    while ((fp->Cell(l,m)) == 0) {
+    if (!wander) {
+      assert (fp->Cell(seed_i,seed_j) == seed_n);
+    }
+
+    if (wander) {
       l = size * (((double)random()) / ((double)RAND_MAX));
       m = size * (((double)random()) / ((double)RAND_MAX));
+      while (fp->Cell(l,m) == 0) {
+	l = size * (((double)random()) / ((double)RAND_MAX));
+	m = size * (((double)random()) / ((double)RAND_MAX));
+      }
+      fp->seed_i = l;
+      fp->seed_j = m;
+      fp->seed_n = fp->Cell(l,m);
     }
-    fp->seed_i = l;
-    fp->seed_j = m;
-    fp->seed_n = fp->Cell(l,m);
+    else {
+      fp->seed_i = seed_i;
+      fp->seed_j = seed_j;
+      fp->seed_n = seed_n;
+    }
+    print_assembly(fp->cell,1<<(tp->P));
+    printf("seed is %d.\n",fp->seed_n);
     recalc_G(fp);
     tp->start_state_Gs[i] = fp->G;
-    fp->chain_hash = g_hash_table_new_full (g_int_hash, g_int_equal, 
+    fp->chain_hash = g_hash_table_new_full (g_str_hash, g_str_equal, 
 					    free, free);
+    fp->chain_state = NULL;
     update_state_on_indicator(fp,tp->start_states[i], size);
   }
   tp->watching_states = 1;
@@ -788,40 +753,64 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
 }
 
 void update_state_on_indicator(flake *fp, Assembly a, int size) {
-  int h, *k;
   chain_state_record *j;
   tube *tp;
+  unsigned char *h, *c, *old_key;
 
   tp = fp->tube;
   h = hash_assembly (a, size);
-  if (g_hash_table_lookup(tp->chain_states, &h)) {
-    if ((j = g_hash_table_lookup (fp->chain_hash, &h))) {
+  assert (fp->chain_state == NULL);
+  if (g_hash_table_lookup(tp->chain_states, h)) {
+    if (g_hash_table_lookup_extended (fp->chain_hash, h, 
+				      (gpointer *) &old_key,
+				      (gpointer *) &j)) {
+      j->old_start_t = j->start_t;
       j->start_t = tp->t;
+      fp->chain_state = old_key;
     }
     else {
-      j = (chain_state_record *) malloc(sizeof (chain_state_record));
+      j = (chain_state_record *) malloc_err(sizeof (chain_state_record));
+      j->old_start_t = 0;
       j->start_t = tp->t;
       j->intervals = 0;
-      k = (int *) malloc(sizeof(int));
-      *k = h;
-      g_hash_table_insert(fp->chain_hash, k, j);
+      j->times = 0;
+      c = (unsigned char *) malloc_err((strlen((char *) h) + 1)*sizeof (unsigned char));
+      memcpy(c,h,strlen((char *)h) + 1);
+      g_hash_table_insert(fp->chain_hash, c, j);
+      fp->chain_state = c;
     }
-    fp->chain_state = h;
+
     //printf("Entering chain state %d for flake %p.\n",fp->chain_state,fp);
   }
   else {
     //printf("Rejecting state %d:\n",h);
     //print_assembly (a, size);
   }
+  free (h);
 }
 
 void update_state_off_indicator(flake *fp) {
   chain_state_record *i;
   //printf("Turning off chain state %d for flake %p.\n",fp->chain_state,fp);
-  i = g_hash_table_lookup(fp->chain_hash, &fp->chain_state);
+  i = g_hash_table_lookup(fp->chain_hash, fp->chain_state);
   assert (i);
   i->intervals += sample_count (i->start_t, fp->tube->t);
-  fp->chain_state = 0;
+  i->times += fp->tube->t - i->start_t;
+  fp->chain_state = NULL;
+}
+
+void undo_state_off_indicator(flake *fp) {
+  unsigned char *h;
+  chain_state_record *i;
+
+  //printf("Turning off chain state %d for flake %p.\n",fp->chain_state,fp);
+  h = hash_assembly (fp->cell, 1<<(fp->tube->P));
+  i = g_hash_table_lookup(fp->chain_hash, h);
+  assert (i);
+  i->intervals -= sample_count (i->old_start_t,i->start_t);
+  i->times -= i->start_t - i->old_start_t;
+  i->start_t = i->old_start_t;
+  free (h);
 }
 
 int test_detailed_balance (tube *tp, indicator_data *data) {
@@ -834,17 +823,21 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
   int n;
 
   printf("Testing whether detailed balance has been achieved.\n");
-  d.means = (double *) malloc (sizeof(double) * tp->chains);
-  d.variances = (double *) malloc (sizeof(double) * tp->chains);
-  d.covariances = (double **) malloc (sizeof(double *) * tp->chains);
+  d.means = (double *) malloc_err (sizeof(double) * tp->chains);
+  d.variances = (double *) malloc_err (sizeof(double) * tp->chains);
+  d.covariances = (double **) malloc_err (sizeof(double *) * tp->chains);
   for (i = 0; i < tp->chains; i++) {
-    d.covariances[i] = (double *) malloc (sizeof(double) * tp->chains);
+    d.covariances[i] = (double *) malloc_err (sizeof(double) * tp->chains);
   }
 
   for (i = 0; i < tp->chains; i++) {
     d.means[i] = data[i].mean_of_means;
+    printf("Intervals spent in state %d is %d out of %d intervals total.\n",
+	 i,(int) (d.means[i]*tp->t/SAMPLING_RATE),(int) (tp->t/SAMPLING_RATE));
+    printf("Time spent in state %d is %f seconds out of %f total.\n",
+	   i, data[i].total_time, tp->t);
   }
- 
+
   n = (floor(tp->t / SAMPLING_RATE)  - 1) * tp->chains;  
   for (i = 0; i < tp->chains; i++) {
     d.variances[i] = 0;
@@ -884,13 +877,13 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
       }
       confidence_ratio = confidence_interval/correct_state_ratio;
       printf("\nTrue ratio of variables %d and %d is %f.\n",j,i,correct_state_ratio);
-      printf("Simulated ratio is %f.  Confidence interval is %f, or %2.1f%%.\n",
-	     est_mean, confidence_interval,100*confidence_ratio);
-      if (est_mean - 3*confidence_interval > correct_state_ratio) {
+      printf("Simulated ratio is %f by intervals, %f by time.  Confidence interval is %f, or %2.1f%%.\n",
+	     est_mean, data[i].total_time/data[j].total_time,confidence_interval,100*confidence_ratio);
+      if (data[i].total_time/data[j].total_time - 4*confidence_interval > correct_state_ratio) {
 	printf("Estimated ratio is too high.\n");
 	//return 0;
       }
-      if (est_mean + 3*confidence_interval < correct_state_ratio) {
+      if (data[i].total_time/data[j].total_time + 4*confidence_interval < correct_state_ratio) {
 	printf("Estimated ratio is too low.\n");
 	//return 0;
       }
@@ -899,9 +892,12 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
   return 1;
 }
 
-void run_xgrow_tests (tube *tp,double Gmc, double Gse, int seed_i, int seed_j, int seed_n, int size) {
+void run_xgrow_tests (tube *tp,double Gmc, double Gse, int si, int sj, int sn, int size) {
   indicator_data *data;
 
+  seed_i = si;
+  seed_j = sj;
+  seed_n = sn;
   tp->chains = CHAIN_COUNT;
   /* First, generate the initial set of random states, by starting
    * with a random tile and running until we've seen most of the

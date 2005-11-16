@@ -897,9 +897,7 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
       /* by our rules, hydrolyzed tiles have same se types as non-hyd. */
     }
     tp->events++; fp->events++;
-  }
-  if (tp && tp->watching_states && fp->chain_state) {
-    update_state_off_indicator(fp);
+    
   }
   fp->Cell(i,j)=n; 
   if (periodic) { int size=(1<<fp->P);
@@ -908,7 +906,7 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
   if (j==0)      fp->Cell(i,size)=n;
   if (j==size-1) fp->Cell(i,-1)=n;
   }
-  
+
   // If we've changed to a state we haven't seen before, and we're counting
   // unique visited states, record it.
   if (tp && tp->tracking_seen_states && !between_double_tile (fp,tp,i,j,n) &&
@@ -916,8 +914,13 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 			       fp->cell,size)) {
     add_assembly_to_seen(tp);
   }
-  if (tp && tp->watching_states && !between_double_tile (fp,tp,i,j,n)){
-    update_state_on_indicator(fp, fp->cell, size);
+  if (tp && tp->watching_states) {
+    if (fp->chain_state) {
+      update_state_off_indicator(fp);
+    }  
+    if (!between_double_tile (fp,tp,i,j,n)) {
+      update_state_on_indicator(fp, fp->cell, size);
+    }
   }
   // note: this recalculates all these rates from scratch, although we know only some can change
   update_rates(fp,i,j);
@@ -1615,7 +1618,6 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
   int size=(1<<tp->P), N=tp->N;  
 
   if (tp->flake_list==NULL && tp->tinybox == 0) return;  /* no flakes! */
-
   //   if (tp->events + 2*events > INT_MAX) {
   if (tp->events + 2*events > 1000000000) {
     tp->ewrapped=1; tp->events=0; 
@@ -2034,6 +2036,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
 		      !between_double_tile(fp,tp,i,j,0)) {
 		    remove_assembly_from_seen (tp);
 		  }
+		  
 		  // re-attach cell:
 		  // dissociation was chosen, but rejected because it would
 		  // cause fission. (note that flake_fission calculates but
@@ -2041,6 +2044,11 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
 
 		  for (k=0; k<=d; k++) {
 		    change_cell(fp,di[removals[k]],dj[removals[k]],oldns[removals[k]]); tp->stat_a--; tp->stat_d--;
+		  }
+		  // If we are watching states to count how often they are entered, we 
+		  // didn't actually leave the state we thought we left.
+		  if (tp->watching_states && fp->chain_state) {
+		    undo_state_off_indicator(fp);
 		  }
 		  break;
 		}

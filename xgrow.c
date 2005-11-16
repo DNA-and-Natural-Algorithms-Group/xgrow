@@ -691,7 +691,6 @@ void getargs(int argc, char **argv)
     printf("Error: sizeof long (%d) should be 4\n", (int)sizeof(long int));
     exit(-1);
   }
-
   if (argc==2 && strcmp(argv[1],"--")==0) {
     printf("usage: xgrow tilefile [option=#]... \n");
     printf(" tilefile is an input file that specifies tiles\n");
@@ -758,6 +757,10 @@ void getargs(int argc, char **argv)
     printf("  testing               run automated tests instead of a simulation.\n");
     exit (0);
   }
+  if (argc == 1) {
+    printf("* First argument must be a tile file!\nTry 'xgrow --' for help.\n");
+    exit(1);
+  }
 
   tmax=0; emax=0; smax=0; fsmax=0;
   wander=0; periodic=0; linear=0; fission_allowed=0; zero_bonds_allowed=0;
@@ -769,7 +772,7 @@ void getargs(int argc, char **argv)
 
   // reset tile colors that haven't been assigned
   for (i=15; i<MAXTILETYPES; i++) tile_colors[i]=NULL;
-  
+
   if      ( (sprintf(&tileset_name[0],"%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
   else if ( (sprintf(&tileset_name[0],"%s.tiles",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
   else if ( (sprintf(&tileset_name[0],"tilesets/%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 

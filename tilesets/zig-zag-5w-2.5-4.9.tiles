@@ -19,14 +19,14 @@ size=32
 block=8
 seed=16,16,8
 wander
-fsmax=80
-Gmc=17
-Gse=14
+%fsmax=80
+Gmc=4.9
+Gse=2.5
 %Gfc=18
 doubletile=10,9
 doubletile=5,6
 periodic
 %testing
 %update_rate=1
-tinybox=1e-13
+tinybox=1e-18
 

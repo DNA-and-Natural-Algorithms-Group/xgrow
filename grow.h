@@ -118,16 +118,16 @@ typedef struct flake_struct {
   unsigned char seed_n; 
   long int events;     /* total on, off, hydrolysis events in this flake   */
   int tiles;           /* total number of tiles in this flake              */
-  int seed_is_double_tile;  /* If the seed is a double tile, it will be a monomer,
-				but the number of tiles will be reported as 2.  */
-  int mismatches;      /* number of se edges that don't agree              */
+  int seed_is_double_tile;          /* If the seed is a double tile, it will be a monomer,
+				       but the number of tiles will be reported as 2.  */
+  int mismatches;                   /* number of se edges that don't agree              */
   struct flake_struct *next_flake;  /* for NULL-terminated linked list     */
   struct flake_tree_struct *tree_node;  /* for tree of flakes              */
   int flake_ID;        /* which flake is this (for display use only)       */
   void *chain_hash;    /* When flake has visited particular states;        */
 		       /* used for testing purposes                        */
-  int chain_state;     /* If we're currently at a configuration that has an*/
-		       /* indicator variable, the hash code for that state */
+  unsigned char *chain_state;     /* If we're currently at a configuration that has an*/
+                                  /* indicator variable, the hash code for that state */
 
 } flake;          
 
@@ -243,6 +243,7 @@ flake *init_flake(unsigned char P, unsigned char N,
  int seed_i, int seed_j, int seed_n, double Gfc);
 flake *free_flake(flake *fp);
 void free_tube(tube *tp);
+void set_Gses(tube *tp, double Gse, double Gseh);
 void insert_flake(flake *fp, tube *tp);
 void print_tree(flake_tree *ftp, int L, char s);
 void clean_flake(flake *fp, double X, int iters);
@@ -267,6 +268,7 @@ int flake_fission(flake *fp, int i, int j);
 void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax);
 void linear_simulate( double ratek, double Gmc, double Gse,
                       double tmax, int emax, int smax);
+
 
 #endif /* ifdef __GROW_H__ */
 

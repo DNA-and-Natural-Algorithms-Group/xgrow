@@ -15,4 +15,5 @@ void remove_assembly_from_seen (tube *tp);
 
 void update_state_on_indicator(flake *fp, Assembly a, int size);
 void update_state_off_indicator(flake *fp);
+void undo_state_off_indicator(flake *fp);
 #endif
