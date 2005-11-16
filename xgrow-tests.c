@@ -69,7 +69,7 @@
 #define CHAIN_COUNT 20
 #define STATES_TO_ADD_PER_ANNEAL 2
 #define BLOCK_TIME 100
-#define SCALE_REDUCTION_LIMIT 1.01
+#define SCALE_REDUCTION_LIMIT 1.1
 
 #define FLOAT_TOLERANCE 1e-7
 #define CONFIDENCE_CONSTANT 1.96
@@ -399,10 +399,8 @@ void maybe_add_to_chain_states (gpointer key,
     assert (a);
     tp->start_states[data->total_states_added] = 
       copy_assembly(a,size);
-    
-    printf("Assembly %d:\n",data->total_states_added);
+    printf("Choosing representative assembly %d:\n",data->total_states_added);
     print_assembly (tp->start_states[data->total_states_added],size);
-    printf("Assembly hash code is %s.\n\n",assembly_code);
     data->total_states_added++;
     data->states_added_this_anneal++;
   }
@@ -422,7 +420,11 @@ void generate_initial_chain_states (tube *tp, int seed_i, int seed_j, int seed_n
   tp->start_states = (Assembly *) malloc_err(tp->chains * sizeof(Assembly));
   tp->start_state_Gs = (double *) malloc_err(tp->chains * sizeof(double));
 
-  printf("Finding indicator variables.\n");
+  printf("\n**************************************************\n");
+  printf("Entering stage one : Finding representative states\n\n");
+  printf("**************************************************\n\n");
+  printf("We'll start with a fast anneal, and slow down until we've sampled \n"
+	 "enough states to test.\n\n");
   last_seen_states = 0;
   time_constants_to_run = 1;
   tp->anneal_t = 0.001;
@@ -444,7 +446,7 @@ void generate_initial_chain_states (tube *tp, int seed_i, int seed_j, int seed_n
       insert_flake(fp, tp);    
       size = 1<<(fp->P);
       time_to_run = tp->anneal_t*log(2.0)*time_constants_to_run;
-      printf("Time to run is %e.\n",time_to_run);
+      printf("Current annealing time constant is %1.1e.\n",time_to_run);
       time_to_run = tp->anneal_t*time_constants_to_run;
       tp->tracking_seen_states = 1;
       add_assembly_to_seen(tp);
@@ -454,7 +456,9 @@ void generate_initial_chain_states (tube *tp, int seed_i, int seed_j, int seed_n
       if (((double) tp->states_seen_count / ok_seen_states_ratio) <= last_seen_states && 
 	  tp->states_seen_count - STATES_TO_ADD_PER_ANNEAL > total_states_added  &&
 	  tp->states_seen_count > MINIMUM_STATES_SEEN) {
-	printf("Saw %d states in the final round.\n",tp->states_seen_count);
+	printf("\nSaw %d states in this anneal.  \n"
+	       "Sampling representative states from this anneal:\n",
+	       tp->states_seen_count);
 	break;
       }
       else {
@@ -463,11 +467,10 @@ void generate_initial_chain_states (tube *tp, int seed_i, int seed_j, int seed_n
 	free_flake(fp);
 	tp->flake_list = NULL;
 	tp->anneal_t *= 1.5;
-	printf("Increasing time constant to %lf.\n",tp->anneal_t);
-	printf("States seen this round were %d.\n",last_seen_states);
       }
     }
     states_added_this_anneal = 0;
+    printf("\n");
     while (total_states_added < tp->chains &&
 	   states_added_this_anneal < STATES_TO_ADD_PER_ANNEAL) {
       data_s.states_added_this_anneal = states_added_this_anneal;
@@ -477,6 +480,7 @@ void generate_initial_chain_states (tube *tp, int seed_i, int seed_j, int seed_n
       total_states_added = data_s.total_states_added;
       states_added_this_anneal = data_s.states_added_this_anneal;
     }
+    printf("--------------------\n\n");
   }
   tp->tracking_seen_states = 0;
 }
@@ -652,13 +656,14 @@ int converged (tube *tp, indicator_data *data) {
 #ifdef DEBUG_CONVERGED
     data[j].R_hat = data[j].V_hat/data[j].W;
 #endif
-    printf("Potential scale reduction for indicator variable %d is %e.\n",j,data[j].R_hat);
     if (isnan (data[j].R_hat) || data[j].R_hat > SCALE_REDUCTION_LIMIT) {
+      printf("Potential scale reduction for representative state %d is %1.3f.\n",j,data[j].R_hat);
       printf("Scale factor is too high, continuing.\n");
       return 0;
     }
     if (data[j].R_hat < 0) {
-      printf("Not enough data to compute scale factor. Continuing.\n");
+      printf("Not enough data to compute scale factor for representative state %d. \n"
+	     "Continuing.\n",j);
       return 0;
     }
 }
@@ -687,7 +692,7 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
   }
 
   for (i = 0; i < tp->chains; i++) {
-    printf("Setting up flake %d.\n",i);
+    //printf("State %d followed:\n",i);
     fp=init_flake(tp->P,tp->N,1,1,1,0);
 
     insert_flake(fp, tp);    
@@ -722,8 +727,8 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
       fp->seed_j = seed_j;
       fp->seed_n = seed_n;
     }
-    print_assembly(fp->cell,1<<(tp->P));
-    printf("seed is %d.\n",fp->seed_n);
+    //print_assembly(fp->cell,1<<(tp->P));
+    //printf("seed is %d.\n",fp->seed_n);
     recalc_G(fp);
     tp->start_state_Gs[i] = fp->G;
     fp->chain_hash = g_hash_table_new_full (g_str_hash, g_str_equal, 
@@ -732,10 +737,15 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
     update_state_on_indicator(fp,tp->start_states[i], size);
   }
   tp->watching_states = 1;
-  printf("Starting simulation to pass burn.\n");
+  printf("\n**************************************************************\n");
+  printf("Entering stage two: Running simulation until chains have seen \n"
+	 "representative states about equally.\n");
+  printf("**************************************************************\n");
+
   i = 0;
   while (1) {
-    printf("Simulating block %d.\n",i);
+    printf("\nTotal simulated time is %f seconds.\n",((double) i)*((double) BLOCK_TIME));
+    printf("Simulating block %d:\n",i);
     while (tp->t < BLOCK_TIME*i) {
       simulate (tp, UPDATE_RATE, BLOCK_TIME*i, 0, 0, 0);
       //printf("Time is %e.\n",tp->t);
@@ -746,8 +756,6 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
     }
     i++;
   }
-  printf("Time at end is %e.\n",tp->t);
-  printf("Freeing states.\n");
   free_start_states (tp->start_states, size, tp->chains);
   return data;
 }
@@ -821,8 +829,12 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
   double r, est_mean, est_variance, confidence_interval;
   double confidence_ratio;
   int n;
+  int unbalanced_states = 0;
 
-  printf("Testing whether detailed balance has been achieved.\n");
+  printf("\n********************************************************\n");
+  printf("Entering stage three: testing whether detailed balance \n"
+	 "has been achieved.\n");
+  printf("*******************************************************\n\n");
   d.means = (double *) malloc_err (sizeof(double) * tp->chains);
   d.variances = (double *) malloc_err (sizeof(double) * tp->chains);
   d.covariances = (double **) malloc_err (sizeof(double *) * tp->chains);
@@ -876,24 +888,71 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
 	confidence_interval = CONFIDENCE_CONSTANT * sqrt(-est_variance);
       }
       confidence_ratio = confidence_interval/correct_state_ratio;
-      printf("\nTrue ratio of variables %d and %d is %f.\n",j,i,correct_state_ratio);
-      printf("Simulated ratio is %f by intervals, %f by time.  Confidence interval is %f, or %2.1f%%.\n",
-	     est_mean, data[i].total_time/data[j].total_time,confidence_interval,100*confidence_ratio);
       if (data[i].total_time/data[j].total_time - 4*confidence_interval > correct_state_ratio) {
+	printf("\nTrue ratio of variables %d and %d is %1.2e.  ",j,i,correct_state_ratio);
+	printf("Simulated ratio is %1.2e.\nThe computed confidence interval is %2.1f%%.\n",
+	       data[i].total_time/data[j].total_time,100*confidence_ratio);
 	printf("Estimated ratio is too high.\n");
-	//return 0;
+	unbalanced_states++;
       }
       if (data[i].total_time/data[j].total_time + 4*confidence_interval < correct_state_ratio) {
+	printf("\nTrue ratio of variables %d and %d is %1.2e.  ",j,i,correct_state_ratio);
+	printf("Simulated ratio is %1.2e.\nThe computed confidence interval is %2.1f%%.\n",
+	       data[i].total_time/data[j].total_time,100*confidence_ratio);
 	printf("Estimated ratio is too low.\n");
-	//return 0;
+	unbalanced_states++;
       }
     }
   }
-  return 1;
+  return unbalanced_states;
 }
 
 void run_xgrow_tests (tube *tp,double Gmc, double Gse, int si, int sj, int sn, int size) {
   indicator_data *data;
+  int unbalanced_states; 
+  printf("\nAttention!\n\n");
+  printf("xgrow is being run in testing mode.  In testing mode, xgrow will \n"
+	 "attempt to see if xgrow's simulation algorithm, when it reaches a \n"
+	 "state close to equilibrium, satisfies detailed balance on the tileset \n"
+	 "given as the argument.  These tests will allow you to identify any bugs \n"
+	 "in which some states are incorrectly weighted over other states, skewing \n"
+	 "the results of your simulations.  However, since reaching a state close to \n"
+	 "equilibrium is required, you should only run tests on a \n"
+	 "tile set and physical conditions where this can be achieved in \n"
+	 "a realistic simulation.\n\n");
+  printf("Testing consists of three stages.\n\n");
+  printf("In the first stage, xgrow will run a series of anneals from above the \n"
+	 "melting temperature of the tile set down to the physical conditions \n"
+	 "set by the tile set or xgrow defaults.  At the end of each \n"
+	 "anneal, xgrow will choose %d representative states to check for \n"
+	 "detailed balance. It will run %d different anneals in order to find a \n"
+	 "a representative set of states to follow in the next stage.  \n"
+	 "The goal of the next stages will be to check whether the ratio \n"
+	 "between the amount of time spent in these states during simulations \n"
+	 "satisfies detailed balance.\n\n",STATES_TO_ADD_PER_ANNEAL,
+	 CHAIN_COUNT/STATES_TO_ADD_PER_ANNEAL);
+  printf("In the second stage, xgrow will run several simulations in parallel \n"
+	 "until the time spent in each of the representative samples becomes \n"
+	 "approximately equal.  Specifically, xgrow will follow %d simulations.\n"
+	 "It will run them for a block of %d seconds, then compute an approximate \n"
+	 "distance to equilibrium by computing a scaling factor (Gelman, Rubin 1992) \n"
+	 "for each state.  A scaling factor is the approximate difference in the \n"
+	 "amount of time spent in a state we are following between chains.  At \n"
+	 "equilibrium, we expect the sampled state to appear equally in all of \n"
+	 "the chains. Thus, we run until the sampled states are seen with \n"
+	 "approximately the same frequency.  At this point, xgrow will enter the \n"
+	 "third stage.\n\n",CHAIN_COUNT,BLOCK_TIME);
+  printf("In the third stage, xgrow will compare the ratios of times spent in \n"
+	 "each representative state, recorded in the second stage, and compute \n"
+	 "the delta G of each of the representative states.  It will use this \n"
+	 "information to check whether these ratios satisfy detailed balance. \n"
+	 "If any of the ratios determined by simulation are not a reasonable \n"
+	 "statistical approximation for the ratios of the delta G's, xgrow will \n"
+	 "notify you.  Occasional statistical outliers are to be expected, but a \n"
+	 "persistent problem, especially among a particular set of states, may \n"
+	 "indicate a bug in xgrow.\n\n");
+  printf("Press enter to start testing.\n");
+  fscanf(stdin,"%*c");
 
   seed_i = si;
   seed_j = sj;
@@ -912,11 +971,17 @@ void run_xgrow_tests (tube *tp,double Gmc, double Gse, int si, int sj, int sn, i
      highly dependent on the starting state, we can test whether we
      obey detailed balance, by comparing the time spent in different
      states by our different processes. */
-  if (test_detailed_balance (tp, data)) {
-    printf("Detailed balance seems to have been achieved.\n");
+  unbalanced_states = test_detailed_balance (tp, data);
+  if (!unbalanced_states) {
+    printf("\n\n***************************************************\n");
+    printf("Detailed balance seems to have been acheived.\n");
+    printf("***************************************************\n");
   }
   else {
-    printf("There was a problem.  This may be a statistical error, but if it repeats, there may be a bug.\n");
+    printf("\n\n************************************************************\n");
+    printf("There was a problem.  This may be a statistical error, \n"
+	   "but if it repeats, there may be a bug.\n");
+    printf("************************************************************\n");
   }
   
 }
