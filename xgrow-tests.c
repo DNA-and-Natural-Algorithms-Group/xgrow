@@ -72,7 +72,7 @@
 #define SCALE_REDUCTION_LIMIT 1.1
 
 #define FLOAT_TOLERANCE 1e-7
-#define CONFIDENCE_CONSTANT 1.96
+#define CONFIDENCE_CONSTANT 3.30
 #define MINIMUM_STATES_SEEN 5
 
 double ok_seen_states_ratio = 1.01;
@@ -888,14 +888,14 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
 	confidence_interval = CONFIDENCE_CONSTANT * sqrt(-est_variance);
       }
       confidence_ratio = confidence_interval/correct_state_ratio;
-      if (data[i].total_time/data[j].total_time - 4*confidence_interval > correct_state_ratio) {
+      if (data[i].total_time/data[j].total_time - confidence_interval > correct_state_ratio) {
 	printf("\nTrue ratio of variables %d and %d is %1.2e.  ",j,i,correct_state_ratio);
 	printf("Simulated ratio is %1.2e.\nThe computed confidence interval is %2.1f%%.\n",
 	       data[i].total_time/data[j].total_time,100*confidence_ratio);
 	printf("Estimated ratio is too high.\n");
 	unbalanced_states++;
       }
-      if (data[i].total_time/data[j].total_time + 4*confidence_interval < correct_state_ratio) {
+      if (data[i].total_time/data[j].total_time + confidence_interval < correct_state_ratio) {
 	printf("\nTrue ratio of variables %d and %d is %1.2e.  ",j,i,correct_state_ratio);
 	printf("Simulated ratio is %1.2e.\nThe computed confidence interval is %2.1f%%.\n",
 	       data[i].total_time/data[j].total_time,100*confidence_ratio);
