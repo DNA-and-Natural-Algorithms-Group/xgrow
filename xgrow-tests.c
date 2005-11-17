@@ -65,11 +65,9 @@
 #include "xgrow-tests.h"
 
 #define UPDATE_RATE 10000
-#define SAMPLING_RATE 0.001
 #define CHAIN_COUNT 20
 #define STATES_TO_ADD_PER_ANNEAL 2
-#define BLOCK_TIME 100
-#define SCALE_REDUCTION_LIMIT 1.1
+#define SCALE_REDUCTION_LIMIT 1.01
 
 #define FLOAT_TOLERANCE 1e-7
 #define CONFIDENCE_CONSTANT 3.30
@@ -78,8 +76,7 @@
 double ok_seen_states_ratio = 1.01;
 int time_constants_to_run = 10;
 
-double delta = 1;
-
+double block_time, sampling_rate;
 int seed_i, seed_j, seed_n;
 
 typedef struct interval_list {
@@ -507,8 +504,8 @@ int sample_count (double start_time, double end_time) {
   int extra_samples;
 
   contains_an_interval_sample = 
-    floor (start_time / SAMPLING_RATE) != floor (end_time / SAMPLING_RATE);
-  extra_samples = MAX(0,floor((end_time - start_time)/SAMPLING_RATE));
+    floor (start_time / sampling_rate) != floor (end_time / sampling_rate);
+  extra_samples = MAX(0,floor((end_time - start_time)/sampling_rate));
   return contains_an_interval_sample + extra_samples;
 }
 
@@ -657,7 +654,7 @@ int converged (tube *tp, indicator_data *data) {
     data[j].R_hat = data[j].V_hat/data[j].W;
 #endif
     if (isnan (data[j].R_hat) || data[j].R_hat > SCALE_REDUCTION_LIMIT) {
-      printf("Potential scale reduction for representative state %d is %1.3f.\n",j,data[j].R_hat);
+      printf("Potential scale reduction for representative state %d is %1.4f.\n",j,data[j].R_hat);
       printf("Scale factor is too high, continuing.\n");
       return 0;
     }
@@ -744,10 +741,10 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
 
   i = 0;
   while (1) {
-    printf("\nTotal simulated time is %f seconds.\n",((double) i)*((double) BLOCK_TIME));
+    printf("\nTotal simulated time is %f seconds.\n",((double) i)*((double) block_time));
     printf("Simulating block %d:\n",i);
-    while (tp->t < BLOCK_TIME*i) {
-      simulate (tp, UPDATE_RATE, BLOCK_TIME*i, 0, 0, 0);
+    while (tp->t < block_time*i) {
+      simulate (tp, UPDATE_RATE, block_time*i, 0, 0, 0);
       //printf("Time is %e.\n",tp->t);
     }
     /* After running a block, recalculate parameters to see if we are past burn */
@@ -845,12 +842,12 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
   for (i = 0; i < tp->chains; i++) {
     d.means[i] = data[i].mean_of_means;
     printf("Intervals spent in state %d is %d out of %d intervals total.\n",
-	 i,(int) (d.means[i]*tp->t/SAMPLING_RATE),(int) (tp->t/SAMPLING_RATE));
+	 i,(int) (d.means[i]*tp->t/sampling_rate),(int) (tp->t/sampling_rate));
     printf("Time spent in state %d is %f seconds out of %f total.\n",
 	   i, data[i].total_time, tp->t);
   }
 
-  n = (floor(tp->t / SAMPLING_RATE)  - 1) * tp->chains;  
+  n = (floor(tp->t / sampling_rate)  - 1) * tp->chains;  
   for (i = 0; i < tp->chains; i++) {
     d.variances[i] = 0;
     for (flake = tp->flake_list; flake != NULL; flake = flake->next_flake) {
@@ -910,6 +907,9 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
 void run_xgrow_tests (tube *tp,double Gmc, double Gse, int si, int sj, int sn, int size) {
   indicator_data *data;
   int unbalanced_states; 
+
+  block_time = 0.005 * exp(Gmc);
+  sampling_rate = 5e-7 * exp(Gmc);
   printf("\nAttention!\n\n");
   printf("xgrow is being run in testing mode.  In testing mode, xgrow will \n"
 	 "attempt to see if xgrow's simulation algorithm, when it reaches a \n"
@@ -934,14 +934,14 @@ void run_xgrow_tests (tube *tp,double Gmc, double Gse, int si, int sj, int sn, i
   printf("In the second stage, xgrow will run several simulations in parallel \n"
 	 "until the time spent in each of the representative samples becomes \n"
 	 "approximately equal.  Specifically, xgrow will follow %d simulations.\n"
-	 "It will run them for a block of %d seconds, then compute an approximate \n"
+	 "It will run them for a block of %f seconds, then compute an approximate \n"
 	 "distance to equilibrium by computing a scaling factor (Gelman, Rubin 1992) \n"
 	 "for each state.  A scaling factor is the approximate difference in the \n"
 	 "amount of time spent in a state we are following between chains.  At \n"
 	 "equilibrium, we expect the sampled state to appear equally in all of \n"
 	 "the chains. Thus, we run until the sampled states are seen with \n"
 	 "approximately the same frequency.  At this point, xgrow will enter the \n"
-	 "third stage.\n\n",CHAIN_COUNT,BLOCK_TIME);
+	 "third stage.\n\n",CHAIN_COUNT,block_time);
   printf("In the third stage, xgrow will compare the ratios of times spent in \n"
 	 "each representative state, recorded in the second stage, and compute \n"
 	 "the delta G of each of the representative states.  It will use this \n"
