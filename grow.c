@@ -363,8 +363,11 @@ void recalc_G(flake *fp)
       if ((n=fp->Cell(i,j))>0) {
 	fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n)/2.0 - tp->Gcb[n];
 	/* Don't count Gmc for both sides of a double tile */
-	if (tp->dt_right[n]) 
-	  fp->G -= log(tp->conc[n]);
+	/* Don't count Gse between double tile */
+	if (tp->dt_right[n]) {
+	  fp->G += log(tp->conc[n]);
+	  fp->G += fp->tube->Gse_EW[fp->Cell(i,(j)+1)][n];
+	}
 	fp->mismatches += Mism(fp,i,j,n); fp->tiles++;
 	update_rates(fp,i,j);
       } else if 
