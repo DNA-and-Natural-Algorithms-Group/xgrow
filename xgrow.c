@@ -165,6 +165,8 @@ after the whole square has been removed.
 5/14/05 Added an anneal feature, at which Gse starts at some value and
 declines by a time constant until it reaches its final value.  It shouldn't be hard to implement a melt feature, with the exact reverse behavior, but right now we require that Gse initial be higher than Gse final.  Note that it would be horribly inefficient to implement an exact annealing feature of this type, because all rates would have to be updated after every event.  As a compromise we update Gse (and therefore the rates) some fixed number of (for now 100) times per time constant. -- RS
 7/30/05 Added testing to xgrow -- new option "testing" will test whether a tile set obeys detailed balance once it reaches equilibrium.  Takes a while to do, and effectively forever if you choose a tile set that takes a looooong time to reach equilibrium, like the Sierpinski set. -- RS
+12/12/05 Fixed up the handling of Gse and tp->Gse, which was leading to the GUI display being occasionally off.
+
 TO DO List:
   
 * If the tile set specifies a stoichiometry of 0 (e.g. for the seed), the simulation can freak out.
@@ -208,10 +210,16 @@ dissociations, which must be rejected.  This is not good.
 * Very Much want to implement a Surface mode, with Gsf for the surface, and
 allowing disconnected flakes.
 
+* hangs bad when aTAM and no moves available [at least, I think that's why]
+* named-bonds don't work for }(red) with no space
+* importfile has problems.
+* for blast, need option that ignores seed
+* for fission, need option that chooses largest
+   component, not component connected to the seed
+
+
 Compiling:  see makecc and makeccprof and makeccefence
 
-gcc -O -Wall -g -o xgrow xgrow.c grow.c -I/usr/X11R6/include -L/usr/X11R6/lib -lX11 -lm
-    
 */
 
 # include <X11/Xlib.h>
@@ -1974,7 +1982,8 @@ int main(int argc, char **argv)
        (emax==0 || tp->events < emax) &&
        (smax==0 || tp->stat_a-tp->stat_d < smax) &&
        (fsmax==0 || tp->largest_flake_size < fsmax)) { 
-
+   
+   Gse=tp->Gse;  // keep them sync'd in case "anneal" is ongoing.
    if (!XXX) {
      simulate(tp,update_rate,tmax,emax,smax,fsmax);
      if (tracefp!=NULL) write_datalines(tracefp,"\n");
@@ -2053,7 +2062,7 @@ int main(int argc, char **argv)
 	       if (fprm->Gfc > 0) fprm->Gfc += (new_Gmc-Gmc); 
 	       fprm=fprm->next_param;
 	     } 
-	     Gse=new_Gse; Gmc=new_Gmc; 
+	     Gse=new_Gse; Gmc=new_Gmc; tp->Gse=Gse; tp->Gmc=Gmc;
 	     showpic(fp,errorc); 
 	   } else if (mousing==1) {
 	     /* clear a region, i.e., "puncture" */
@@ -2127,7 +2136,7 @@ int main(int argc, char **argv)
 	   } else if (report.xbutton.window==fissionbutton) {
 	     fission_allowed = (fission_allowed+1)%3;
 	     setfission(fission_allowed); 
-	     reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);  // this recalc's all rates
+	     update_all_rates(tp);  
 	     repaint(); 
 	   } else if (report.xbutton.window==cleanbutton) {
 	     x=report.xbutton.x;
@@ -2215,7 +2224,7 @@ int main(int argc, char **argv)
 	     if (tp->hydro) break; /* don't know how to reset params */
 	     if (x>60) new_Gse=Gse-0.1; else new_Gse=Gse+0.1;
 	     reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);
-	     Gse=new_Gse; Gmc=new_Gmc; repaint();
+	     Gse=new_Gse; tp->Gse=Gse; repaint();
 	   } else if (report.xbutton.window==playground) // we're in ButtonPress
 	     {x=report.xbutton.x/block;
 	     y=report.xbutton.y/block;

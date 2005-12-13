@@ -379,6 +379,7 @@ void recalc_G(flake *fp)
   fp->mismatches/=2;
   update_tube_rates(fp);
 } // recalc_G()
+
 /* calculate the dG of the flake, excluding concentration effects */
 double calc_dG_bonds(flake *fp)
 {
@@ -415,24 +416,14 @@ int calc_perimeter(flake *fp)
 
 void reset_params(tube *tp, double old_Gmc, double old_Gse, 
 		  double new_Gmc, double new_Gse, double Gseh)
-{  int n,m;
+{  int n;
  flake *fp;
 
  if (!(tp->hydro)) {         /* not clear what to do for hydro rules */
 
    /* reset bond strengths for new Gse  (this code same as in set_params) */
-   for (n=1; n<=tp->N; n++)
-     for (m=1; m<=tp->N; m++) {
-       tp->Gse_EW[n][m] = ((((tp->tileb)[n][3]==(tp->tileb)[m][1]) *
-			    (tp->strength)[(tp->tileb)[m][1]]) +
-			   (tp->glue)[(tp->tileb)[n][3]][(tp->tileb)[m][1]])*
-	 (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:new_Gse):new_Gse);
-       tp->Gse_NS[n][m] = (((tp->tileb)[n][2]==(tp->tileb)[m][0]) *
-			   (tp->strength)[(tp->tileb)[m][0]] +
-			   (tp->glue)[(tp->tileb)[n][2]][(tp->tileb)[m][0]])* 
-	 (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:new_Gse):new_Gse);
-     }
 
+   set_Gses(tp,new_Gse,Gseh);
 
    /* changing Gmc when Gfc>0 indicates either 
       dilution ( in which case all conc including Gfc decrease proportionally )
@@ -1685,7 +1676,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
     /* First check if time is such that we need to update the temperature */
     if (tp->anneal_t && (tp->t > tp->next_update_t)) {
       tp->Gse = tp->Gse_final- (tp->Gse_final - tp->anneal_g)*exp(-tp->t/tp->anneal_t);
-      set_Gses(tp,tp->Gse,0);
+      set_Gses(tp,tp->Gse,0);  // NOT SAFE FOR HYDROLYSIS
       /* Now we have to update all rates */
       tp->updates++;
       tp->next_update_t = tp->updates*tp->anneal_t*log(2)/tp->update_freq;
