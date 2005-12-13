@@ -27,7 +27,7 @@ by Erik Winfree
 unsigned char ring[256];
 #define ROTATE(i)          ((((i)&1)<<7) + ((i)>>1))
 #define ROTATE_CLEAR(i)    (               ((i)>>1))
-#define AVAGADROS_NUMBER 6.022e23
+#define AVOGADROS_NUMBER 6.022e23
 
 /*************** the fill routine for checking connectedness ***********/
 
@@ -1663,9 +1663,9 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
     total_rate = 0;
   }
   total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
-  new_flake_rate = tp->k*2*tp->conc[0]*tp->conc[0]*tp->tinybox*AVAGADROS_NUMBER ;
+  new_flake_rate = tp->k*2*tp->conc[0]*tp->conc[0]*tp->tinybox*AVOGADROS_NUMBER ;
   
-  assert (total_rate + total_blast_rate + new_flake_rate > 0);
+  assert (total_rate + total_blast_rate + new_flake_rate >= 0); // can be zero in aTAM if finite-sized assembly is done
   
   while (tp->events < emaxL && 
 	 (tmax==0 || tp->t < tmax) && 

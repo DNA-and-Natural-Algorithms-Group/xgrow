@@ -165,7 +165,8 @@ after the whole square has been removed.
 5/14/05 Added an anneal feature, at which Gse starts at some value and
 declines by a time constant until it reaches its final value.  It shouldn't be hard to implement a melt feature, with the exact reverse behavior, but right now we require that Gse initial be higher than Gse final.  Note that it would be horribly inefficient to implement an exact annealing feature of this type, because all rates would have to be updated after every event.  As a compromise we update Gse (and therefore the rates) some fixed number of (for now 100) times per time constant. -- RS
 7/30/05 Added testing to xgrow -- new option "testing" will test whether a tile set obeys detailed balance once it reaches equilibrium.  Takes a while to do, and effectively forever if you choose a tile set that takes a looooong time to reach equilibrium, like the Sierpinski set. -- RS
-12/12/05 Fixed up the handling of Gse and tp->Gse, which was leading to the GUI display being occasionally off.
+11/20/05 Fixed a bug in count_flakes().  It's still very brittle.  -EW
+12/12/05 Fixed up the handling of Gse and tp->Gse, which was leading to the GUI display being occasionally off. -EW
 
 TO DO List:
   
@@ -911,6 +912,7 @@ void write_flake(FILE *filep, char *mode, flake *fp)
 void export_flake(char *mode, flake *fp)
 {
   if (export_fp==NULL) export_fp=fopen("xgrow_export_output","a+");
+  printf("Writing flake #%d...\n",export_flake_n);
   write_flake(export_fp, mode, fp);
   fflush(export_fp);
 }
@@ -928,37 +930,41 @@ int count_flakes(FILE *flake_file)
    * This assumes the parameters (which we want to ignore)
    * are less than 20 charaters long (Overkill.  14 should be enough)
    */
-  char line[20]; 
+  char line[20]; int lnum=0;
   flake_size = 0;
 
   /* Run through once to make sure the flakes are the right size. */
   
-  fscanf(flake_file, "\nflake{%d}={ ...\n[", &n);
+  fscanf(flake_file, "\nflake{%d}={ ...\n[", &n); lnum+=2;   // the line number counting is very approximate.
 
   /* For debugging */
-  /*    printf("flake number: %d\n", n); */
+  printf("Reading flake number: %d\n", n);   
 
   /* Run through the parameters, waiting for ],... to appear twice. */
   for(i = 0; i < 2; i++)
     {
-      while (1)
+      while (!feof(flake_file))
 	{
-	  fscanf(flake_file, "%s", line);
+	  fscanf(flake_file, "%s", line); 
 	  if (strcmp(line, "],...")==0)
 	    break;
 	}
     }
+      if (feof(flake_file)) { 
+          fprintf(stderr,"Reached EOF on flake number %d without reading params.\n",n);
+          exit(-1);      
+      }
   
   /* Read in the '[' */
-  fscanf(flake_file, "%s", line);
+      fscanf(flake_file, "%s", line); lnum+=3;  // for params  (if written by xgrow)
 
   while (1)
     {
-      fscanf(flake_file, "%s", line);
-      /*      printf("Just read in loop: %s\n", line); */
+      fscanf(flake_file, "%s", line);  
+      // printf("Just read in loop near line %d: %s\n", lnum, line); //****
       if (strcmp(line, "...")==0) /* then we've reached the end of the line */
 	{
-	  break;
+	  break; lnum++;
 	}
       else
 	flake_size++;
@@ -973,23 +979,23 @@ int count_flakes(FILE *flake_file)
 
   for(row = 2; row <= flake_size; row++)
     {
-      /*        fprintf(stderr, "Now on row: %d\n", row); */
+      //        fprintf(stderr, "Now on row: %d\n", row);
       for(i = 0; i <= flake_size; i++)
 	{
 	  fscanf(flake_file, "%d", &garbage);
 	  /*	  fprintf(stderr, "%d:%d ", i, garbage); */
 	}
-      fscanf(flake_file, "%s", line);
+      fscanf(flake_file, "%s", line); 
       /* Make sure that we've actually read the end of line. */
       if(strcmp(";", line) != 0)
 	{
-	  fprintf(stderr, "Error parsing input file. Expected ';' but read '%s'\n", line);
+	  fprintf(stderr, "Error parsing input file near line %d. Expected ';' but read '%s'\n", lnum, line);
 	  exit(-1);
 	}
-      fscanf(flake_file, "%s", line);
+      fscanf(flake_file, "%s", line); lnum++;
       if(strcmp("...", line) != 0)
 	{
-	  fprintf(stderr, "Error parsing input file. Expected '...' but read '%s'\n", line);
+	  fprintf(stderr, "Error parsing input file near line %d. Expected '...' but read '%s'\n", lnum,line);
 	  exit(-1);
 	}
     }
@@ -998,55 +1004,60 @@ int count_flakes(FILE *flake_file)
 
   if(row != flake_size)
     {
-      fprintf(stderr, "Error: Flake dimensions do not match.\n%d rows and "
-	      "%d columns\n", row, flake_size);
+      fprintf(stderr, "Error near line %d: Flake dimensions do not match.\n%d rows and "
+	      "%d columns\n", lnum, row, flake_size);
       exit(-1);
     }
   
-  fscanf(flake_file, "%s", line);
+  fscanf(flake_file, "%s", line); 
   assert(strcmp(line, "]")==0);
-  fscanf(flake_file, "%s", line);
+  fscanf(flake_file, "%s", line); lnum++;
   assert(strcmp(line, "};")==0);
     
   /* Watch for end of file as well as find the next flake number. */
-  end = fscanf(flake_file, "\nflake{%d}={ ...\n[", &n);
-  
+  end = fscanf(flake_file, "\nflake{%d}={ ...\n[", &n); lnum+=2;
+
   /* Now go through the rest of the file. */
-  while (end)
+  while (end==1)
     {
       /* For debugging */
-      /*        printf("Flake number: %d\n", n); */
+              printf("Reading flake number: %d\n", n); //****
       
       /* Run through the parameters, waiting for ],... to appear twice. */
       for(i = 0; i < 2; i++)
 	{
-	  while (1)
+	  while (!feof(flake_file))
 	    {
-	      fscanf(flake_file, "%s", line);
+	      fscanf(flake_file, "%s", line); 
 	      if (strcmp(line, "],...")==0)
 		break;
 	    }
 	}
-      
-      fscanf(flake_file, "%s", line);
+      if (feof(flake_file)) { 
+          fprintf(stderr,"Reached EOF on flake number %d without reading params.\n",n);
+          exit(-1);      
+      }
+
+      printf(" skipped param lines\n"); 
+      fscanf(flake_file, "%s", line);  lnum+=3;
       assert(strcmp(line, "[")==0);
       for(row = 1; row <= flake_size; row++)
 	{
 	  for(i = 0; i < flake_size; i++)
 	    {
-	      fscanf(flake_file, "%s", line);
+	      fscanf(flake_file, "%s", line); 
 	    }
-	  fscanf(flake_file, "%s", line);
+	  fscanf(flake_file, "%s", line); lnum++;
 	  assert(strcmp("...", line)==0);
 	} 
       
-      fscanf(flake_file, "%s", line);
+      fscanf(flake_file, "%s", line); 
       assert(strcmp("]", line)==0);
-      fscanf(flake_file, "%s", line);
+      fscanf(flake_file, "%s", line); lnum++;
       assert(strcmp("};", line)==0);
 
       /* Watch for end of file as well as find the next flake number. */
-      end = fscanf(flake_file, "\nflake{%d}={ ...\n[", &n);
+      end = fscanf(flake_file, "\nflake{%d}={ ...\n[", &n);  lnum+=2;
     } /* end while */
 
   fprintf(stderr, "Found %d flakes\n", n);
@@ -1065,14 +1076,14 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
 {
   fpos_t flake_start;
   int tile_type, read_flake_number, translate, i, j, end, flake_size, seed_set;
-  char line[20];
+  char line[20]; int lnum=0;
   seed_set = flake_size = 0;
   
   /* Just to be sure. */
   rewind(flake_file);
 
   /* Find the flake we want. */
-  fscanf(flake_file, "\nflake{%d}={ ...\n[", &read_flake_number);
+  fscanf(flake_file, "\nflake{%d}={ ...\n[", &read_flake_number); lnum++;  // the line number counting is very approximate.
 
   while (read_flake_number!=flake_number)
     {
@@ -1082,11 +1093,12 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
 	  while (1)
 	    {
 	      /* Assumes the parameters are terminated by '],...' */
-	      if (fscanf(flake_file, "%s", line)==0)
+	      if (fscanf(flake_file, "%s", line)==0) 
 		{
-		  fprintf(stderr,"Error: Expected ],... at end of parameters.\n");
+		  fprintf(stderr,"Error near line %d: Expected ],... at end of parameters.\n",lnum+1);
 		  exit(-1);
 		}
+              lnum++;
 	      if (strcmp(line, "],...")==0)
 		break;
 	    }
@@ -1097,9 +1109,10 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
 	{
 	  if (fscanf(flake_file, "%s", line)==0)
 	    {
-	      fprintf(stderr,"Error: Expected }; at end of data.");
+	      fprintf(stderr,"Error near line %d: Expected }; at end of data.\n",lnum+1);
 	      exit(-1);
 	    }
+          lnum++;
 	  if (strcmp(line, "};")==0)
 	    break;
 	}
@@ -1108,9 +1121,10 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
 
       if (!end)
 	{
-	  fprintf(stderr, "Flake %d not found in file.\n", flake_number);
+	  fprintf(stderr, "Flake %d not found in file (near line %d).\n", flake_number,lnum);
 	  return;
 	}
+      lnum+=2;
     }
 
   /* Skip through the parameters, waiting for ],... to appear twice. */
@@ -1118,13 +1132,13 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
     {
       while (1)
 	{
-	  fscanf(flake_file, "%s", line);
+	  fscanf(flake_file, "%s", line); lnum++;
 	  if (strcmp(line, "],...")==0)
 	    break;
 	}
     }
   /* Read in the starting '[' */
-  fscanf(flake_file, "%s", line);
+  fscanf(flake_file, "%s", line);  lnum++;
   assert(strcmp("[", line)==0);
 
   /*
@@ -1163,7 +1177,7 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
       fscanf(flake_file, "%d;", &tile_type);
       change_cell(current_flake, translate + i, translate + j, tile_type);
 
-      fscanf(flake_file, "%s", line);
+      fscanf(flake_file, "%s", line); lnum++;
       assert(strcmp(line, "...")==0);
     }
 
