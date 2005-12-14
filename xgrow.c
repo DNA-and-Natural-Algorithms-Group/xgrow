@@ -167,6 +167,7 @@ declines by a time constant until it reaches its final value.  It shouldn't be h
 7/30/05 Added testing to xgrow -- new option "testing" will test whether a tile set obeys detailed balance once it reaches equilibrium.  Takes a while to do, and effectively forever if you choose a tile set that takes a looooong time to reach equilibrium, like the Sierpinski set. -- RS
 11/20/05 Fixed a bug in count_flakes().  It's still very brittle.  -EW
 12/12/05 Fixed up the handling of Gse and tp->Gse, which was leading to the GUI display being occasionally off. -EW
+12/15/05 Added flake loading option to offset the seed assembly position -EW
 
 TO DO List:
   
@@ -332,6 +333,7 @@ int updates_per_RC = 1000;
 
 int import=0; /* Are we importing flakes? */
 int import_flake_size = 0;
+int import_offset_i=0, import_offset_j=0;
 
 char newline[2];
 
@@ -481,6 +483,13 @@ int parse_arg_line(char *arg)
   else if (strncmp(arg,"testing",7) == 0) {
     testing = 1;
   }
+  else if (strncmp(arg,"import_offset=",14)==0) {
+    char *p=(&arg[14]);
+    import_offset_i=atoi(p);
+    if ((p=strchr(p,','))!=NULL) {
+      import_offset_j=atoi(p+1);
+    }
+  }
   else if (strncmp(arg,"importfile",10)==0)
     {
       char *p=(&arg[11]);
@@ -589,12 +598,13 @@ void read_tilefile(FILE *tilefp)
     if (r!=1) { fprintf(stderr,"Reading tile file: expected binding type names }.\n"); exit(-1); }
   }
 
-  fscanf(tilefp,"tile edges="); rsc;
+  r=0; fscanf(tilefp,"tile edges=%n",&r); rsc; //printf("r=%d\n",r);
+  if (r!=11) { fprintf(stderr,"Reading tile file: expected `tile edges=' declaration.\n"); exit(-1); }
   tileb_length = N+1;
   tileb = (int**) calloc(sizeof(int*),tileb_length);
   stoic = (double*) calloc(sizeof(double),tileb_length);
-  r=0; fscanf(tilefp,"{\n%n",&r); rsc;
-  if (r!=2) { fprintf(stderr,"Reading tile file: expected tile set start {.\n"); exit(-1); }
+  r=0; fscanf(tilefp,"{%n",&r); rsc;
+  if (r!=1) { fprintf(stderr,"Reading tile file: expected tile set start {.\n"); exit(-1); }
   tileb[0] = (int*) calloc(sizeof(int),4);
   for (j=0;j<4;j++) {
     tileb[0][j] = 0;
@@ -606,11 +616,11 @@ void read_tilefile(FILE *tilefp)
     if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d start def {. \n",i); exit(-1); }
     /* read in the four binding types {N E S W} */
     for (j=0;j<4;j++) { rsc;
-    temp_char = getc (tilefp); ungetc(temp_char, tilefp);
-    if (index("0123456789",temp_char)!=NULL) {
+     temp_char = getc (tilefp); ungetc(temp_char, tilefp);
+     if (index("0123456789",temp_char)!=NULL) {
       if (1!=fscanf(tilefp,"%d",&tileb[i][j]))
 	{ fprintf(stderr,"Reading tile file: expected tile %d bond %d value.\n",i,j); exit(-1); } 
-    } else {
+     } else {
       if (1!=fscanf(tilefp,"%s",&s[0]))
 	{ fprintf(stderr,"Reading tile file: expected tile %d bond %d's name.\n",i,j); exit(-1); } 
       if (s[strlen(s)-1]=='}') { ungetc('}',tilefp); s[strlen(s)-1]=0; }
@@ -619,13 +629,13 @@ void read_tilefile(FILE *tilefp)
 	{ tileb[i][j]=k; }
       else
 	{ fprintf(stderr,"Reading tile file: expected tile %d bond %d's name '%s' unknown.\n",i,j,s); exit(-1); } 
-    }
+     }
     } rsc;
     r=0; fscanf(tilefp,"}%n",&r); rsc; 
     if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d end def }. \n",i); exit(-1); }
     if (fscanf(tilefp,"[%g]",&stoic_float)) 
       stoic[i]=stoic_float; else stoic[i]=1.0; rsc;
-    if (fscanf(tilefp," (%200[^)])",&stringbuffer[0])) {
+    if (fscanf(tilefp,"(%200[^)])",&stringbuffer[0])) {
       tile_colors[i]=(char *)malloc(strlen(stringbuffer)+2);
       strcpy(tile_colors[i],stringbuffer);
     }
@@ -1075,7 +1085,7 @@ int count_flakes(FILE *flake_file)
 void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
 {
   fpos_t flake_start;
-  int tile_type, read_flake_number, translate, i, j, end, flake_size, seed_set;
+  int tile_type, read_flake_number, translate_i, translate_j, i, j, end, flake_size, seed_set;
   char line[20]; int lnum=0;
   seed_set = flake_size = 0;
   
@@ -1165,17 +1175,21 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
    * We want to import the flake into the middle of the empty flake, so
    * calculate how much we need to translate every cell by.
    */
-  translate = (size - flake_size) / 2;
+  translate_i = (size - flake_size) / 2 + import_offset_i;
+  translate_j = (size - flake_size) / 2 + import_offset_j;
   
+  /* we already plopped down a seed tile.  erase it if the loaded assemble won't. */
+  change_cell(current_flake, current_flake->seed_i, current_flake->seed_j, 0);
+
   for (i = 0; i < flake_size; i++)
     {
       for (j = 0; j < (flake_size - 1); j++)
 	{
 	  fscanf(flake_file, "%d", &tile_type);
-	  change_cell(current_flake, translate + i, translate + j, tile_type);
+	  change_cell(current_flake, translate_i + i, translate_j + j, tile_type);
 	}
       fscanf(flake_file, "%d;", &tile_type);
-      change_cell(current_flake, translate + i, translate + j, tile_type);
+      change_cell(current_flake, translate_i + i, translate_j + j, tile_type);
 
       fscanf(flake_file, "%s", line); lnum++;
       assert(strcmp(line, "...")==0);
@@ -1183,12 +1197,12 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
 
   /* Now choose a random active cell and set it as the flake's seed. */
   srand(time(0));
-  i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate;
-  j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate;
+  i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_i;
+  j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_j;
   while ((current_flake->Cell(i,j)) == 0)
     {
-      i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate;
-      j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate;
+      i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_i;
+      j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_j;
     }
   current_flake->seed_i = i;
   current_flake->seed_j = j;
