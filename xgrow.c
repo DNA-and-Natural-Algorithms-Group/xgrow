@@ -1941,14 +1941,17 @@ int main(int argc, char **argv)
      int fn;
      for (fn=1; fn <= fprm->N; fn++)
        {
+	 if (tp->dt_left[fprm->seed_n]) {
+	   fprm->seed_n = tp->dt_left[fprm->seed_n];
+	   fprm->seed_j--;
+	 }
 	 insert_flake(fp=init_flake(size_P,N,
 				    fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp);
 	 if (tp->dt_right[fprm->seed_n]) {
 	   change_cell (fp,seed_i,seed_j+1,tp->dt_right[fprm->seed_n]);
+	   fp->seed_is_double_tile = 1;
 	 }
-	 if (tp->dt_left[fprm->seed_n]) {
-	   change_cell (fp,seed_i,seed_j-1,tp->dt_left[fprm->seed_n]);
-	 }
+	 assert (!tp->dt_left[fprm->seed_n]);
 	   
 	 if (fprm->import_from != NULL)
 	   {

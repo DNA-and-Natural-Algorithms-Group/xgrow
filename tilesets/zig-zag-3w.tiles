@@ -11,15 +11,17 @@ tile edges={
 }
 binding strengths=
 {1 1 1 1 1 1 1 1 2 2}
-size=16
+size=32
 block=8
 seed=16,16,5
 doubletile=5,6
 doubletile=4,2
-Gse=1.7
-Gmc=4
 wander
 %fsmax=80
 periodic
-testing
+Gmc=5
+Gse=2.3
+%tinybox=1e-18
+
+
 

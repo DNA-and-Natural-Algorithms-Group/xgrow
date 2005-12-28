@@ -64,6 +64,8 @@
 
 #include "xgrow-tests.h"
 
+#define CHOP 10
+
 #define UPDATE_RATE 10000
 #define CHAIN_COUNT 20
 #define STATES_TO_ADD_PER_ANNEAL 2
@@ -71,7 +73,7 @@
 
 #define FLOAT_TOLERANCE 1e-7
 #define CONFIDENCE_CONSTANT 3.30
-#define MINIMUM_STATES_SEEN 5
+#define MINIMUM_STATES_SEEN 20
 
 double ok_seen_states_ratio = 1.01;
 int time_constants_to_run = 10;
@@ -175,7 +177,7 @@ unsigned char *hash_assembly(Assembly a, int size) {
     }
   }
   len = non_zero_cells + 3*blocks;
-  result = (unsigned char *) malloc_err ((len + 1)*sizeof (unsigned char));
+  result = (unsigned char *) malloc_err ((len + 1)*sizeof (unsigned char)); 
   pos = 0;
   in_block = 0;
   for (i = 0; i < (size+1); i++) {
@@ -187,8 +189,8 @@ unsigned char *hash_assembly(Assembly a, int size) {
 	}
 	else {
 	  result[pos++] = 255;
-	  result[pos++] = i;
-	  result[pos++] = j;
+	  result[pos++] = i + 1;
+	  result[pos++] = j + 1;
 	  result[pos++] = a[i][j];
 	  in_block = 1;
 	}
@@ -498,7 +500,7 @@ void print_key (gpointer key, gpointer value, gpointer user_data) {
   key_int = (int *) key;
   printf("Key is %d.\n",*key_int);
 }
-
+/*
 int sample_count (double start_time, double end_time) {
   int contains_an_interval_sample;
   int extra_samples;
@@ -508,6 +510,25 @@ int sample_count (double start_time, double end_time) {
   extra_samples = MAX(0,floor((end_time - start_time)/sampling_rate));
   return contains_an_interval_sample + extra_samples;
 }
+*/
+
+int sample_count (double start_time, double end_time) {
+  int contains_an_interval_sample;
+  int extra_samples;
+
+  contains_an_interval_sample = 
+    (((int) floor (start_time / sampling_rate))/CHOP) != 
+    (((int) floor (end_time / sampling_rate))/CHOP);
+  /*if (contains_an_interval_sample) {
+  printf("without chop %d to %d.  With chop %d to %d\n",
+	   (int) floor (start_time / sampling_rate), (int) floor (end_time / sampling_rate),
+	   ((int) floor (start_time / sampling_rate))/CHOP, 
+	   ((int) floor (end_time / sampling_rate))/CHOP);
+	   }*/
+  extra_samples = MAX(0,floor((end_time - start_time)/sampling_rate)/CHOP);
+  return contains_an_interval_sample + extra_samples;
+}
+
 
 double variance_total (flake *flake, double mean, unsigned char *assembly_code, double cur_time) {
   double v;
@@ -711,18 +732,20 @@ indicator_data *run_flakes_past_burn(tube *tp, int size) {
     if (wander) {
       l = size * (((double)random()) / ((double)RAND_MAX));
       m = size * (((double)random()) / ((double)RAND_MAX));
-      while (fp->Cell(l,m) == 0) {
+      while (fp->Cell(l,m) == 0 || tp->dt_left[fp->Cell(l,m)]) {
 	l = size * (((double)random()) / ((double)RAND_MAX));
 	m = size * (((double)random()) / ((double)RAND_MAX));
       }
       fp->seed_i = l;
       fp->seed_j = m;
       fp->seed_n = fp->Cell(l,m);
+      fp->seed_is_double_tile = tp->dt_right[fp->Cell(l,m)];
     }
     else {
       fp->seed_i = seed_i;
       fp->seed_j = seed_j;
       fp->seed_n = seed_n;
+      fp->seed_is_double_tile = tp->dt_right[seed_n];
     }
     //print_assembly(fp->cell,1<<(tp->P));
     //printf("seed is %d.\n",fp->seed_n);
@@ -800,7 +823,7 @@ void update_state_off_indicator(flake *fp) {
   i = g_hash_table_lookup(fp->chain_hash, fp->chain_state);
   assert (i);
   i->intervals += sample_count (i->start_t, fp->tube->t);
-  i->times += fp->tube->t - i->start_t;
+  i->times += (fp->tube->t - i->start_t);
   fp->chain_state = NULL;
 }
 
@@ -842,12 +865,12 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
   for (i = 0; i < tp->chains; i++) {
     d.means[i] = data[i].mean_of_means;
     printf("Intervals spent in state %d is %d out of %d intervals total.\n",
-	 i,(int) (d.means[i]*tp->t/sampling_rate),(int) (tp->t/sampling_rate));
+	 i,(int) (d.means[i]*(tp->t/sampling_rate)/CHOP),(int) ((tp->t/sampling_rate*tp->chains)/CHOP));
     printf("Time spent in state %d is %f seconds out of %f total.\n",
-	   i, data[i].total_time, tp->t);
+	   i, data[i].total_time, tp->t*tp->chains);
   }
 
-  n = (floor(tp->t / sampling_rate)  - 1) * tp->chains;  
+  n = (floor((tp->t / sampling_rate)/CHOP)  - 1) * tp->chains;  
   for (i = 0; i < tp->chains; i++) {
     d.variances[i] = 0;
     for (flake = tp->flake_list; flake != NULL; flake = flake->next_flake) {
@@ -885,6 +908,21 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
 	confidence_interval = CONFIDENCE_CONSTANT * sqrt(-est_variance);
       }
       confidence_ratio = confidence_interval/correct_state_ratio;
+      if (r - confidence_interval > correct_state_ratio) {
+	printf("\nTrue ratio of variables %d and %d is %1.2e.  ",j,i,correct_state_ratio);
+	printf("Simulated ratio is %1.2e.\nThe computed confidence interval is %2.1f%%.\n",
+	       r,100*confidence_ratio);
+	printf("Estimated ratio is too high.\n");
+	unbalanced_states++;
+      }
+      if (r + confidence_interval < correct_state_ratio) {
+	printf("\nTrue ratio of variables %d and %d is %1.2e.  ",j,i,correct_state_ratio);
+	printf("Simulated ratio is %1.2e.\nThe computed confidence interval is %2.1f%%.\n",
+	       r,100*confidence_ratio);
+	printf("Estimated ratio is too low.\n");
+	unbalanced_states++;
+      }
+      /*
       if (data[i].total_time/data[j].total_time - confidence_interval > correct_state_ratio) {
 	printf("\nTrue ratio of variables %d and %d is %1.2e.  ",j,i,correct_state_ratio);
 	printf("Simulated ratio is %1.2e.\nThe computed confidence interval is %2.1f%%.\n",
@@ -899,6 +937,7 @@ int test_detailed_balance (tube *tp, indicator_data *data) {
 	printf("Estimated ratio is too low.\n");
 	unbalanced_states++;
       }
+      */
     }
   }
   return unbalanced_states;
