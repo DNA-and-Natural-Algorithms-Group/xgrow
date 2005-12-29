@@ -321,7 +321,7 @@ int **tileb; double *stoic;
 int hydro; 
 int clean_cycles=0; double clean_X=1.0; int fill_cycles=0; double fill_X=1.0; 
 double error_radius=0.0; double repair_unique_T=2.0; int repair_unique=0;
-double tmax; int emax, smax, fsmax;
+double tmax; int emax, smax, fsmax, smin;
 int seed_i,seed_j,seed_n;
 double tinybox = 0;
 int anneal_g, anneal_t = 0;
@@ -470,6 +470,7 @@ int parse_arg_line(char *arg)
   else if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
   else if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
   else if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
+  else if (strncmp(arg,"smin=",5)==0) smin=atoi(&arg[5]);
   else if (strncmp(arg,"fsmax=",6)==0) fsmax=atoi(&arg[6]);
   else if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
   else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
@@ -755,6 +756,7 @@ void getargs(int argc, char **argv)
     printf("  tmax=                 quit after time t has passed\n");
     printf("  emax=                 quit after e events have occurred\n");
     printf("  smax=                 quit when the fragment or total size of fragments is size s\n");
+    printf("  smin=                 quit when the fragment or total size of fragments goes to or below size s\n");
     printf("  fsmax=                 quit when a single fragment reaches size s\n");
     printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles?\n"
 	   "                        [default=0]\n");
@@ -781,7 +783,7 @@ void getargs(int argc, char **argv)
     exit(1);
   }
 
-  tmax=0; emax=0; smax=0; fsmax=0;
+  tmax=0; emax=0; smax=0; fsmax=0; smin=-1;
   wander=0; periodic=0; linear=0; fission_allowed=0; zero_bonds_allowed=0;
   Gfc=0; datafp=NULL; arrayfp=NULL; 
   Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
@@ -804,15 +806,15 @@ void getargs(int argc, char **argv)
   for (i=2; i<argc; i++) {
     parse_arg_line(argv[i]);
   }
-  if (tmax==0 && emax==0 && smax==0 && fsmax==0) XXX=1;
+  if (tmax==0 && emax==0 && smax==0 && fsmax==0 && smin==-1) XXX=1;
   if (hydro && fission_allowed==2) {
     printf("* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(0);
   }
   if (double_tiles) {
-    if (fission_allowed != 0) {
-      printf("Double tiles cannot be used with fission or chunk_fission currently.\n");
-      exit(0);
-    }
+    //if (fission_allowed != 0) {
+    //printf("Double tiles cannot be used with fission or chunk_fission currently.\n");
+    //exit(0);
+    //}
     if (hydro) {
       printf("Double tiles cannot be used with hydrolysis currently.\n");
       exit(0);
@@ -845,8 +847,8 @@ void getargs(int argc, char **argv)
   NROWS=(size+NBDY*2);
   NCOLS=(size+NBDY*2);
   VOLUME=(NROWS*NCOLS);
-  WINDOWWIDTH=(MAX(block*NCOLS,256)+PLAYLEFT+BOUNDWIDTH+20);
-  WINDOWHEIGHT=(PLAYTOP+MAX(block*NROWS,256)+10);
+  WINDOWWIDTH=(MAX(block*NCOLS,256)+PLAYLEFT+BOUNDWIDTH+30);
+  WINDOWHEIGHT=(PLAYTOP+MAX(block*NROWS,256)+100);
 
   T=T*Gse;
 
@@ -1199,7 +1201,7 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
   srand(time(0));
   i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_i;
   j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_j;
-  while ((current_flake->Cell(i,j)) == 0)
+  while ((current_flake->Cell(i,j)) == 0 || tp->dt_left[current_flake->Cell(i,j)])
     {
       i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_i;
       j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_j;
@@ -1559,9 +1561,12 @@ void repaint()
 
  /* write various strings */
  if (fp) {
-   sprintf(stringbuffer,"flake %d (%d by %d%s, seed %d @ (%d,%d)): %ld events, %d tiles, %d mismatches         ",
+   sprintf(stringbuffer,"flake %d (%d by %d%s, seed %d @ (%d,%d))",
 	   fp->flake_ID, (1<<fp->P),(1<<fp->P), periodic?", periodic":"",
-	   fp->seed_n, fp->seed_i, fp->seed_j,
+	   fp->seed_n, fp->seed_i, fp->seed_j);
+   XDrawImageString(display,window,gc,5,(++i)*font_height,
+		    stringbuffer,strlen(stringbuffer));
+   sprintf(stringbuffer,"%ld events, %d tiles, %d mismatches",
 	   fp->events, fp->tiles, fp->mismatches);
    XDrawImageString(display,window,gc,5,(++i)*font_height,
 		    stringbuffer,strlen(stringbuffer));
@@ -2012,16 +2017,17 @@ int main(int argc, char **argv)
  while((tmax==0 || tp->t < tmax) && 
        (emax==0 || tp->events < emax) &&
        (smax==0 || tp->stat_a-tp->stat_d < smax) &&
+       (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
        (fsmax==0 || tp->largest_flake_size < fsmax)) { 
    
    Gse=tp->Gse;  // keep them sync'd in case "anneal" is ongoing.
    if (!XXX) {
-     simulate(tp,update_rate,tmax,emax,smax,fsmax);
+     simulate(tp,update_rate,tmax,emax,smax,fsmax,smin);
      if (tracefp!=NULL) write_datalines(tracefp,"\n");
      if (export_mode==2 && export_movie==1) export_flake("movie",fp);
    } else {
      if (0==paused && 0==mousing && !XPending(display)) {
-       simulate(tp,update_rate,tmax,emax,smax,fsmax);
+       simulate(tp,update_rate,tmax,emax,smax,fsmax,smin);
        fp = tp->flake_list;
        assert (!fp || !tp->tinybox ||
 	       ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));

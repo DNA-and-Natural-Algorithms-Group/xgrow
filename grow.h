@@ -266,7 +266,7 @@ void update_tube_rates(flake *fp);
 void change_cell(flake *fp, int i, int j, unsigned char n);
 void change_seed(flake *fp, int new_i, int new_j);
 int flake_fission(flake *fp, int i, int j);
-void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax);
+void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, int smin);
 void linear_simulate( double ratek, double Gmc, double Gse,
                       double tmax, int emax, int smax);
 

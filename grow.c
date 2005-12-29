@@ -1704,7 +1704,7 @@ void get_random_wander_permutation (int di[6], int dj[6],
 }
 
 /* simulates 'events' events */
-void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
+void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, int smin)
 {
   int i,j,n,oldn; double dt; flake *fp; int chunk, seedchunk[4];
   double total_rate, total_blast_rate, new_flake_rate, event_choice; long int emaxL;
@@ -1770,6 +1770,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax)
 	 (tmax==0 || tp->t < tmax) && 
           (smax==0 || tp->stat_a-tp->stat_d < smax) &&
 	 (fsmax==0 || tp->largest_flake_size < fsmax) &&
+	 (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
 	 total_blast_rate+total_rate+new_flake_rate > 0) {
 
     /* First check if time is such that we need to update the temperature */
