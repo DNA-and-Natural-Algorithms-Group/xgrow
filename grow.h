@@ -214,6 +214,7 @@ typedef struct tube_struct {
   int ewrapped;        /* has the event counter wrapped around?            */
   double *rv;          /* scratch space, size fp->1+N+4 (for chunk_fission)*/
   int *Fnext, *Fgroup; /* size x size array for fill scratch space         */
+  int all_present; /* True if all the tiles in untiltiles are in the assembly */
   /* Testing variables */
   int watching_states; /* true if we are testing xgrow, false otherwise */
   int chains;          /* Number of chains that we are going to follow for 
@@ -225,6 +226,7 @@ typedef struct tube_struct {
   void  *states_seen_hash;   /* hash that records which states we have been to. */
   unsigned char ***start_states;
   double *start_state_Gs;
+  
 
 } tube;          
 
@@ -236,7 +238,8 @@ extern double blast_rate_alpha;
 extern double blast_rate_beta;
 extern double blast_rate_gamma;
 extern double blast_rate;
-
+extern int *present_list, *is_present;
+extern int present_list_len;
 
 tube *init_tube(unsigned char P, unsigned char N, int num_bindings);
 flake *init_flake(unsigned char P, unsigned char N,

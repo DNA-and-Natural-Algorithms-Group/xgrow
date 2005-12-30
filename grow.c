@@ -71,6 +71,7 @@ int num_flakes=0;
 int double_tile_count=0;
 flake *blank_flakes = NULL;
 
+
 /* sets up data structures for a flake -- cell field, hierarchical rates... */
 flake *init_flake(unsigned char P, unsigned char N, 
 		  int seed_i, int seed_j, int seed_n, double Gfc)
@@ -179,7 +180,7 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
   tp->P = P; tp->N = N; tp->num_bindings = num_bindings;
   tp->hydro=0;  tp->num_flakes=0; tp->total_flakes = 0;
   tp->largest_flake_size = 0;
-
+  tp->all_present=0;
   tp->tileb = (int**) calloc(sizeof(int*),N+1);
   for (i=0;i<=N;i++) {
     tp->tileb[i] = (int*) calloc(sizeof(int),4);
@@ -895,6 +896,36 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
     tp->events++; fp->events++;
     
   }
+  if (present_list_len) {
+    int z;
+    if (n) {
+      for (z=0; z < present_list_len; z++) {
+	if (present_list[z] == n) {
+	  is_present[z] = 1;
+	  break;
+	}
+      }
+    }
+    else {
+      for (z=0; z < present_list_len; z++) {
+	if (present_list[z] == fp->Cell(i,j)) {
+	  int k,l;
+	  is_present[z] = 0;
+	  for (k = 0; k < (1<<fp->P); k++) {
+	    for (l = 0; l < (1<<fp->P); l++) {
+	      if (fp->Cell(i,j) == fp->Cell(k,l) &&
+		  (k != i || l != j)) {
+		is_present[z] = 1;
+		break;
+	      }
+	    }
+	  }
+	       
+	}
+      }
+    }
+  }
+
   fp->Cell(i,j)=n; 
   if (periodic) { int size=(1<<fp->P);
   if (i==0)      fp->Cell(size,j)=n;
@@ -1727,6 +1758,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 
   fp=tp->flake_list; 
   while (fp!=NULL) {  
+
      assert (!tp->tinybox ||
 	     ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
      
@@ -1772,6 +1804,17 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	 (fsmax==0 || tp->largest_flake_size < fsmax) &&
 	 (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
 	 total_blast_rate+total_rate+new_flake_rate > 0) {
+    if (present_list_len) {
+      tp->all_present=1;
+      for (i=0; i < present_list_len; i++) {
+	if (!is_present[i]) {
+	  tp->all_present=0;
+	  break;
+	}
+      }
+      if (tp->all_present) 
+	return;
+    }
 
     /* First check if time is such that we need to update the temperature */
     if (tp->anneal_t && (tp->t > tp->next_update_t)) {

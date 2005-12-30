@@ -274,6 +274,8 @@ char stringbuffer[256];
 char tileset_name[256];
 int testing = 0;
 int initial_rc = 1;
+int *present_list=NULL, *is_present;
+int present_list_len=0;
 
 
 /* various window stuff */
@@ -472,6 +474,22 @@ int parse_arg_line(char *arg)
   else if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
   else if (strncmp(arg,"smin=",5)==0) smin=atoi(&arg[5]);
   else if (strncmp(arg,"fsmax=",6)==0) fsmax=atoi(&arg[6]);
+  else if (strncmp(arg,"untiltiles=",11)==0) {
+    int i=0;
+    char *pos;
+    pos = arg;
+    while (pos != NULL) {
+      pos = strchr (pos+1,',');
+      present_list_len++;
+    }
+    present_list = (int *) malloc(present_list_len*sizeof(int));
+    is_present = (int *) calloc(present_list_len,sizeof(int));
+    pos = &arg[11];
+    while ((pos-1) != NULL) {
+      present_list[i++] = atoi(pos);
+      pos = strchr (pos,',') + 1;
+    }
+  }
   else if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
   else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
   else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[12]);
@@ -758,6 +776,7 @@ void getargs(int argc, char **argv)
     printf("  smax=                 quit when the fragment or total size of fragments is size s\n");
     printf("  smin=                 quit when the fragment or total size of fragments goes to or below size s\n");
     printf("  fsmax=                 quit when a single fragment reaches size s\n");
+    printf("  untiltiles=           quit when all (numbered) tiles in the comma-delineated list are in the assembly\n");
     printf("  clean_cycles=         at end, remove how many layers of weakly attached tiles?\n"
 	   "                        [default=0]\n");
     printf("  clean_X=              for cleaning, minimal ratio of off-rate to on-rate [default=1.0]\n");
@@ -2018,7 +2037,8 @@ int main(int argc, char **argv)
        (emax==0 || tp->events < emax) &&
        (smax==0 || tp->stat_a-tp->stat_d < smax) &&
        (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
-       (fsmax==0 || tp->largest_flake_size < fsmax)) { 
+       (fsmax==0 || tp->largest_flake_size < fsmax) &&
+       !tp->all_present) { 
    
    Gse=tp->Gse;  // keep them sync'd in case "anneal" is ongoing.
    if (!XXX) {
