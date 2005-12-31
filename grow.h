@@ -123,11 +123,14 @@ typedef struct flake_struct {
   int mismatches;                   /* number of se edges that don't agree              */
   struct flake_struct *next_flake;  /* for NULL-terminated linked list     */
   struct flake_tree_struct *tree_node;  /* for tree of flakes              */
+  int *is_present;                  /* records whether each of the watched
+				       tile types are present              */
   int flake_ID;        /* which flake is this (for display use only)       */
   void *chain_hash;    /* When flake has visited particular states;        */
 		       /* used for testing purposes                        */
   unsigned char *chain_state;     /* If we're currently at a configuration that has an*/
                                   /* indicator variable, the hash code for that state */
+  
 
 } flake;          
 
@@ -238,7 +241,7 @@ extern double blast_rate_alpha;
 extern double blast_rate_beta;
 extern double blast_rate_gamma;
 extern double blast_rate;
-extern int *present_list, *is_present;
+extern int *present_list;
 extern int present_list_len;
 
 tube *init_tube(unsigned char P, unsigned char N, int num_bindings);

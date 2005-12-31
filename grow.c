@@ -90,6 +90,7 @@ flake *init_flake(unsigned char P, unsigned char N,
     fp->cell[i]=(unsigned char *)calloc(sizeof(char),2+size);
   fp->rate = (double ***)calloc(sizeof(char **),P+1);
   fp->empty = (int ***)calloc(sizeof(int **),P+1);
+
   for (p=0;p<=P;p++) {
     size = (1<<p);
     fp->rate[p]=(double **)calloc(sizeof(double *),size);
@@ -100,7 +101,7 @@ flake *init_flake(unsigned char P, unsigned char N,
       for (j=0;j<size;j++) fp->rate[p][i][j]=0;
     }
   }
-
+  fp->is_present = (int *) calloc(sizeof(int),present_list_len);
   fp->flake_conc= (Gfc>0)?exp(-Gfc):0;
   fp->G=0; fp->mismatches=0; fp->tiles=0; fp->events=0;
   fp->seed_i=seed_i; fp->seed_j=seed_j; fp->seed_n=seed_n;
@@ -137,6 +138,7 @@ flake *free_flake(flake *fp)
   }
   free(fp->rate);
   free(fp->empty);
+  free(fp->is_present);
 
   fpn=fp->next_flake; free(fp); 
 
@@ -533,6 +535,9 @@ void add_flake_to_reserve_list(flake *fp) {
       }
     }
   }
+  for (p=0; p<present_list_len; p++) {
+    fp->is_present[p] = 0;
+  }
   fp->G=0; fp->mismatches=0; fp->tiles=1; fp->events=0;
   fp->tree_node = NULL;
   fp->next_flake = blank_flakes;
@@ -897,11 +902,19 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
     
   }
   if (present_list_len) {
-    int z;
+    int z,y;
     if (n) {
       for (z=0; z < present_list_len; z++) {
 	if (present_list[z] == n) {
-	  is_present[z] = 1;
+	  fp->is_present[z] = 1;
+	  if (tp) {
+	    tp->all_present=1;
+	    for (y=0; y < present_list_len; y++) {
+	      if (!fp->is_present[y]) {
+		tp->all_present=0;
+	      }
+	    }
+	  }
 	  break;
 	}
       }
@@ -910,12 +923,12 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
       for (z=0; z < present_list_len; z++) {
 	if (present_list[z] == fp->Cell(i,j)) {
 	  int k,l;
-	  is_present[z] = 0;
+	  fp->is_present[z] = 0;
 	  for (k = 0; k < (1<<fp->P); k++) {
 	    for (l = 0; l < (1<<fp->P); l++) {
 	      if (fp->Cell(i,j) == fp->Cell(k,l) &&
 		  (k != i || l != j)) {
-		is_present[z] = 1;
+		fp->is_present[z] = 1;
 		break;
 	      }
 	    }
@@ -1804,18 +1817,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	 (fsmax==0 || tp->largest_flake_size < fsmax) &&
 	 (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
 	 total_blast_rate+total_rate+new_flake_rate > 0) {
-    if (present_list_len) {
-      tp->all_present=1;
-      for (i=0; i < present_list_len; i++) {
-	if (!is_present[i]) {
-	  tp->all_present=0;
-	  break;
-	}
-      }
-      if (tp->all_present) 
+    if (tp->all_present) 
 	return;
-    }
-
     /* First check if time is such that we need to update the temperature */
     if (tp->anneal_t && (tp->t > tp->next_update_t)) {
       tp->Gse = tp->Gse_final- (tp->Gse_final - tp->anneal_g)*exp(-tp->t/tp->anneal_t);

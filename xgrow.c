@@ -274,7 +274,7 @@ char stringbuffer[256];
 char tileset_name[256];
 int testing = 0;
 int initial_rc = 1;
-int *present_list=NULL, *is_present;
+int *present_list=NULL;
 int present_list_len=0;
 
 
@@ -483,13 +483,13 @@ int parse_arg_line(char *arg)
       present_list_len++;
     }
     present_list = (int *) malloc(present_list_len*sizeof(int));
-    is_present = (int *) calloc(present_list_len,sizeof(int));
     pos = &arg[11];
     while ((pos-1) != NULL) {
       present_list[i++] = atoi(pos);
       pos = strchr (pos,',') + 1;
     }
   }
+
   else if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
   else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
   else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[12]);
