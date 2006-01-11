@@ -276,6 +276,7 @@ int testing = 0;
 int initial_rc = 1;
 int *present_list=NULL;
 int present_list_len=0;
+int untiltiles=0,untiltilescount=0;
 
 
 /* various window stuff */
@@ -314,7 +315,9 @@ int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
 int block=1; /* default to small blocks; calling with argument changes this */
 int wander, periodic, linear, fission_allowed, zero_bonds_allowed; 
-FILE *tracefp, *datafp, *arrayfp, *tilefp;
+FILE *tracefp, *datafp, *arrayfp, *tilefp, *largeflakefp;
+FILE *untiltilescountfp;
+int tthresh=0;
 double *strength;
 double **glue;
 int *dt_right, *dt_left;
@@ -488,8 +491,25 @@ int parse_arg_line(char *arg)
       present_list[i++] = atoi(pos);
       pos = strchr (pos,',') + 1;
     }
+    untiltiles = 1;
   }
-
+  else if (strncmp(arg,"untiltilescount=",16)==0) {
+    int i=0;
+    char *pos;
+    untiltilescount=1;
+    pos = arg;
+    while (pos != NULL) {
+      pos = strchr (pos+1,',');
+      present_list_len++;
+    }
+    present_list = (int *) malloc(present_list_len*sizeof(int));
+    pos = &arg[16];
+    while ((pos-1) != NULL) {
+      present_list[i++] = atoi(pos);
+      pos = strchr (pos,',') + 1;
+    }
+    untiltilescount = 1;
+  }
   else if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
   else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
   else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[12]);
@@ -497,6 +517,15 @@ int parse_arg_line(char *arg)
   else if (strncmp(arg,"error_radius=",13)==0) error_radius=atof(&arg[13]);
   else if (strncmp(arg,"repair_unique_T=",15)==0) { repair_unique_T=atof(&arg[15]); repair_unique=1; }
   else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
+  else if (strncmp(arg,"largeflakedatafile=",19)==0) {
+    char *c;
+    c =strchr(arg,',') + 1;
+    tthresh = atoi(&arg[19]);
+    largeflakefp=fopen(c, "a");
+  }
+  else if (strncmp(arg,"untiltilescountfile=",20)==0) {
+    untiltilescountfp=fopen(&arg[20], "a");
+  }
   else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
   else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
   else if (strncmp(arg,"testing",7) == 0) {
@@ -804,7 +833,7 @@ void getargs(int argc, char **argv)
 
   tmax=0; emax=0; smax=0; fsmax=0; smin=-1;
   wander=0; periodic=0; linear=0; fission_allowed=0; zero_bonds_allowed=0;
-  Gfc=0; datafp=NULL; arrayfp=NULL; 
+  Gfc=0; datafp=NULL; arrayfp=NULL;  largeflakefp=NULL; untiltilescountfp=NULL;
   Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
   Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
   seed_i=250; seed_j=250; seed_n=1; hydro=0;
@@ -916,6 +945,20 @@ void write_datalines(FILE *out, char *text)
  fflush(out);
 }
 
+void write_largeflakedata(FILE *filep) {
+  flake *fp;
+  int large_flakes = 0;
+  for (fp = tp->flake_list; fp != NULL; fp=fp->next_flake) {
+    if (fp->tiles > tthresh) {
+      large_flakes++;
+    }
+  }
+  fprintf(filep,"%d\n",large_flakes);
+}
+
+void write_untiltilescountdata(FILE *filep) {
+  fprintf(filep,"%d\n",tp->untiltilescount);
+}
 
 void write_flake(FILE *filep, char *mode, flake *fp)
 { int n, row, col, tl; 
@@ -1262,6 +1305,15 @@ void closeargs()
   if (datafp!=NULL) {
     write_datalines(datafp,"\n"); fclose(datafp);
   } 
+
+  if (largeflakefp!=NULL) {
+    write_largeflakedata(largeflakefp); fclose(largeflakefp);
+  }
+
+  if (untiltilescountfp!=NULL) {
+    write_untiltilescountdata(untiltilescountfp);
+    fclose(untiltilescountfp);
+  }
   if (arrayfp!=NULL) {
     export_flake_n=1;
     for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
@@ -2038,7 +2090,7 @@ int main(int argc, char **argv)
        (smax==0 || tp->stat_a-tp->stat_d < smax) &&
        (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
        (fsmax==0 || tp->largest_flake_size < fsmax) &&
-       !tp->all_present) { 
+       !(untiltiles && tp->all_present)) { 
    
    Gse=tp->Gse;  // keep them sync'd in case "anneal" is ongoing.
    if (!XXX) {

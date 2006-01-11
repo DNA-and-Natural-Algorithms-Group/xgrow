@@ -125,6 +125,7 @@ typedef struct flake_struct {
   struct flake_tree_struct *tree_node;  /* for tree of flakes              */
   int *is_present;                  /* records whether each of the watched
 				       tile types are present              */
+
   int flake_ID;        /* which flake is this (for display use only)       */
   void *chain_hash;    /* When flake has visited particular states;        */
 		       /* used for testing purposes                        */
@@ -218,6 +219,7 @@ typedef struct tube_struct {
   double *rv;          /* scratch space, size fp->1+N+4 (for chunk_fission)*/
   int *Fnext, *Fgroup; /* size x size array for fill scratch space         */
   int all_present; /* True if all the tiles in untiltiles are in the assembly */
+  int untiltilescount;
   /* Testing variables */
   int watching_states; /* true if we are testing xgrow, false otherwise */
   int chains;          /* Number of chains that we are going to follow for 
@@ -243,6 +245,7 @@ extern double blast_rate_gamma;
 extern double blast_rate;
 extern int *present_list;
 extern int present_list_len;
+extern int untiltiles,untiltilescount;
 
 tube *init_tube(unsigned char P, unsigned char N, int num_bindings);
 flake *init_flake(unsigned char P, unsigned char N,

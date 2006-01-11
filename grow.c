@@ -208,6 +208,7 @@ tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
 
   tp->events=0; tp->t=0; tp->ewrapped=0;
   tp->stat_a=tp->stat_d=tp->stat_h=tp->stat_f=0;
+  tp->untiltilescount=0;
 
   tp->rv  = (double *)calloc(sizeof(double),1+N+4);
   tp->Fnext = (int *)calloc(sizeof(int),size*size);
@@ -901,22 +902,29 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
     tp->events++; fp->events++;
     
   }
-  if (present_list_len) {
-    int z,y;
+  if (tp && present_list_len) {
+    int z,y,not_all_yet;
     if (n) {
+      not_all_yet = 0;
+      for (z=0; z < present_list_len; z++) {
+	if (fp->is_present[z] == 0) {
+	  not_all_yet = 1;
+	  break;
+	}
+      }
       for (z=0; z < present_list_len; z++) {
 	if (present_list[z] == n) {
 	  fp->is_present[z] = 1;
-	  if (tp) {
-	    tp->all_present=1;
-	    for (y=0; y < present_list_len; y++) {
-	      if (!fp->is_present[y]) {
-		tp->all_present=0;
-	      }
-	    }
-	  }
-	  break;
 	}
+      }
+      tp->all_present=1;
+      for (y=0; y < present_list_len; y++) {
+	if (!fp->is_present[y]) {
+	  tp->all_present=0;
+	}
+      }
+      if (untiltilescount && not_all_yet && tp->all_present) {
+	tp->untiltilescount++;
       }
     }
     else {
@@ -931,6 +939,9 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 		fp->is_present[z] = 1;
 		break;
 	      }
+	    }
+	    if (fp->is_present[z]) {
+	      break;
 	    }
 	  }
 	       
@@ -1747,13 +1758,24 @@ void get_random_wander_permutation (int di[6], int dj[6],
   }
 }
 
+double total_single_tile_conc (tube *tp) {
+  int i;
+  double conc;
+  conc = tp->conc[0];
+  for (i = 0; i < tp->N; i++) {
+    if (tp->dt_right[i]) {
+      conc -= tp->conc[i];
+    }
+  }
+  return conc;
+}
+
 /* simulates 'events' events */
 void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, int smin)
 {
   int i,j,n,oldn; double dt; flake *fp; int chunk, seedchunk[4];
   double total_rate, total_blast_rate, new_flake_rate, event_choice; long int emaxL;
   int size=(1<<tp->P), N=tp->N;  
-
   if (tp->flake_list==NULL && tp->tinybox == 0) return;  /* no flakes! */
   //   if (tp->events + 2*events > INT_MAX) {
   if (tp->events + 2*events > 1000000000) {
@@ -1807,7 +1829,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
     total_rate = 0;
   }
   total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
-  new_flake_rate = tp->k*2*tp->conc[0]*tp->conc[0]*tp->tinybox*AVOGADROS_NUMBER ;
+  new_flake_rate = tp->k*2*pow(total_single_tile_conc(tp),2)*tp->tinybox*AVOGADROS_NUMBER ;
   
   assert (total_rate + total_blast_rate + new_flake_rate >= 0); // can be zero in aTAM if finite-sized assembly is done
   
@@ -1817,8 +1839,9 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	 (fsmax==0 || tp->largest_flake_size < fsmax) &&
 	 (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
 	 total_blast_rate+total_rate+new_flake_rate > 0) {
-    if (tp->all_present) 
-	return;
+    if (untiltiles && tp->all_present) {
+      return;
+    }
     /* First check if time is such that we need to update the temperature */
     if (tp->anneal_t && (tp->t > tp->next_update_t)) {
       tp->Gse = tp->Gse_final- (tp->Gse_final - tp->anneal_g)*exp(-tp->t/tp->anneal_t);
@@ -1866,6 +1889,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
            }
          }
        }
+       tp->t += dt;
     } else if (new_flake_rate && event_choice < (total_blast_rate + new_flake_rate)) {
       int m,r,x,d,di,dj,c;
       // Add a new flake
@@ -1936,8 +1960,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
       else {
 	tp->stat_a++; tp->stat_d++; tp->events+=2; 
       }       
+      tp->t += dt;
     }
-
     else { // blast error case and new flake case above, kTAM / aTAM below
 	
      fp=choose_flake(tp);
