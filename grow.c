@@ -1758,17 +1758,6 @@ void get_random_wander_permutation (int di[6], int dj[6],
   }
 }
 
-double total_single_tile_conc (tube *tp) {
-  int i;
-  double conc;
-  conc = tp->conc[0];
-  for (i = 0; i < tp->N; i++) {
-    if (tp->dt_right[i]) {
-      conc -= tp->conc[i];
-    }
-  }
-  return conc;
-}
 
 /* simulates 'events' events */
 void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, int smin)
@@ -1829,7 +1818,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
     total_rate = 0;
   }
   total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
-  new_flake_rate = tp->k*2*pow(total_single_tile_conc(tp),2)*tp->tinybox*AVOGADROS_NUMBER ;
+  new_flake_rate = tp->k*2*pow(tp->conc[0],2)*tp->tinybox*AVOGADROS_NUMBER ;
   
   assert (total_rate + total_blast_rate + new_flake_rate >= 0); // can be zero in aTAM if finite-sized assembly is done
   
