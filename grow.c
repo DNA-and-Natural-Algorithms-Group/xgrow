@@ -668,9 +668,13 @@ double calc_rates(flake *fp, int i, int j, double *rv)
   r = tp->k * exp(-Gse(fp,i,j,n)); 
   if (seedchunk[0] && (!wander || fp->tiles==1 || (fp->tiles==2 && fp->seed_is_double_tile)))
     r=0; 
+  // Count the attachments of the right side of a double tile to the
+  // crystal, but ignore the attachment of the double tile squares to
+  // each other.  
+  // Note : assumes attachment given to bond between double tiles is
+  // symmetric.
   if (tp->dt_right[n]) {
     r *= exp(-Gse(fp,i,j+1,tp->dt_right[n])+2*fp->tube->Gse_EW[tp->dt_right[n]][n]);
-    //printf("Setting right rate to %e.\n",r);
   }
   sumr=r;
   if (fission_allowed==2) {              // rates for pairs and 2x2 block dissoc
@@ -1364,11 +1368,28 @@ void clean_flake(flake *fp, double X, int iters)
     for (i=0; i<size; i++)
       for (j=0; j<size; j++) 
         if (F[i+size*j]) {
+	  // A double tile might be at this position -- if so, we need
+	  // to remove both sides.  But since the off rate of the
+	  // right side of a double tile is zero, it will definitely
+	  // be the right side of a double tile.
 	  n = fp->Cell(i,j); change_cell(fp, i,j,0);
-	  if (!locally_fission_proof(fp,i,j,n)) /* couldn't quickly confirm... */
+	  if (!locally_fission_proof(fp,i,j,n))  { /* couldn't quickly confirm... */
 	    if (flake_fission(fp,i,j) && fission_allowed==0) {
 	      change_cell(fp,i,j,n); tp->stat_a--; tp->stat_d--;
 	    }
+	  }
+	  else {
+	    if (tp->dt_right[n]) {
+	      change_cell(fp, i,j+1,0);
+	      if (!locally_fission_proof(fp,i,j+1,tp->dt_right[n]))  { 
+		/* couldn't quickly confirm... */
+		if (flake_fission(fp,i,j+1) && fission_allowed==0) {
+		  change_cell(fp,i,j,n); tp->stat_a--; tp->stat_d--;
+		  change_cell(fp,i,j+1,tp->dt_right[n]); tp->stat_a--; tp->stat_d--;
+		} 
+	      }
+	    }
+	  }
 	}
   }
   free(F);
@@ -1400,6 +1421,7 @@ void fill_flake(flake *fp, double X, int iters)
       }
     for (i=0; i<size; i++)
       for (j=0; j<size; j++) {
+
         if (F[i+size*j]) change_cell(fp, i, j, F[i+size*j]);
         F[i+size*j] = 0;
       }

@@ -867,8 +867,8 @@ void getargs(int argc, char **argv)
       printf("Double tiles cannot be used with hydrolysis currently.\n");
       exit(0);
     }
-    if (clean_cycles || fill_cycles || repair_unique) {
-      printf("Double tiles cannot be used with repair or clean or fill cycles currently.\n");
+    if (fill_cycles || repair_unique) {
+      printf("Double tiles cannot be used with repair or fill cycles currently.\n");
       exit(0);
     }
     if (blast_rate > 0) {
