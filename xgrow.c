@@ -938,7 +938,7 @@ void write_datalines(FILE *out, char *text)
    if (tp->hydro) fprintf(out, " %f %f %f %f %f %f %f %f %f ",
 			  Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
    fprintf(out, " %f %f %f %f %d %d %ld %d %f %f%s",
-	   Gmc,Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events,
+	   Gmc,tp->Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events,
 	   perimeter, fpp->G, dG_bonds,text);
    if (strcmp(text,"")==0) break;
  }

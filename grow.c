@@ -313,7 +313,7 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
   }
   tp->updates = 1;
   tp->update_freq = updates_per_RC;
-  tp->next_update_t = exp(-(((double) tp->updates)*tp->anneal_t*log(2)))/tp->update_freq;
+  tp->next_update_t = tp->updates*tp->anneal_t/tp->update_freq;
   tp->dt_right = dt_right;
   tp->dt_left = dt_left;
   for (n=0; n< tp->N; n++) {
@@ -1843,7 +1843,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
   new_flake_rate = tp->k*2*pow(tp->conc[0],2)*tp->tinybox*AVOGADROS_NUMBER ;
   
   assert (total_rate + total_blast_rate + new_flake_rate >= 0); // can be zero in aTAM if finite-sized assembly is done
-  
+
   while (tp->events < emaxL && 
 	 (tmax==0 || tp->t < tmax) && 
           (smax==0 || tp->stat_a-tp->stat_d < smax) &&
@@ -1853,13 +1853,14 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
     if (untiltiles && tp->all_present) {
       return;
     }
+
     /* First check if time is such that we need to update the temperature */
     if (tp->anneal_t && (tp->t > tp->next_update_t)) {
       tp->Gse = tp->Gse_final- (tp->Gse_final - tp->anneal_g)*exp(-tp->t/tp->anneal_t);
       set_Gses(tp,tp->Gse,0);  // NOT SAFE FOR HYDROLYSIS
       /* Now we have to update all rates */
       tp->updates++;
-      tp->next_update_t = tp->updates*tp->anneal_t*log(2)/tp->update_freq;
+      tp->next_update_t = tp->updates*tp->anneal_t/tp->update_freq;
       update_all_rates (tp);
     }
     dt = -log(drand48()) / (total_rate + total_blast_rate + new_flake_rate);
