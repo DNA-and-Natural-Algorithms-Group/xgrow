@@ -313,7 +313,7 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
   }
   tp->updates = 1;
   tp->update_freq = updates_per_RC;
-  tp->next_update_t = exp(-(((double) tp->updates)*tp->anneal_t*log(2))/tp->update_freq);
+  tp->next_update_t = exp(-(((double) tp->updates)*tp->anneal_t*log(2)))/tp->update_freq;
   tp->dt_right = dt_right;
   tp->dt_left = dt_left;
   for (n=0; n< tp->N; n++) {
