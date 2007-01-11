@@ -329,7 +329,8 @@ double error_radius=0.0; double repair_unique_T=2.0; int repair_unique=0;
 double tmax; int emax, smax, fsmax, smin;
 int seed_i,seed_j,seed_n;
 double tinybox = 0;
-int anneal_g, anneal_t = 0;
+double anneal_h, anneal_s, startC, endC, seconds_per_C = 0;
+double anneal_g, anneal_t = 0;
 char *stripe_args=NULL;
 int XXX=1;  /* If 1, draw the simulation, otherwise don't.  (as inferred from the effect of -nw)*/
 /* This has been adjusted so that updating the temperature and thus
@@ -436,6 +437,35 @@ int parse_arg_line(char *arg)
     { stripe_args=(&arg[7]); periodic=1; wander=1; }
   else if (strcmp(arg,"-nw")==0) XXX=0;
   else if (strcmp(arg,"-linear")==0) linear=1;
+  else if (strncmp(arg,"linan=",6) == 0) {
+    char *c;
+    c = &arg[6];
+    anneal_h = atof(c);
+    c = strchr(c,',') + 1;
+    if (c == NULL) {
+      fprintf(stderr,"Usage : linan=h,s,C0,Cfin,dt ");
+      return -1;
+    }
+    anneal_s = atof(c);
+    c = strchr(c,',') + 1;
+    if (c == NULL) {
+      fprintf(stderr,"Usage : linan=h,s,C0,Cfin,dt ");
+      return -1;
+    }
+    startC = atof(c);
+    c = strchr(c,',') + 1;
+    if (c == NULL) {
+      fprintf(stderr,"Usage : linan=h,s,C0,Cfin,dt ");
+      return -1;
+    }
+    endC = atof(c);
+    c = strchr(c,',') + 1;
+    if (c == NULL) {
+      fprintf(stderr,"Usage : linan=h,s,C0,Cfin,dt ");
+      return -1;
+    }
+    seconds_per_C = atof(c);
+  }
   else if (strncmp(arg,"anneal=",7) == 0) {
     char *c;
     c = &arg[7];
@@ -780,6 +810,10 @@ void getargs(int argc, char **argv)
     printf("  Gfc=    log concentration of flakes (otherwise no depletion)\n");
     printf("  stoic=n[s]            set stoichiometry of tile n to relative value s\n");
     printf("  anneal=g,t            anneal Gse from g to given Gse with time constant t\n"); 
+    printf("  linan=h,s,C0,Cfin,dt  do a linear anneal, where delta G at each temperature is\n");
+    printf("                        governed by (Delta) h and (Delta) s in kcals per mol.  \n");
+    printf("                        Go from C0 > Cfin changing temps 1 degree every dt secs \n");
+    printf("                        (in incremenets of 0.1C).  Ignores Gse value.\n");
     printf("  seed=i,j,n            seed tile type n at position i,j\n");
     printf("  tinybox=k             use dynamic flakes in a box containing k of each molecule on average.\n");
     printf("  addflakes=i,j,n:N@Gfc simulate N separate flakes\n");
@@ -1993,6 +2027,7 @@ int main(int argc, char **argv)
  if (testing) {
   tp = init_tube(size_P,N,num_bindings);   
   set_params(tp,tileb,strength,glue,stoic,0,initial_rc,updates_per_RC,
+	     anneal_h,anneal_s,startC,endC,seconds_per_C,
 	     dt_right, dt_left, hydro,ratek,
 	     Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox, seed_i, seed_j, Gfc);
   run_xgrow_tests(tp,Gmc,Gse,seed_i,seed_j,seed_n,size);
@@ -2005,7 +2040,7 @@ int main(int argc, char **argv)
  
  /* set initial state */
  tp = init_tube(size_P,N,num_bindings);   
- set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,dt_right, dt_left, hydro,ratek,
+ set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,anneal_h,anneal_s,startC,endC,seconds_per_C,dt_right, dt_left, hydro,ratek,
 	    Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,Gfc);
 
  fprm=fparam;
@@ -2090,6 +2125,7 @@ int main(int argc, char **argv)
        (smax==0 || tp->stat_a-tp->stat_d < smax) &&
        (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
        (fsmax==0 || tp->largest_flake_size < fsmax) &&
+       (tp->seconds_per_C == 0 || tp->currentC > tp->endC) &&
        !(untiltiles && tp->all_present)) { 
    
    Gse=tp->Gse;  // keep them sync'd in case "anneal" is ongoing.
@@ -2217,6 +2253,7 @@ int main(int argc, char **argv)
 	     free_tube(tp); 
 	     tp = init_tube(size_P,N,num_bindings);   
 	     set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,
+			anneal_h, anneal_s, startC, endC, seconds_per_C,
 			dt_right, dt_left, hydro,ratek,
 			Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,
 			Gfc);

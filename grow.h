@@ -171,6 +171,12 @@ typedef struct tube_struct {
   double update_freq;  /* Number of times to update the interval per time 
 			  constant                                         */
   int updates;         /* Number of updates that have taken place          */
+  double anneal_h;     /* Next 5 are variables for linear anneal           */
+  double anneal_s;
+  double startC;
+  double currentC;
+  double endC;
+  double seconds_per_C;
   double Gse;          /* Current Gse                                      */
   double Gmc;          /* Gmc                                              */
   double next_update_t;   /* Precompute next update time                   */
@@ -260,7 +266,7 @@ void fill_flake(flake *fp, double X, int iters);
 void error_radius_flake(flake *fp, double rad);
 void repair_flake(flake *fp, double T, double Gse);
 void set_params(tube *tp, int** tileb, double* strength, double **glue, 
- double* stoic, double anneal_g, double anneal_t, int updates_per_RC,int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
+ double* stoic, double anneal_g, double anneal_t, int updates_per_RC,double anneal_h,double anneal_s,double startC,double endC,double seconds_per_C,int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
  double Gmch, double Gseh, double Ghyd, 
  double Gas, double Gam, double Gae, double Gah, double Gao, double T, double tinybox,
 		int seed_i, int seed_j, double Gfc);

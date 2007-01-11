@@ -70,6 +70,7 @@ unsigned char ring[256];
 int num_flakes=0;
 int double_tile_count=0;
 flake *blank_flakes = NULL;
+double k_b = .0019872;
 
 
 /* sets up data structures for a flake -- cell field, hierarchical rates... */
@@ -270,6 +271,8 @@ void set_Gses(tube *tp, double Gse, double Gseh) {
 /* fp->seed_n should have a defined value before entering set_params */
 void set_params(tube *tp, int** tileb, double* strength, double **glue, double* stoic,
 		double anneal_g, double anneal_t, int updates_per_RC,
+		double anneal_h, double anneal_s, double startC, double endC, 
+		double seconds_per_C,
 		int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
 		double Gmch, double Gseh, double Ghyd, 
 		double Gas, double Gam, double Gae, double Gah, double Gao, double T,
@@ -305,15 +308,32 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
   tp->Gmc = Gmc;
   tp->anneal_g = anneal_g;
   tp->anneal_t = anneal_t;
-  tp->Gse_final = Gse;
+  tp->anneal_h = anneal_h;
+  tp->anneal_s = anneal_s;
+  tp->startC = startC;
+  tp->currentC = startC;
+  tp->endC = endC;
+  tp->seconds_per_C = seconds_per_C;
+  if (tp->seconds_per_C) {
+    tp->Gse_final = (anneal_h - (tp->endC + 273) * anneal_s) / (k_b*(tp->endC + 273));
+  } else {
+    tp->Gse_final = Gse;
+  }
   if (tp->anneal_t) {
     tp->Gse = anneal_g;
+  } else if (tp->seconds_per_C) {
+    tp->Gse = (anneal_h - (tp->startC + 273) * anneal_s) / (k_b*(tp->startC + 273));
+    printf("Gse is %f\n",tp->Gse);
   } else {
     tp->Gse = Gse;
   }
   tp->updates = 1;
   tp->update_freq = updates_per_RC;
-  tp->next_update_t = tp->updates*tp->anneal_t/tp->update_freq;
+  if (tp->anneal_t) {
+    tp->next_update_t = tp->updates*tp->anneal_t/tp->update_freq;
+  } else {
+    tp->next_update_t = seconds_per_C / 100;
+  }
   tp->dt_right = dt_right;
   tp->dt_left = dt_left;
   for (n=0; n< tp->N; n++) {
@@ -1849,11 +1869,13 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
           (smax==0 || tp->stat_a-tp->stat_d < smax) &&
 	 (fsmax==0 || tp->largest_flake_size < fsmax) &&
 	 (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
-	 total_blast_rate+total_rate+new_flake_rate > 0) {
+	 total_blast_rate+total_rate+new_flake_rate > 0 &&
+	 (tp->seconds_per_C == 0 || tp->currentC > tp->endC)) {
     if (untiltiles && tp->all_present) {
       return;
     }
 
+    
     /* First check if time is such that we need to update the temperature */
     if (tp->anneal_t && (tp->t > tp->next_update_t)) {
       tp->Gse = tp->Gse_final- (tp->Gse_final - tp->anneal_g)*exp(-tp->t/tp->anneal_t);
@@ -1861,6 +1883,14 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
       /* Now we have to update all rates */
       tp->updates++;
       tp->next_update_t = tp->updates*tp->anneal_t/tp->update_freq;
+      update_all_rates (tp);
+    }
+    if (tp->seconds_per_C  && (tp->t > tp->next_update_t)) {
+      tp->currentC -= 0.01;
+      tp->Gse = (tp->anneal_h - (tp->currentC + 273) * tp->anneal_s) / (k_b*(tp->currentC + 273));
+      set_Gses(tp,tp->Gse,0);  // NOT SAFE FOR HYDROLYSIS
+      printf("currentC is %f, Gse is %f\n",tp->currentC, tp->Gse);
+      tp->next_update_t += tp->seconds_per_C / 100;
       update_all_rates (tp);
     }
     dt = -log(drand48()) / (total_rate + total_blast_rate + new_flake_rate);
