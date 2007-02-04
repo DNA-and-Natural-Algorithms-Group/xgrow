@@ -1,0 +1,49 @@
+tile edges matches {{N E S W}*}
+num tile types=20
+num binding types=36
+
+tile edges={ 		% num	name	desciption
+
+% Double Tiles
+{  0 35  2  1 } (red)		% 1	Z7	top L
+{  0  1  3 35 } (red)		% 2	Z8	top R
+{ 19 36  0 20 } (red)		% 3	Z5	bottom L
+{ 18 20  0 36 } (red)		% 4	Z6	bottom R
+
+% Zero Tiles
+{  3  4  6  5 } (blue)		% 5	Z9	L 1
+{  7  8 10  9 } (blue)		% 6	Z10	L 2
+{ 11 12 14 13 } (blue)		% 7	Z1W	L 3
+{ 15 16 18 17 } (blue)		% 8	Z2	L 4
+{  2  5  7  4 } (blue)		% 9	Z11	R 1
+{  6  9 11  8 } (blue)		% 10	Z12	R 2
+{ 10 13 15 12 } (blue)		% 11	Z3W	R 3
+{ 14 17 19 16 } (blue)		% 12	Z4	R 4
+
+% One Tiles
+{  3 21 23 22 } (white)		% 13	ZB	L 1
+{ 24 25 27 26 } (white)		% 14	ZC	L 2
+{ 28 29 31 30 } (white)		% 15	ZF	L 3
+{ 32 33 18 34 } (white)		% 16	ZG	L 4
+{  2 22 24 21 } (white)		% 17	ZA	R 1
+{ 23 26 28 25 } (white)		% 18	ZD	R 2
+{ 27 30 32 29 } (white)		% 19	ZE	R 3
+{ 31 34 19 33 } (white)		% 20	ZH	R 4
+
+}
+
+binding strengths= {
+1 1 1 1 1
+1 1 1 1 1
+1 1 1 1 1
+1 1 1 1 1
+1 1 1 1 1
+1 1 1 1 1
+1 1 1 1 5 5
+}
+
+doubletile=1,2
+doubletile=3,4
+        
+Gmc= 10
+Gse= 5.4
