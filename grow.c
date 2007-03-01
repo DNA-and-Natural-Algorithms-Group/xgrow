@@ -1130,8 +1130,8 @@ flake *choose_flake(tube *tp)
     kL = ftp->left->rate+kc*ftp->left->empty;
     kR = ftp->right->rate+kc*ftp->right->empty;
     /* always fix-up any numerical error that could have accumulated here */
-    assert (ftp->left->rate >= -0.1);
-    assert (ftp->right->rate >= -0.1);
+    assert (ftp->left->fp == NULL || ftp->left->rate >= -0.1);
+    assert (ftp->right->fp == NULL || ftp->right->rate >= -0.1);
     ftp->rate = ftp->left->rate+ftp->right->rate;
     ftp->empty = ftp->left->empty+ftp->right->empty; // shouldn't be necessary
     do {
