@@ -826,13 +826,6 @@ void update_tube_rates(flake *fp)
   assert (newrate >= 0);
   while (ftp!=NULL) {
     ftp->rate+=newrate-oldrate;
-    if (ftp->rate < -0.1) {
-      printf("Old rate was %e, new rate is %e.\n",oldrate,ftp->rate);
-      printf("Bad news -- negative rate.\n");
-    }
-    else {
-      oldrate = oldrate +0;
-    }
     ftp->empty+=newempty-oldempty;
     ftp=ftp->up;
   }
@@ -1980,6 +1973,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	  s_n = n;
 	  s_j = tp->default_seed_j;
 	}
+
 	if ((fp = recover_flake (tp->default_seed_i,s_j,s_n,tp->initial_Gfc)) == NULL) {
 	  fp = init_flake (tp->P,tp->N,tp->default_seed_i, s_j, s_n, tp->initial_Gfc);
 	}
@@ -2293,8 +2287,16 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
       remove_flake(fp);
       //printf("Removed flake.  There are now %d flakes remaining.\n",tp->num_flakes);
     }
+    else {
+      // Check that the flake rate is still positive
+      if (fp->tree_node->rate < 0) {
+	printf("Bad news, negative rate\n");
+	assert(0);
+      }
+    }
     d2printf("%d,%d -> %d\n",i,j,n);
     } // end of kTAM / aTAM section
+
     if (tp->flake_tree) 
       total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
     else
