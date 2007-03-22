@@ -566,7 +566,7 @@ void add_flake_to_reserve_list(flake *fp) {
 }
 
 /* Returns a flake from the list of blank flakes, if any are available */
-flake * recover_flake (int seed_i, int seed_j, int seed_n, int Gfc) {
+flake * recover_flake (int seed_i, int seed_j, int seed_n, double Gfc) {
   flake *fp;
   if (blank_flakes) {
     fp = blank_flakes;
@@ -871,12 +871,18 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
   if (tp!=NULL) { /* flake has been added to a tube */
     //printf("Changing %d, %d from %d to %d.\n",i,j,fp->Cell(i,j),n);
     if (fp->Cell(i,j)==0) {                         /* tile addition */
-      if (tp->conc[n]<=fp->flake_conc) return; // conc's can't go to zero!
-      if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) return; // ditto
+      if (tp->conc[n]<=fp->flake_conc) {
+	printf ("zero conc!\n");
+	return; // conc's can't go to zero!
+      }
+      if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) {
+	printf ("zero conc 2!\n");
+	return; // ditto
+      }
       fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n);   
       tp->conc[n] -= fp->flake_conc; 
       tp->conc[0] -= fp->flake_conc;
-      if (fp->tiles==1 || (fp->tiles==2 && fp->seed_is_double_tile)) { 
+      if (tp->tinybox == 0 && (fp->tiles==1 || (fp->tiles==2 && fp->seed_is_double_tile))) { 
 	// monomer flakes don't deplete []; now no longer monomer!
         tp->conc[fp->seed_n] -= fp->flake_conc; 
         tp->conc[0]          -= fp->flake_conc;
@@ -1943,30 +1949,38 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
        tp->t += dt;
     } else if (new_flake_rate && event_choice < (total_blast_rate + new_flake_rate)) {
       int m,r,x,d,di,dj,c;
+      double flake_conc;
       // Add a new flake
       // Select the seed tile for the new flake
       n = choose_tile_type (tp);
 
       m = choose_tile_type (tp);
-      // Choose a second cell to add to the new tile to
-      // Determine an orientation for the two tiles
-      r = random();
-
-      x = ((r>>2) % 2) * 2 - 1;
-      d = r % 2;
-      // Determine whether the two are connected
-      if (d) {
-	// Connect up and down
-	dj = 0;
-	di = x;
-	if (x > 0) {
-	  c = tp->Gse_NS[n][m];
-	} else { c = tp->Gse_NS[m][n]; }
+      // Make sure enough of each tile is available
+      flake_conc = (tp->initial_Gfc>0)?exp(-tp->initial_Gfc):0;
+      //      printf("Concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
+      if (tp->conc[n] < flake_conc || tp->conc[m] < flake_conc) {
+	c = 0;
       }
       else {
-	// Connect left or right
-	dj = x;
-	di = 0;
+	// Choose a second cell to add to the new tile to
+	// Determine an orientation for the two tiles
+	r = random();
+	
+	x = ((r>>2) % 2) * 2 - 1;
+	d = r % 2;
+	// Determine whether the two are connected
+	if (d) {
+	  // Connect up and down
+	  dj = 0;
+	  di = x;
+	  if (x > 0) {
+	    c = tp->Gse_NS[n][m];
+	  } else { c = tp->Gse_NS[m][n]; }
+	}
+	else {
+	  // Connect left or right
+	  dj = x;
+	  di = 0;
 	if ((tp->dt_left[n] && dj < 0) ||
 	    (tp->dt_right[n] && dj > 0)) {
 	  c = 0;
@@ -1976,11 +1990,12 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	    c = tp->Gse_EW[m][n]; 
 	  } else { c = tp->Gse_EW[n][m]; }
 	}
+	}
       }
       if (c) {
 	int s_n, s_j;
-	//printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
-	//     n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
+	//	printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
+	//	       n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
 	if (tp->dt_left[n]) {
 	  s_n = tp->dt_left[n];
 	  s_j = tp->default_seed_j - 1;
@@ -1993,7 +2008,10 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	if ((fp = recover_flake (tp->default_seed_i,s_j,s_n,tp->initial_Gfc)) == NULL) {
 	  fp = init_flake (tp->P,tp->N,tp->default_seed_i, s_j, s_n, tp->initial_Gfc);
 	}
+	//	printf("After initting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
+
 	insert_flake (fp, tp);
+	//printf("After inserting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
 	fp->tiles = 1;
 	fp->seed_is_double_tile = tp->dt_right[fp->seed_n];
 	if (tp->dt_right[s_n]) {
