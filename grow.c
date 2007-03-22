@@ -829,6 +829,14 @@ void update_tube_rates(flake *fp)
     ftp->empty+=newempty-oldempty;
     ftp=ftp->up;
   }
+  // Make sure tree notes don't accumulate numerical error
+  ftp = fp->tree_node;
+  while (ftp!=NULL) {
+    if (ftp->fp == NULL) {
+      ftp->rate = ftp->left->rate + ftp->right->rate;
+    }
+    ftp = ftp->up;
+  }
   
 } // update_tube_rates()
 
@@ -1854,8 +1862,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
   }
   total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
   new_flake_rate = tp->k*2*pow(tp->conc[0],2)*tp->tinybox*AVOGADROS_NUMBER ;
-  
-  assert (total_rate + total_blast_rate + new_flake_rate >= 0); // can be zero in aTAM if finite-sized assembly is done
+  //assert (total_rate + total_blast_rate + new_flake_rate >= 0); // can be zero in aTAM if finite-sized assembly is done
 
   while (tp->events < emaxL && 
 	 (tmax==0 || tp->t < tmax) && 
@@ -1886,6 +1893,15 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
       tp->next_update_t += tp->seconds_per_C / 100;
       update_all_rates (tp);
     }
+    
+    if (tp->flake_tree) 
+      total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+    else
+      total_rate = 0;
+    assert (total_rate >= 0);
+    new_flake_rate = tp->k*2*pow(tp->conc[0],2)*tp->tinybox*AVOGADROS_NUMBER ;
+    total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
+
     dt = -log(drand48()) / (total_rate + total_blast_rate + new_flake_rate);
     event_choice = drand48()*(total_rate+total_blast_rate+new_flake_rate);
     
@@ -2296,13 +2312,14 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
     }
     d2printf("%d,%d -> %d\n",i,j,n);
     } // end of kTAM / aTAM section
-
+    /*
     if (tp->flake_tree) 
       total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
     else
       total_rate = 0;
     assert (total_rate >= 0);
     total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
+    */
    } // end while
 } // simulate
 
