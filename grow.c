@@ -72,6 +72,15 @@ int double_tile_count=0;
 flake *blank_flakes = NULL;
 double k_b = .0019872;
 
+void *calloc_err (size_t nmemb, size_t size) {
+  void *res;
+  res = calloc(nmemb, size);
+  if (res == NULL) {
+    fprintf(stderr,"Out of memory!\n");
+    exit(1);
+  }
+  return res;
+}
 
 /* sets up data structures for a flake -- cell field, hierarchical rates... */
 flake *init_flake(unsigned char P, unsigned char N, 
@@ -86,23 +95,23 @@ flake *init_flake(unsigned char P, unsigned char N,
   //  printf("Making flake %d x %d, %d tiles, seed=%d,%d,%d @ %6.2f\n",
   //         size,size,N,seed_i,seed_j,seed_n,Gfc);
 
-  fp->cell = (unsigned char **)calloc(sizeof(char *),2+size);
+  fp->cell = (unsigned char **)calloc_err(sizeof(char *),2+size);
   for (i=0;i<2+size;i++) 
-    fp->cell[i]=(unsigned char *)calloc(sizeof(char),2+size);
-  fp->rate = (double ***)calloc(sizeof(char **),P+1);
-  fp->empty = (int ***)calloc(sizeof(int **),P+1);
+    fp->cell[i]=(unsigned char *)calloc_err(sizeof(char),2+size);
+  fp->rate = (double ***)calloc_err(sizeof(char **),P+1);
+  fp->empty = (int ***)calloc_err(sizeof(int **),P+1);
 
   for (p=0;p<=P;p++) {
     size = (1<<p);
-    fp->rate[p]=(double **)calloc(sizeof(double *),size);
-    fp->empty[p]=(int **)calloc(sizeof(int *),size);
+    fp->rate[p]=(double **)calloc_err(sizeof(double *),size);
+    fp->empty[p]=(int **)calloc_err(sizeof(int *),size);
     for (i=0;i<size;i++) {
-      fp->rate[p][i]=(double *)calloc(sizeof(double),size);
-      fp->empty[p][i]=(int *)calloc(sizeof(int),size);
+      fp->rate[p][i]=(double *)calloc_err(sizeof(double),size);
+      fp->empty[p][i]=(int *)calloc_err(sizeof(int),size);
       for (j=0;j<size;j++) fp->rate[p][i][j]=0;
     }
   }
-  fp->is_present = (int *) calloc(sizeof(int),present_list_len);
+  fp->is_present = (int *) calloc_err(sizeof(int),present_list_len);
   fp->flake_conc= (Gfc>0)?exp(-Gfc):0;
   fp->G=0; fp->mismatches=0; fp->tiles=0; fp->events=0;
   fp->seed_i=seed_i; fp->seed_j=seed_j; fp->seed_n=seed_n;
@@ -114,8 +123,6 @@ flake *init_flake(unsigned char P, unsigned char N,
 
   change_cell(fp,seed_i,seed_j,seed_n);  
   /* not yet in tube: doesn't update tube stats */
-
-  /* NOTE this routine is not "proper" -- assumes all allocs are OK */
 
   return fp;
 }
@@ -144,7 +151,6 @@ flake *free_flake(flake *fp)
   fpn=fp->next_flake; free(fp); 
 
   return fpn;
-  /* NOTE because init_flake is not safe to out-of-mem, this could die */
 }
 
 /* for debugging purposes */
@@ -594,6 +600,7 @@ void remove_flake(flake *fp) {
   flake *f;
 
   tp=fp->tube;
+  fp->tube = NULL;
   ftp = fp->tree_node;
   assert (ftp != NULL);
   u = ftp->up;
@@ -864,12 +871,11 @@ int between_double_tile (flake *fp, tube *tp, int i, int j, unsigned char n) {
 void change_cell(flake *fp, int i, int j, unsigned char n)
 {
   int size=(1<<fp->P);  tube *tp=fp->tube; 
+  //  printf("Entering change cell to change flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
   if (periodic) { i=(i+size)%size; j=(j+size)%size; }
   else if (i<0 || i>=size || j<0 || j>=size) return; // can't change tiles beyond central field
-
-  if (fp->Cell(i,j)==n) return;  // nothing to change!
+  if (fp->Cell(i,j)==n) return;
   if (tp!=NULL) { /* flake has been added to a tube */
-    //printf("Changing %d, %d from %d to %d.\n",i,j,fp->Cell(i,j),n);
     if (fp->Cell(i,j)==0) {                         /* tile addition */
       if (tp->conc[n]<=fp->flake_conc) {
 	printf ("zero conc!\n");
@@ -879,10 +885,14 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 	printf ("zero conc 2!\n");
 	return; // ditto
       }
+      //      printf("Changing flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
       fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n);   
-      tp->conc[n] -= fp->flake_conc; 
-      tp->conc[0] -= fp->flake_conc;
-      if (tp->tinybox == 0 && (fp->tiles==1 || (fp->tiles==2 && fp->seed_is_double_tile))) { 
+      // Don't subtract [] if we're adding the other half of a dt seed:
+      if (!fp->seed_is_double_tile || fp->tiles > 1) {
+	tp->conc[n] -= fp->flake_conc; 
+	tp->conc[0] -= fp->flake_conc;
+      }
+      if ((fp->tiles==1 && !fp->seed_is_double_tile) || (fp->tiles==2 && fp->seed_is_double_tile)) { 
 	// monomer flakes don't deplete []; now no longer monomer!
         tp->conc[fp->seed_n] -= fp->flake_conc; 
         tp->conc[0]          -= fp->flake_conc;
@@ -893,7 +903,7 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 	if (tp->dt_left[fp->seed_n]) {
 	  tp->conc[tp->dt_left[fp->seed_n]] -= fp->flake_conc;
 	  tp->conc[0]          -= fp->flake_conc;
-	}
+	  }
       }
       tp->stat_a++; fp->tiles++; 
       if (fp->tiles > tp->largest_flake_size) {
@@ -1851,14 +1861,6 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
     }
     fp=fp->next_flake;
   }
-  for (i = 0; i < N; i++) {
-    if (tp->dt_right[i]) {
-      if (tp->conc[i] != tp->conc[tp->dt_right[i]]) {
-	printf("Concentrations are off!\n");
-      }
-      assert (tp->conc[i] == tp->conc[tp->dt_right[i]]);
-    }
-  }
 
   if (tp->flake_tree) {
     total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
@@ -1898,6 +1900,15 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
       printf("currentC is %f, Gse is %f\n",tp->currentC, tp->Gse);
       tp->next_update_t += tp->seconds_per_C / 100;
       update_all_rates (tp);
+    }
+
+    for (i = 0; i < N; i++) {
+      if (tp->dt_right[i]) {
+	if (tp->conc[i] != tp->conc[tp->dt_right[i]]) {
+	  printf("Concentrations are off!\n");
+	}
+	assert (tp->conc[i] == tp->conc[tp->dt_right[i]]);
+      }
     }
     
     if (tp->flake_tree) 
@@ -1994,8 +2005,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
       }
       if (c) {
 	int s_n, s_j;
-	//	printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
-	//	       n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
+	//printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
+	//n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
 	if (tp->dt_left[n]) {
 	  s_n = tp->dt_left[n];
 	  s_j = tp->default_seed_j - 1;
@@ -2011,6 +2022,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	//	printf("After initting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
 
 	insert_flake (fp, tp);
+	//printf("New flake id is %d\n",fp->flake_ID);
 	//printf("After inserting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
 	fp->tiles = 1;
 	fp->seed_is_double_tile = tp->dt_right[fp->seed_n];
