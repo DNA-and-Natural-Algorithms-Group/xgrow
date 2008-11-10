@@ -237,7 +237,9 @@ Compiling:  see makecc and makeccprof and makeccefence
 # include <assert.h>
 
 # include "grow.h"
+#ifdef TESTING_OK
 # include "xgrow-tests.h"
+#endif
 
   /* lattice dimensions (plus two for boundaries): */
   /* NCOLS should be a multiple of bytes per long word (BPW) */
@@ -1804,7 +1806,7 @@ void openwindow(int argc, char **argv)
 
  /* make the main window */
  window=XCreateSimpleWindow(display,RootWindow(display,screen),
-			    0,0,WINDOWWIDTH,WINDOWHEIGHT,4,black,lightcolor);
+			    100,0,WINDOWWIDTH,WINDOWHEIGHT,4,black,lightcolor);
 
  /* make the icon */
  icon_pixmap=XCreateBitmapFromData(display,window,
@@ -2030,7 +2032,9 @@ int main(int argc, char **argv)
 	     anneal_h,anneal_s,startC,endC,seconds_per_C,
 	     dt_right, dt_left, hydro,ratek,
 	     Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox, seed_i, seed_j, Gfc);
+#ifdef TESTING_OK
   run_xgrow_tests(tp,Gmc,Gse,seed_i,seed_j,seed_n,size);
+#endif
    return 0;
  }
  

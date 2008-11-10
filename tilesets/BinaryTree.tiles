@@ -96,8 +96,9 @@ binding strengths=
     2 2 1 1 1 1 1 1 1}
 seed=510,250,1
 size=512
-block=1
+block=2
 %seed=250,125,1   % must shrink seed by one bit
 %size=256
 %block=2
+T=2
 update_rate=1000

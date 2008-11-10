@@ -1001,17 +1001,24 @@ void change_cell(flake *fp, int i, int j, unsigned char n)
 
   // If we've changed to a state we haven't seen before, and we're counting
   // unique visited states, record it.
+#ifdef TESTING_OK
   if (tp && tp->tracking_seen_states && !between_double_tile (fp,tp,i,j,n) &&
       !assembly_is_a_duplicate(tp->states_seen_hash,
 			       fp->cell,size)) {
+
     add_assembly_to_seen(tp);
   }
+#endif
   if (tp && tp->watching_states) {
     if (fp->chain_state) {
+#ifdef TESTING_OK
       update_state_off_indicator(fp);
+#endif
     }  
     if (!between_double_tile (fp,tp,i,j,n)) {
+#ifdef TESTING_OK
       update_state_on_indicator(fp, fp->cell, size);
+#endif
     }
   }
   // note: this recalculates all these rates from scratch, although we know only some can change
@@ -1102,14 +1109,14 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
     sum = (k00+k01+k10+k11);  
     /* avoid possible round-off error... but still check for it */
     d2printf("%f / %f for choosing %d from %d: %d %d\n",r,sum,p+1,p,i,j);
-    do {
+     do {
       r = r*sum;  oops=0;
       if ( (r-=k00) < 0) { di=0; dj=0; r=(r+k00)/k00; } else
 	if ( (r-=k10) < 0) { di=1; dj=0; r=(r+k10)/k10; } else
 	  if ( (r-=k01) < 0) { di=0; dj=1; r=(r+k01)/k01; } else
 	    if ( (r-=k11) < 0) { di=1; dj=1; r=(r+k11)/k11; } else 
 	      { r=drand48(); oops=1; }
-    } while (oops);
+	      } while (oops); 
     /* always fix-up any numerical error that could have accumulated here */
     fp->rate[p][i][j] = fp->rate[p+1][2*i][2*j]+fp->rate[p+1][2*i][2*j+1]+
       fp->rate[p+1][2*i+1][2*j]+fp->rate[p+1][2*i+1][2*j+1];
@@ -2289,11 +2296,12 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 		  // If we are collecting seen states, remove this
 		  // state from the list of seen states, since it was
 		  // never really "seen".
+#ifdef TESTING_OK
 		  if (tp->tracking_seen_states && 
 		      !between_double_tile(fp,tp,i,j,0)) {
 		    remove_assembly_from_seen (tp);
 		  }
-		  
+#endif 
 		  // re-attach cell:
 		  // dissociation was chosen, but rejected because it would
 		  // cause fission. (note that flake_fission calculates but
@@ -2305,7 +2313,9 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 		  // If we are watching states to count how often they are entered, we 
 		  // didn't actually leave the state we thought we left.
 		  if (tp->watching_states && fp->chain_state) {
+#ifdef TESTING_OK
 		    undo_state_off_indicator(fp);
+#endif
 		  }
 		  break;
 		}
