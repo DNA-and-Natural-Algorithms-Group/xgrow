@@ -1,15 +1,16 @@
 X11_FLAGS=-I/usr/X11R6/lib/include -L/usr/X11R6/lib -lX11
 
-# If the below options don't work, replace them with the output of 
+#if pkg-config is not in your default path, add the full path here
+PKG_CONFIG=pkg-config
 
-GLIB_CFLAGS=`pkg-config --cflags glib-2.0`
+GLIB_CFLAGS=`${PKG_CONFIG} --cflags glib-2.0`
 
 # For Mac OS / fink (may need to change /sw to /opt)
 #GLIB_CFLAGS=-I/sw/lib -I/sw/include/glib-2.0 -I/sw/lib/glib-2.0/include
 
 
 # For linux
-GLIB_LIBS=`pkg-config --libs glib-2.0`
+GLIB_LIBS=`${PKG_CONFIG} --libs glib-2.0`
 
 # For Mac OS / fink (may need to change /sw to /opt)
 #GLIB_LIBS=-L/sw/lib -lglib-2.0 -lintl
