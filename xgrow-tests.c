@@ -54,7 +54,7 @@
  */
 
 #include <assert.h>
-#include <glib-2.0/glib.h>
+#include <glib.h>
 #include <limits.h>
 #include <openssl/md4.h>
 #include <math.h>
