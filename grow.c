@@ -2010,7 +2010,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	}
 	}
       }
-      if (c) {
+      if (c || zero_bonds_allowed) {
 	int s_n, s_j;
 	//printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
 	//n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
