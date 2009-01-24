@@ -97,9 +97,9 @@ typedef struct flake_struct {
   struct tube_struct *tube; /* contains tile set, reaction conditions,     */
                        /* time, event stats, scratch space...              */
                        /* all flakes are the same size, 2^(tube->P)        */
-  unsigned char N, P;  /* # non-empty tile types; 2^P active cell grid     */
+  unsigned int N, P;  /* # non-empty tile types; 2^P active cell grid     */
 
-  unsigned char **cell;/* tile type at [i][j]; array of arrays             */
+  unsigned int **cell;/* tile type at [i][j]; array of arrays             */
                        /* note 0 <= i,j <= 2^P+1, allowing for borders     */
   double ***rate;      /* hierarchical rates for events in non-empty cells */
                        /* rate[p][i][j] has 0 <= i,j < 2^p                 */
@@ -115,7 +115,7 @@ typedef struct flake_struct {
                        /* are incorporated; if 0, then no depletion occurs */
   double G;            /* cumulative energy of tile flake                  */
   int seed_i,seed_j;   /* special site which won't change                  */
-  unsigned char seed_n; 
+  unsigned int seed_n; 
   long int events;     /* total on, off, hydrolysis events in this flake   */
   int tiles;           /* total number of tiles in this flake              */
   int seed_is_double_tile;          /* If the seed is a double tile, it will be a monomer,
@@ -143,7 +143,7 @@ typedef struct flake_tree_struct {
 
 typedef struct assembly_list_struct {
   struct assembly_list_struct *next;
-  unsigned char **assembly;
+  unsigned int **assembly;
 } assembly_list;
 
 typedef struct tube_struct {
@@ -180,7 +180,7 @@ typedef struct tube_struct {
   double Gse;          /* Current Gse                                      */
   double Gmc;          /* Gmc                                              */
   double next_update_t;   /* Precompute next update time                   */
-  unsigned char N, P;  /* # non-empty tile types; 2^P active cell grid     */
+  unsigned int N, P;  /* # non-empty tile types; 2^P active cell grid     */
 
   int num_flakes;      /* how many flakes do we have here?                 */
   int total_flakes;    /* how many flakes have we made, total 
@@ -235,7 +235,7 @@ typedef struct tube_struct {
   int tracking_seen_states;     /* tracking states that are seen             */
   int states_seen_count;    /* For use in testing --find a time at which */
   void  *states_seen_hash;   /* hash that records which states we have been to. */
-  unsigned char ***start_states;
+  unsigned int ***start_states;
   double *start_state_Gs;
   
 
@@ -253,8 +253,8 @@ extern int *present_list;
 extern int present_list_len;
 extern int untiltiles,untiltilescount;
 
-tube *init_tube(unsigned char P, unsigned char N, int num_bindings);
-flake *init_flake(unsigned char P, unsigned char N,
+tube *init_tube(unsigned int P, unsigned int N, int num_bindings);
+flake *init_flake(unsigned int P, unsigned int N,
  int seed_i, int seed_j, int seed_n, double Gfc);
 flake *free_flake(flake *fp);
 void free_tube(tube *tp);
@@ -278,7 +278,7 @@ int calc_perimeter(flake *fp);
 void update_all_rates(tube *tp);
 void update_rates(flake *fp, int ii, int jj);
 void update_tube_rates(flake *fp);
-void change_cell(flake *fp, int i, int j, unsigned char n);
+void change_cell(flake *fp, int i, int j, unsigned int n);
 void change_seed(flake *fp, int new_i, int new_j);
 int flake_fission(flake *fp, int i, int j);
 void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, int smin);

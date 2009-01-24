@@ -83,7 +83,7 @@ void *calloc_err (size_t nmemb, size_t size) {
 }
 
 /* sets up data structures for a flake -- cell field, hierarchical rates... */
-flake *init_flake(unsigned char P, unsigned char N, 
+flake *init_flake(unsigned int P, unsigned int N, 
 		  int seed_i, int seed_j, int seed_n, double Gfc)
 {
   int i,j,p;
@@ -95,10 +95,10 @@ flake *init_flake(unsigned char P, unsigned char N,
   //  printf("Making flake %d x %d, %d tiles, seed=%d,%d,%d @ %6.2f\n",
   //         size,size,N,seed_i,seed_j,seed_n,Gfc);
 
-  fp->cell = (unsigned char **)calloc_err(sizeof(char *),2+size);
+  fp->cell = (unsigned int **)calloc_err(sizeof(int *),2+size);
   for (i=0;i<2+size;i++) 
-    fp->cell[i]=(unsigned char *)calloc_err(sizeof(char),2+size);
-  fp->rate = (double ***)calloc_err(sizeof(char **),P+1);
+    fp->cell[i]=(unsigned int *)calloc_err(sizeof(int),2+size);
+  fp->rate = (double ***)calloc_err(sizeof(int **),P+1);
   fp->empty = (int ***)calloc_err(sizeof(int **),P+1);
 
   for (p=0;p<=P;p++) {
@@ -180,7 +180,7 @@ void free_tree(flake_tree *ftp)
 }
 
 /* sets up data structures for tube -- tile set, params, scratch, stats  */
-tube *init_tube(unsigned char P, unsigned char N, int num_bindings)
+tube *init_tube(unsigned int P, unsigned int N, int num_bindings)
 {
   int i,j,n,m;
   int size = (1<<P);
@@ -551,7 +551,7 @@ void add_flake_to_reserve_list(flake *fp) {
   // First clear flake
   size = (1<< (fp->P));
   for (i=0;i<2+size;i++) 
-    memset(fp->cell[i],0,2+size*sizeof(char));
+    memset(fp->cell[i],0,2+size*sizeof(int));
   for (p=0;p<=fp->P;p++) {
     size = (1<<p);
     for (i=0;i<size;i++) {
@@ -673,7 +673,7 @@ void remove_flake(flake *fp) {
 double calc_rates(flake *fp, int i, int j, double *rv)
 {
   int n,mi,ei,hi,mo,eo,ho; double r, sumr; tube *tp=fp->tube;
-  unsigned char nN,nE,nS,nW; int N=fp->N; int size=(1<<fp->P);
+  unsigned int nN,nE,nS,nW; int N=fp->N; int size=(1<<fp->P);
   int seedchunk[4]; 
 
   if (rv!=NULL) for (n=0;n<=N+4;n++) rv[n]=0;
@@ -848,7 +848,7 @@ void update_tube_rates(flake *fp)
 } // update_tube_rates()
 
 
-int between_double_tile (flake *fp, tube *tp, int i, int j, unsigned char n) {
+int between_double_tile (flake *fp, tube *tp, int i, int j, unsigned int n) {
   if (n == 0) {
     return (tp->dt_right[fp->Cell(i,j-1)] || tp->dt_left[fp->Cell(i,j+1)]);
   }
@@ -868,7 +868,7 @@ int between_double_tile (flake *fp, tube *tp, int i, int j, unsigned char n) {
 /* but since it might be called out of range in FILL, we fix it up.   */
 /* BUG: changes in concentration should change G for every tile, but  */
 /* we don't update G automatically; also, if conc[n]==0, nan results. */
-void change_cell(flake *fp, int i, int j, unsigned char n)
+void change_cell(flake *fp, int i, int j, unsigned int n)
 {
   int size=(1<<fp->P);  tube *tp=fp->tube; 
   //  printf("Entering change cell to change flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
@@ -2370,13 +2370,13 @@ void linear_simulate(double ratek, double Gmc, double Gse,
 		     double tmax, int emax, int smax)
 {
   double r,t; int e, s;
-  unsigned char *tile;
+  unsigned int *tile;
   double k, rf, rr1, rr2, pr, pf;
   int i, errs; 
 
   if (tmax==0 || emax==0 || smax==0) return;
 
-  tile = calloc(smax,sizeof(char));
+  tile = calloc(smax,sizeof(int));
   /* tile 1 = "A", tile 2 = "B", and we will start with "A" */
 
   rf = ratek*exp(-Gmc); rr1 = ratek*exp(-Gse); rr2 = ratek*exp(-2*Gse);

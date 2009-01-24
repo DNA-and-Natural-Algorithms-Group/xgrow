@@ -235,6 +235,7 @@ Compiling:  see makecc and makeccprof and makeccefence
 # include <unistd.h>
 # include <math.h>
 # include <assert.h>
+# include <limits.h>
 
 # include "grow.h"
 #ifdef TESTING_OK
@@ -264,9 +265,9 @@ Compiling:  see makecc and makeccprof and makeccefence
 # define BARLEFT 4
 # define XHEIGHT 40
 # define NSIZE 42
-# define MAXTILETYPES 256
+# define MAXTILETYPES USHRT_MAX
 
-  long int translate[MAXTILETYPES]; /* for converting colors */
+long int translate[MAXTILETYPES]; /* for converting colors */
 int paused=0, errorc=0, errors=0, sampling=0;
 int export_mode=0, export_flake_n=1, export_movie_n=1, export_movie=0; 
 FILE *export_fp=NULL;
@@ -294,7 +295,7 @@ int font_height;
 XSizeHints size_hints;
 long event_mask;
 int depth;
-long int darkcolor,lightcolor,black,white,
+int darkcolor,lightcolor,black,white,
   errorcolor,goodcolor,hydrocolor,hydroerrcolor,strongcolor,weakcolor,nullcolor;
 char *tile_colors[MAXTILETYPES]={ "black",
 				  "blue",      "red",      "green",      "yellow", "gold",   "purple", "white", 
