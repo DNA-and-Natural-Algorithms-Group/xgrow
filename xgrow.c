@@ -1900,10 +1900,13 @@ void openwindow(int argc, char **argv)
  XSelectInput(display,playground,event_mask);
 
  /* pick font: 9x15 is supposed to almost always be there */
- if ((font=XLoadQueryFont(display,"9x15"))==NULL)
-   {fprintf(stderr,"%s: Cannot open 9x15 font\n",progname);
-   exit(-1);
-   }
+ if ((font=XLoadQueryFont(display,"9x15"))==NULL) {
+   if ((font=XLoadQueryFont(display,"6x13"))==NULL)
+	{
+		fprintf(stderr,"%s: Cannot open 9x15 or 6x13 font\n",progname);
+		exit(-1);
+	}
+ }
  font_height=font->ascent+font->descent;
 
  /* make graphics contexts: 
