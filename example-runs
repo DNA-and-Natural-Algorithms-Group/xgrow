@@ -1,34 +1,34 @@
 
-% A B tiles, very and only somewhat supersaturated
-xgrow AB Gse=7 Gmc=13.9 block=3 seed=130,130,1
-xgrow AB Gse=7 Gmc=12 block=3 seed=130,130,1
-xgrow AB Gse=7 Gmc=13 block=3 addflakes=130,130,1:100@18
-
 % A B tiles, quickly nucleating
-xgrow AB Gse=7 Gmc=11 block=3 seed=130,130,1
+xgrow AB Gse=7 Gmc=11 block=2 seed=130,130,1
+
+% A B tiles, very and only somewhat supersaturated
+xgrow AB Gse=7 Gmc=13.9 block=2 seed=130,130,1
+xgrow AB Gse=7 Gmc=12 block=2 seed=130,130,1
+xgrow AB Gse=7 Gmc=13 block=2 addflakes=130,130,1:100@18
 
 % A B tiles growing rapidly
 % note the domain boundaries due to 0.1-strength bonds 
 % (wouldn't happen if bonds were exactly 0-strength, since xgrow doesn't such add tiles by default)
-xgrow AB Gse=7 Gmc=7 block=3 seed=130,130,1
+xgrow AB Gse=7 Gmc=7 block=2 seed=130,130,1
 
 % A B tiles with limited monomer concentration
-xgrow AB Gse=7 Gmc=11 block=3 seed=130,130,1 Gfc=18
+xgrow AB Gse=7 Gmc=11 block=2 seed=130,130,1 Gfc=18
 
 % bar code tiles
-xgrow barcode Gse=7 Gmc=13.9 block=3 seed=130,130,1
-xgrow barcode Gse=7 Gmc=7 block=3 seed=130,130,1
-xgrow barcode Gse=7 Gmc=11 block=3 seed=130,130,1 Gfc=18
+xgrow barcode Gse=7 Gmc=13.9 block=4 seed=130,130,1
+xgrow barcode Gse=7 Gmc=7 block=4 seed=130,130,1
+xgrow barcode Gse=7 Gmc=11 block=4 seed=130,130,1 Gfc=18
 
 % bar code, nucleated
-xgrow barseed Gse=7 Gmc=13.9 block=3 seed=180,180,5
-xgrow barseed Gse=7 Gmc=13.9 block=3 seed=180,180,5 Gfc=22
-xgrow barseed Gse=11 Gmc=21.8 block=3 seed=180,180,5
-xgrow barseed T=2 block=3 seed=180,180,5
+xgrow barseed Gse=7 Gmc=13.9 block=2 seed=180,180,5
+xgrow barseed Gse=7 Gmc=13.9 block=2 seed=180,180,5 Gfc=22
+xgrow barseed Gse=11 Gmc=21.8 block=2 seed=180,180,5
+xgrow barseed T=2 block=2 seed=180,180,5
 
 % a variant of the same idea...
-xgrow lines1 Gse=7 Gmc=13.9 block=3
-xgrow lines2 Gse=7 Gmc=13.9 block=3
+xgrow lines1 Gse=7 Gmc=13.9 block=2
+xgrow lines2 Gse=7 Gmc=13.9 block=2
 
 % small squares, large squares
 xgrow UnarySquare Gse=11 Gmc=21.8 block=10 seed=130,130,1
@@ -44,35 +44,35 @@ xgrow UnarySquare T=2 addflakes=10,10,1:1@0 addflakes=10,15,2:1@0 addflakes=10,2
 xgrow UnarySquare addflakes=10,10,1:1@0 addflakes=10,15,2:1@0 addflakes=10,20,3:1@0 addflakes=15,10,4:1@0 addflakes=15,15,5:1@0 addflakes=15,20,6:1@0 addflakes=20,10,7:1@0 addflakes=20,15,8:1@0 addflakes=20,20,9:1@0
 
 % Sierpinski XOR rule tiles by themselves
-xgrow XOR Gse=7 Gmc=12 block=3 seed=130,130,1
+xgrow XOR Gse=7 Gmc=12 block=2 seed=130,130,1
 xgrow XOR addflakes=130,130,1:100@24
 
 % Sierpinski growth
-xgrow sierpinski Gse=7 Gmc=12 block=3
-xgrow sierpinski Gse=10 Gmc=19.8 block=3
+xgrow sierpinski Gse=7 Gmc=12 block=2
+xgrow sierpinski Gse=10 Gmc=19.8 block=2
 xgrow sierpinksi T=2
 
 % hydrolysis of tiles with mismatched input sticky ends -- helps! (but it's unstable)
-xgrow sierpinski Gse=7 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=10
+xgrow sierpinski Gse=7 Gmc=12 block=2 Gam=7 Gseh=3.5 Gao=10
 
 % ...but not if reactions can't distinguish input from output sides
-xgrow sierpinski Gse=7 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=0
+xgrow sierpinski Gse=7 Gmc=12 block=2 Gam=7 Gseh=3.5 Gao=0
 
 % ...(just a little goes a long way, near the melting transition)
-xgrow sierpinski Gse=6.2 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=2
+xgrow sierpinski Gse=6.2 Gmc=12 block=2 Gam=7 Gseh=3.5 Gao=2
 
 % ...are the proofreading tiles stable to hydrolysis?
-xgrow sierpinski2x2 Gse=6.2 Gmc=12 block=3 Gam=7 Gseh=3.5 Gao=2
+xgrow sierpinski2x2 Gse=6.2 Gmc=12 block=2 Gam=7 Gseh=3.5 Gao=2
 
 
 % transmittable hydrolysis can lead to dynamic instability
-xgrow sierpinski Gse=7 Gmc=13.5 block=3 Gseh=6 Gah=14 Gas=25
+xgrow sierpinski Gse=7 Gmc=13.5 block=2 Gseh=6 Gah=14 Gas=25
 
 % ... or to weirdness
-xgrow sierpinski Gse=7 Gmc=12 block=3 Gseh=5 Gah=14
+xgrow sierpinski Gse=7 Gmc=12 block=2 Gseh=5 Gah=14
 
 % infinite binary counter
-xgrow BinaryCounter Gse=10 Gmc=19.8 block=3
+xgrow BinaryCounter Gse=10 Gmc=19.8 block=2
 
 
 %%% irreversible Tile Assembly Model
@@ -89,6 +89,6 @@ xgrow barcode T=1 seed=130,130,1
 
 %%%%% multiple flakes
 
-xgrow barcode block=3 Gmc=15 Gse=10 addflakes=130,130,1:100@24
+xgrow barcode block=2 Gmc=15 Gse=10 addflakes=130,130,1:100@24
 
-xgrow barcode block=3 Gmc=15 Gse=10 addflakes=130,130,1:1@20 addflakes=130,130,1:1@21 addflakes=130,130,1:1@22 addflakes=130,130,1:1@23
+xgrow barcode block=2 Gmc=15 Gse=10 addflakes=130,130,1:1@20 addflakes=130,130,1:1@21 addflakes=130,130,1:1@22 addflakes=130,130,1:1@23
