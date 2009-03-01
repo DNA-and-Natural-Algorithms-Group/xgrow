@@ -1,0 +1,51 @@
+% Example runs I've used in talks  (EW)
+
+% aTAM examples, sierpinski & binary counting patterns (first example starts "paused")
+
+xgrow sierpinski T=2 block=5 size=64 update_rate=10
+xgrow BinaryCounter T=2 block=5 size=64 update_rate=10
+
+% aTAM examples, growing squares and shapes
+
+xgrow UnarySquare T=2 block=10 size=32 update_rate=10
+xgrow UnarySquareBig T=2 block=10 size=32 update_rate=10
+xgrow BinaryCounterSquare.tiles T=2 block=5 size=64 update_rate=100
+xgrow TwoCounterSquareCapped.tiles T=2 block=5 update_rate=500
+xgrow BinaryTree T=2 block=2 size=256 update_rate=1000 seed=250,128,1
+xgrow BinaryTree T=2 block=1 size=256 update_rate=1000 seed=250,128,1
+xgrow BinaryTree T=2 seed=400,250,1
+xgrow BusyBeaver3Square.tiles T=2 block=5 size=64 update_rate=500
+
+% aTAM examples of self-healing
+
+xgrow sierpinski1x1_wb.tiles T=2 block=5 size=64 update_rate=15000 seed=60,60,1 
+xgrow sierpinski1x1_wb.tiles T=2 block=5 size=64 update_rate=15000 seed=60,60,1 blast_rate_alpha=0.0001 fission 
+xgrow sierpinski2x2indestructible_seed.tiles T=2 size=64 block=5 importfile=UL.seed pause &
+xgrow sierpinski2x2indestructible_seed.tiles T=2 size=64 block=5 importfile=UL.seed update_rate=15000 blast_rate_alpha=0.0001 fission wander pause &
+xgrow sierpinski3x3heal_perfect.tiles T=2 block=5 size=64 update_rate=15000 seed=60,60,5 blast_rate_alpha=0.0001 fission 
+
+xgrow counter2x2indestructible_seed.tiles T=2 size=64 block=5 importfile=ULcounter.seed pause &
+xgrow counter2x2indestructible_seed.tiles T=2 size=64 block=5 importfile=ULcounter.seed update_rate=15000 blast_rate_alpha=0.0001 fission wander pause &
+xgrow counter3x3heal_perfect.tiles T=2 block=5 size=64 update_rate=15000 seed=60,60,5 blast_rate_alpha=0.0001 fission 
+
+% kTAM examples of regular and proofreading sierpinski patterns 
+% (these start "paused".  also, you need to cool it down a bit before growth begins)
+
+xgrow sierpinski block=5 size=64 Gmc=12.4 Gse=6.1
+xgrow sierpinski block=5 size=64 Gmc=17 Gse=8.4
+xgrow sierpinski block=5 size=64 Gmc=21.6 Gse=10.7
+
+xgrow sierpinski block=3 size=128 Gmc=12.4 Gse=6.2
+xgrow sierpinski block=3 size=128 Gmc=17 Gse=8.4
+xgrow sierpinski block=3 size=128 Gmc=21.6 Gse=10.8
+
+xgrow sierpinski2x2 block=3 size=128 Gmc=17 Gse=8.4
+
+xgrow sierpinski3x3_wb block=3 size=128 Gmc=17 Gse=8.4
+
+
+
+
+
+
+

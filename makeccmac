@@ -1,8 +1,0 @@
-
-# note that I had to install glib-2.0, and I did so with FinkCommander.  So the includes ended up in /sw!!!
-# rebecca's makefile didn't know where to find it, hence this file.  oddly, I also had to make a link.  weird.
-# [Erik-Winfrees-Computer:/usr/include] winfree% sudo ln -s /sw/include/glib-2.0 .
-
-
-gcc -O -Wall -g -o xgrow xgrow.c grow.c xgrow-tests.c -I/usr/X11R6/include -L/usr/X11R6/lib -lX11 -lm -lglib-2.0 -I/sw/include/glib-2.0 -I/sw/lib/glib-2.0/include -L/sw/lib
-

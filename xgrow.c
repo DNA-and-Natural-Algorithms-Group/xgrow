@@ -220,7 +220,7 @@ allowing disconnected flakes.
    component, not component connected to the seed
 
 
-Compiling:  see makecc and makeccprof and makeccefence
+Compiling:  run "make"
 
 */
 
@@ -595,10 +595,16 @@ int parse_arg_line(char *arg)
 	 habits with non-alphabetic characters */
       newline[0] = 10;
       newline[1] = 0;
-      if (strncmp(arg,"importfile=",11)==0)
-	import_fp = fopen(strtok(p,newline), "r");
-      else
+      if (strncmp(arg,"importfile=",11)==0) {
+        char imp_fn[256], *arg_fn;
+	import_fp = fopen(arg_fn=strtok(p,newline), "r");
+        if (import_fp == NULL) { sprintf(&imp_fn[0],"%s",arg_fn); import_fp = fopen(&imp_fn[0],"r"); }
+        if (import_fp == NULL) { sprintf(&imp_fn[0],"%s.seed",arg_fn); import_fp = fopen(&imp_fn[0],"r"); }
+        if (import_fp == NULL) { sprintf(&imp_fn[0],"tilesets/%s",arg_fn); import_fp = fopen(&imp_fn[0],"r"); }
+        if (import_fp == NULL) { sprintf(&imp_fn[0],"tilesets/%s.seed",arg_fn); import_fp = fopen(&imp_fn[0],"r"); }
+      } else {
 	import_fp = fopen("xgrow_export_output", "r");
+      }
       /* If the file does not exist. */
       if (import_fp == NULL) 
 	{
