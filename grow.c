@@ -2101,7 +2101,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
     }
 
     choose_cell(fp, &i, &j, &n); chunk=0;
-    printf("Chose cell %d,%d tile %d.\n",i,j,n);
+    // printf("Chose cell %d,%d tile %d.\n",i,j,n);
     if (fission_allowed==2 && n==0) { // must choose either single tile, EW/NS pairs, or block
       double sum=0, rsum; 
       sum = calc_rates(fp,i,j,tp->rv); 

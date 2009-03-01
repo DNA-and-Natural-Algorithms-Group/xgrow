@@ -169,6 +169,12 @@ declines by a time constant until it reaches its final value.  It shouldn't be h
 12/12/05 Fixed up the handling of Gse and tp->Gse, which was leading to the GUI display being occasionally off. -EW
 12/15/05 Added flake loading option to offset the seed assembly position -EW
 
+.... various undocumented improvements by Erik Winfree (EW), Rebecca Schulman (RS), and Constantine Evans (CE) ....
+
+2008 Changed tile and bond data type to short int, for > 256 types.  For smaller memory footprint, xgrow-small is avalailable. (CE)
+
+3/1/09 Fixed aTAM bug where it hangs if there's no possible move.  (EW & CE)
+
 TO DO List:
   
 * If the tile set specifies a stoichiometry of 0 (e.g. for the seed), the simulation can freak out.
@@ -194,14 +200,13 @@ the file.  (compatibility with existing xgrow tile files must be maintained.)
 * Is it possible to reverse the random-number generator, so as to "reverse time"?
 That way, you see something interesting, and you can ask "How did that happen again?"
 In that case, it would be useful to have GUI to change update_rate.
-* Only 255 tile types are allowed for.  This may soon be limiting.
 * Would be nice to change other parameters in addition to Gse, Gmc.  E.g. inc/dec by
 left/right mouse click on the numbers in the display.
 * Something like "multiflakes=100@27" argument does "the right thing"
 by adding 100 flakes for each tile type, at Gfc=27+stoich,
 with each seed centered in the field,
 defaults to "wander"
-* Event counter should simply have more bits!
+* Event counter should simply have more bits!  Currently, it wraps around...
 * In no-fission mode, one can get caught up on very fast -- but disallowed --
 dissociations, which must be rejected.  This is not good. 
 (not sure if this is still true.  EW 11/10/03  I think it is fixed. EW 1/9/04)
@@ -212,7 +217,6 @@ dissociations, which must be rejected.  This is not good.
 * Very Much want to implement a Surface mode, with Gsf for the surface, and
 allowing disconnected flakes.
 
-* hangs bad when aTAM and no moves available [at least, I think that's why]
 * named-bonds don't work for }(red) with no space
 * importfile has problems.
 * for blast, need option that ignores seed
