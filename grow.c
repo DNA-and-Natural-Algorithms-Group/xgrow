@@ -83,7 +83,7 @@ void *calloc_err (size_t nmemb, size_t size) {
 }
 
 /* sets up data structures for a flake -- cell field, hierarchical rates... */
-flake *init_flake(unsigned int P, unsigned int N, 
+flake *init_flake(Trep P, Trep N, 
 		  int seed_i, int seed_j, int seed_n, double Gfc)
 {
   int i,j,p;
@@ -95,10 +95,10 @@ flake *init_flake(unsigned int P, unsigned int N,
   //  printf("Making flake %d x %d, %d tiles, seed=%d,%d,%d @ %6.2f\n",
   //         size,size,N,seed_i,seed_j,seed_n,Gfc);
 
-  fp->cell = (unsigned int **)calloc_err(sizeof(int *),2+size);
+  fp->cell = (Trep **)calloc_err(sizeof(Trep *),2+size);
   for (i=0;i<2+size;i++) 
-    fp->cell[i]=(unsigned int *)calloc_err(sizeof(int),2+size);
-  fp->rate = (double ***)calloc_err(sizeof(int **),P+1);
+    fp->cell[i]=(Trep *)calloc_err(sizeof(Trep),2+size);
+  fp->rate = (double ***)calloc_err(sizeof(Trep **),P+1);
   fp->empty = (int ***)calloc_err(sizeof(int **),P+1);
 
   for (p=0;p<=P;p++) {
@@ -180,7 +180,7 @@ void free_tree(flake_tree *ftp)
 }
 
 /* sets up data structures for tube -- tile set, params, scratch, stats  */
-tube *init_tube(unsigned int P, unsigned int N, int num_bindings)
+tube *init_tube(Trep P, Trep N, int num_bindings)
 {
   int i,j,n,m;
   int size = (1<<P);
@@ -551,7 +551,7 @@ void add_flake_to_reserve_list(flake *fp) {
   // First clear flake
   size = (1<< (fp->P));
   for (i=0;i<2+size;i++) 
-    memset(fp->cell[i],0,2+size*sizeof(int));
+    memset(fp->cell[i],0,2+size*sizeof(Trep));
   for (p=0;p<=fp->P;p++) {
     size = (1<<p);
     for (i=0;i<size;i++) {
@@ -673,7 +673,7 @@ void remove_flake(flake *fp) {
 double calc_rates(flake *fp, int i, int j, double *rv)
 {
   int n,mi,ei,hi,mo,eo,ho; double r, sumr; tube *tp=fp->tube;
-  unsigned int nN,nE,nS,nW; int N=fp->N; int size=(1<<fp->P);
+  Trep nN,nE,nS,nW; int N=fp->N; int size=(1<<fp->P);
   int seedchunk[4]; 
 
   if (rv!=NULL) for (n=0;n<=N+4;n++) rv[n]=0;
@@ -848,7 +848,7 @@ void update_tube_rates(flake *fp)
 } // update_tube_rates()
 
 
-int between_double_tile (flake *fp, tube *tp, int i, int j, unsigned int n) {
+int between_double_tile (flake *fp, tube *tp, int i, int j, Trep n) {
   if (n == 0) {
     return (tp->dt_right[fp->Cell(i,j-1)] || tp->dt_left[fp->Cell(i,j+1)]);
   }
@@ -868,7 +868,7 @@ int between_double_tile (flake *fp, tube *tp, int i, int j, unsigned int n) {
 /* but since it might be called out of range in FILL, we fix it up.   */
 /* BUG: changes in concentration should change G for every tile, but  */
 /* we don't update G automatically; also, if conc[n]==0, nan results. */
-void change_cell(flake *fp, int i, int j, unsigned int n)
+void change_cell(flake *fp, int i, int j, Trep n)
 {
   int size=(1<<fp->P);  tube *tp=fp->tube; 
   //  printf("Entering change cell to change flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
@@ -1925,7 +1925,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
     assert (total_rate >= 0);
     new_flake_rate = tp->k*2*pow(tp->conc[0],2)*tp->tinybox*AVOGADROS_NUMBER ;
     total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
-
+	if (total_rate + total_blast_rate + new_flake_rate == 0) break;
     dt = -log(drand48()) / (total_rate + total_blast_rate + new_flake_rate);
     event_choice = drand48()*(total_rate+total_blast_rate+new_flake_rate);
     
@@ -2052,7 +2052,6 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
       tp->t += dt;
     }
     else { // blast error case and new flake case above, kTAM / aTAM below
-	
      fp=choose_flake(tp);
      assert (!tp->dt_left[fp->Cell(fp->seed_i,fp->seed_j)]);
      assert (!tp->tinybox ||
@@ -2102,7 +2101,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
     }
 
     choose_cell(fp, &i, &j, &n); chunk=0;
-    //printf("Chose cell %d,%d tile %d.\n",i,j,n);
+    printf("Chose cell %d,%d tile %d.\n",i,j,n);
     if (fission_allowed==2 && n==0) { // must choose either single tile, EW/NS pairs, or block
       double sum=0, rsum; 
       sum = calc_rates(fp,i,j,tp->rv); 
@@ -2370,13 +2369,13 @@ void linear_simulate(double ratek, double Gmc, double Gse,
 		     double tmax, int emax, int smax)
 {
   double r,t; int e, s;
-  unsigned int *tile;
+  Trep *tile;
   double k, rf, rr1, rr2, pr, pf;
   int i, errs; 
 
   if (tmax==0 || emax==0 || smax==0) return;
 
-  tile = calloc(smax,sizeof(int));
+  tile = calloc(smax,sizeof(Trep));
   /* tile 1 = "A", tile 2 = "B", and we will start with "A" */
 
   rf = ratek*exp(-Gmc); rr1 = ratek*exp(-Gse); rr2 = ratek*exp(-2*Gse);

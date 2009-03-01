@@ -265,7 +265,11 @@ Compiling:  run "make"
 # define BARLEFT 4
 # define XHEIGHT 40
 # define NSIZE 42
-# define MAXTILETYPES USHRT_MAX
+#ifdef SMALL
+	# define MAXTILETYPES 256
+#else
+	# define MAXTILETYPES USHRT_MAX
+#endif
 
 long int translate[MAXTILETYPES]; /* for converting colors */
 int paused=0, errorc=0, errors=0, sampling=0;
@@ -659,6 +663,12 @@ void read_tilefile(FILE *tilefp)
     { fprintf(stderr,"Reading tile file: expected num binding types.\n"); exit(-1); } 
   rsc;
 
+  if (N > MAXTILETYPES) 
+    { fprintf(stderr,"Reading tile file: too many tile types.\n"); exit(-1); }
+  rsc;
+  if (num_bindings > MAXTILETYPES) 
+    { fprintf(stderr,"Reading tile file: too many binding types.\n"); exit(-1); } 
+  rsc;
 
   btnames=(char **)malloc((num_bindings+1)*sizeof(char *));  
   for (k=0;k<=num_bindings;k++) btnames[k]="null";   // until overwritten by tile file specification;
@@ -2150,7 +2160,7 @@ int main(int argc, char **argv)
    } else {
      if (0==paused && 0==mousing && !XPending(display)) {
        simulate(tp,update_rate,tmax,emax,smax,fsmax,smin);
-       fp = tp->flake_list;
+	   fp = tp->flake_list;
        assert (!fp || !tp->tinybox ||
 	       ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
        if (tracefp!=NULL) write_datalines(tracefp,"\n");

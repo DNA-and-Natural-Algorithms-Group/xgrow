@@ -10,6 +10,12 @@
 #define __GROW_H__
 
 
+#ifndef SMALL
+#define Trep unsigned int
+#else
+#define Trep unsigned char
+#endif
+
 #define DEBUG 1
 #define dprintf if (DEBUG) printf
 #define d2printf if (DEBUG==2) printf
@@ -97,9 +103,9 @@ typedef struct flake_struct {
   struct tube_struct *tube; /* contains tile set, reaction conditions,     */
                        /* time, event stats, scratch space...              */
                        /* all flakes are the same size, 2^(tube->P)        */
-  unsigned int N, P;  /* # non-empty tile types; 2^P active cell grid     */
+  Trep N, P;  /* # non-empty tile types; 2^P active cell grid     */
 
-  unsigned int **cell;/* tile type at [i][j]; array of arrays             */
+  Trep **cell;/* tile type at [i][j]; array of arrays             */
                        /* note 0 <= i,j <= 2^P+1, allowing for borders     */
   double ***rate;      /* hierarchical rates for events in non-empty cells */
                        /* rate[p][i][j] has 0 <= i,j < 2^p                 */
@@ -115,7 +121,7 @@ typedef struct flake_struct {
                        /* are incorporated; if 0, then no depletion occurs */
   double G;            /* cumulative energy of tile flake                  */
   int seed_i,seed_j;   /* special site which won't change                  */
-  unsigned int seed_n; 
+  Trep seed_n; 
   long int events;     /* total on, off, hydrolysis events in this flake   */
   int tiles;           /* total number of tiles in this flake              */
   int seed_is_double_tile;          /* If the seed is a double tile, it will be a monomer,
@@ -180,7 +186,7 @@ typedef struct tube_struct {
   double Gse;          /* Current Gse                                      */
   double Gmc;          /* Gmc                                              */
   double next_update_t;   /* Precompute next update time                   */
-  unsigned int N, P;  /* # non-empty tile types; 2^P active cell grid     */
+  Trep N, P;  /* # non-empty tile types; 2^P active cell grid     */
 
   int num_flakes;      /* how many flakes do we have here?                 */
   int total_flakes;    /* how many flakes have we made, total 
@@ -193,7 +199,7 @@ typedef struct tube_struct {
 			   new flakes */
     default_seed_j;
   double initial_Gfc;
-  unsigned char hydro; /* does this tile set use hydrolysis rules?         */
+  Trep hydro; /* does this tile set use hydrolysis rules?         */
                        /* in this case, N must be even, and tiles          */
                        /* 1...N/2 are non-hydrolized; tiles N/2+1...N are  */
                        /* hydrolized, with weaker sticky end strengths     */
@@ -253,8 +259,8 @@ extern int *present_list;
 extern int present_list_len;
 extern int untiltiles,untiltilescount;
 
-tube *init_tube(unsigned int P, unsigned int N, int num_bindings);
-flake *init_flake(unsigned int P, unsigned int N,
+tube *init_tube(Trep P, Trep N, int num_bindings);
+flake *init_flake(Trep P, Trep N,
  int seed_i, int seed_j, int seed_n, double Gfc);
 flake *free_flake(flake *fp);
 void free_tube(tube *tp);
@@ -278,7 +284,7 @@ int calc_perimeter(flake *fp);
 void update_all_rates(tube *tp);
 void update_rates(flake *fp, int ii, int jj);
 void update_tube_rates(flake *fp);
-void change_cell(flake *fp, int i, int j, unsigned int n);
+void change_cell(flake *fp, int i, int j, Trep n);
 void change_seed(flake *fp, int new_i, int new_j);
 int flake_fission(flake *fp, int i, int j);
 void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, int smin);
