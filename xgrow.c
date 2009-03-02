@@ -222,7 +222,9 @@ allowing disconnected flakes.
 * for blast, need option that ignores seed
 * for fission, need option that chooses largest
    component, not component connected to the seed
-
+* program should die when user closes the window, rather than presses "quit"
+* when requested size is larger than the screen, the program should quit rather than 
+   crash.  (See the code near "BadMatch", search for it below.)
 
 Compiling:  run "make"
 
@@ -1868,6 +1870,7 @@ void openwindow(int argc, char **argv)
  }
 #endif
 
+
  /* make the buttons */
  quitbutton=XCreateSimpleWindow(display,window,
 				WINDOWWIDTH-140,WINDOWHEIGHT-124,120,20,2,black,darkcolor);
@@ -1969,6 +1972,7 @@ void openwindow(int argc, char **argv)
  XMapWindow(display,exportbutton);
  XMapWindow(display,playground);
 
+
  /* make image structure */
  /* wait for playground to be displayed before proceeding */
  i=1; /* a flag */
@@ -1983,10 +1987,11 @@ void openwindow(int argc, char **argv)
    }
  
  /* BUG: if real screen is smaller than requested display, */
- /*      then this command causes a core dump.             */
+ /*      then this command causes a "BadMatch" crash.             */
  spinimage=XGetImage((Display *) display, (Drawable) playground,
 		     0,0,block*NCOLS,block*NROWS,
 		     AllPlanes,ZPixmap);
+
  if (NULL==spinimage)
    {fprintf(stderr,"trouble creating image structure\n");
    exit(-1);
@@ -1999,6 +2004,7 @@ void openwindow(int argc, char **argv)
    for (j=0;j<block*NCOLS;j++)
      XPutPixel(spinimage,i,j,translate[0]);
 
+ printf("Onwards at last.\n");
 
 }
 
