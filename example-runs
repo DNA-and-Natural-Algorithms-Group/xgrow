@@ -2,7 +2,7 @@
 % A B tiles, quickly nucleating
 xgrow AB Gse=7 Gmc=11 block=2 seed=130,130,1
 
-% A B tiles, very and only somewhat supersaturated
+% A B tiles, very and only somewhat supersaturated (so you'll have to cool them to get growth started)
 xgrow AB Gse=7 Gmc=13.9 block=2 seed=130,130,1
 xgrow AB Gse=7 Gmc=12 block=2 seed=130,130,1
 xgrow AB Gse=7 Gmc=13 block=2 addflakes=130,130,1:100@18
@@ -52,6 +52,11 @@ xgrow sierpinski Gse=7 Gmc=12 block=2
 xgrow sierpinski Gse=10 Gmc=19.8 block=2
 xgrow sierpinksi T=2
 
+% infinite binary counter
+xgrow BinaryCounter Gse=10 Gmc=19.8 block=2
+
+
+%%%%%%% the hydrolysis model is currently broken %%%%%%%
 % hydrolysis of tiles with mismatched input sticky ends -- helps! (but it's unstable)
 xgrow sierpinski Gse=7 Gmc=12 block=2 Gam=7 Gseh=3.5 Gao=10
 
@@ -64,20 +69,15 @@ xgrow sierpinski Gse=6.2 Gmc=12 block=2 Gam=7 Gseh=3.5 Gao=2
 % ...are the proofreading tiles stable to hydrolysis?
 xgrow sierpinski2x2 Gse=6.2 Gmc=12 block=2 Gam=7 Gseh=3.5 Gao=2
 
-
 % transmittable hydrolysis can lead to dynamic instability
 xgrow sierpinski Gse=7 Gmc=13.5 block=2 Gseh=6 Gah=14 Gas=25
 
 % ... or to weirdness
 xgrow sierpinski Gse=7 Gmc=12 block=2 Gseh=5 Gah=14
 
-% infinite binary counter
-xgrow BinaryCounter Gse=10 Gmc=19.8 block=2
 
+%%%%%%% irreversible Tile Assembly Model   %%%%%%
 
-%%% irreversible Tile Assembly Model
-
-xgrow barseed T=2 block=2 seed=180,180,1
 xgrow barseed T=2 block=2 seed=180,180,5
 xgrow lines1 T=2 block=2 
 xgrow lines2 T=2 block=2
@@ -85,10 +85,11 @@ xgrow lines1 T=1 block=2
 xgrow BinaryCounter T=2 block=2
 xgrow sierpinski T=2
 xgrow AB T=1 seed=130,130,1
-xgrow barcode T=1 seed=130,130,1
+xgrow barcode T=1 seed=130,130,1 block=5
 
-%%%%% multiple flakes
+%%%%% multiple flakes, at different effective concentrations.  
+%%%%% use PAUSE, then next/big/prev to look at the different flakes.
 
-xgrow barcode block=2 Gmc=15 Gse=10 addflakes=130,130,1:100@24
+xgrow barcode block=2 size=128 Gmc=15 Gse=10 addflakes=130,130,1:100@24
 
 xgrow barcode block=2 Gmc=15 Gse=10 addflakes=130,130,1:1@20 addflakes=130,130,1:1@21 addflakes=130,130,1:1@22 addflakes=130,130,1:1@23
