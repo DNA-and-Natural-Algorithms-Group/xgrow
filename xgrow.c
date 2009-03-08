@@ -219,11 +219,15 @@ allowing disconnected flakes.
 
 * importfile has problems.
 * for blast, need option that ignores seed
-* for fission, need option that chooses largest
-   component, not component connected to the seed
-* program should die when user closes the window, rather than presses "quit"
+* for fission, need option that chooses largest component, not component connected to the seed
+* program should die when user closes the window, rather than only when the user presses "quit"
 * when requested size is larger than the screen, the program should quit rather than 
    crash.  (See the code near "BadMatch", search for it below.)
+
+*  The (undocumented) hydrolysis mode is now broken; it crashes.  This model is a 2D generalization of microtubule / actin hydrolysis that leads to treadmilling and dynamic instability; in 1999 I was curious if it could be utilized to decrease error rates.
+*  Xgrow still sometimes hangs (or doesn't allow you to quit) when there is no available move, but it's not obvious when this happens.  Example: "xgrow barseed T=2 block=2 seed=180,180,1"  Here, tile 5 should be the seed.
+*  With multiple flakes, if the simulation is running, only the last flake is shown.  To see other flakes, you have to pause and then use next/big/prev to find one of interest.  But then when you run the simulation again, it pops to the last flake.  I think one would like to keep looking at the same flake you were looking at before pressing RUN.  Example: "xgrow barcode block=2 size=128 Gmc=15 Gse=10 addflakes=130,130,1:100@24"
+
 
 Compiling:  run "make"
 
