@@ -217,7 +217,6 @@ dissociations, which must be rejected.  This is not good.
 * Very Much want to implement a Surface mode, with Gsf for the surface, and
 allowing disconnected flakes.
 
-* named-bonds don't work for }(red) with no space
 * importfile has problems.
 * for blast, need option that ignores seed
 * for fission, need option that chooses largest
@@ -724,9 +723,8 @@ void read_tilefile(FILE *tilefp)
       if (1!=fscanf(tilefp,"%d",&tileb[i][j]))
 	{ fprintf(stderr,"Reading tile file: expected tile %d bond %d value.\n",i,j); exit(-1); } 
      } else {
-      if (1!=fscanf(tilefp,"%s",&s[0]))
+      if (1!=fscanf(tilefp,"%[^} \t]",&s[0]))
 	{ fprintf(stderr,"Reading tile file: expected tile %d bond %d's name.\n",i,j); exit(-1); } 
-      if (s[strlen(s)-1]=='}') { ungetc('}',tilefp); s[strlen(s)-1]=0; }
       for (k=0;k<=num_bindings;k++) if (strcmp(s,btnames[k])==0) break;
       if (k<=num_bindings)
 	{ tileb[i][j]=k; }
