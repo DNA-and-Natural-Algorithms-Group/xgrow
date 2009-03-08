@@ -2002,8 +2002,6 @@ void openwindow(int argc, char **argv)
    for (j=0;j<block*NCOLS;j++)
      XPutPixel(spinimage,i,j,translate[0]);
 
- printf("Onwards at last.\n");
-
 }
 
 void cleanup()
