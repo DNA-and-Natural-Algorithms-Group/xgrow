@@ -1,19 +1,20 @@
 #!/bin/env python
+from nn import *
 
 class Tileset:
-	"""A generator for xgrow tilesets. This takes various forms of inputs, and
-	outputs (with self.generate_tileset) an xgrow-compatible tileset. One
-	needs, essentially, to add tiles and glues, but tiles can be named, edges
-	can be named and can have arbitrary interactions, and so on. Note that ' is
-	considered a special character in bond names, so that the complementarize
-	option can, when False, use bonds without complements using the same data
-	as otherwise. I suggest using the csv module for reading data from
-	spreadsheets; it seems to be a very simple way of working with the data.
-	""" 
-	
-	def __init__(s, complementarize=False, options=[]):
-		# Various options
-		s.options = options
+    """A generator for xgrow tilesets. This takes various forms of inputs, and
+    outputs (with self.generate_tileset) an xgrow-compatible tileset. One
+    needs, essentially, to add tiles and glues, but tiles can be named, edges
+    can be named and can have arbitrary interactions, and so on. Note that ' is
+    considered a special character in bond names, so that the complementarize
+    option can, when False, use bonds without complements using the same data
+    as otherwise. I suggest using the csv module for reading data from
+    spreadsheets; it seems to be a very simple way of working with the data.
+    """ 
+    
+    def __init__(s, complementarize=False, options=[]):
+        # Various options
+        s.options = options
 
         s.tiles = []
         s.dtiles = []
