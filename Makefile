@@ -24,3 +24,5 @@ xgrow-small: xgrow.c grow.c grow.h Makefile
 xgrow-test: xgrow.c grow.c grow.h xgrow-tests.c xgrow-tests.h Makefile
 	gcc -Wall  -O3 -g  -o  xgrow xgrow.c grow.c xgrow-tests.c -DTESTING_OK ${X11_FLAGS}  ${GLIB_CFLAGS} ${GLIB_LIBS} -lm 
 
+clean: 
+	rm -f xgrow xgrow-small 

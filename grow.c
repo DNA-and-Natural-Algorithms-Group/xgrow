@@ -154,6 +154,7 @@ flake *free_flake(flake *fp)
 }
 
 /* for debugging purposes */
+/* FIXME: This appears to be the only place where 64-bit systems will display wierdness. (cge, 091028) */
 void print_tree(flake_tree *ftp, int L, char s)
 { int i;
  for (i=0;i<L;i++) printf(" ");
