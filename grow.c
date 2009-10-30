@@ -819,7 +819,7 @@ void update_rates(flake *fp, int ii, int jj)
       ii = (ii>>1); jj = (jj>>1);
     }
   }
-  assert (fp->rate[0][0][0] >= 0);
+ // assert (fp->rate[0][0][0] >= 0);
 } // update_rates()
 
 void update_tube_rates(flake *fp)
@@ -831,7 +831,7 @@ void update_tube_rates(flake *fp)
  
   oldrate = ftp->rate; oldempty=ftp->empty;
   newrate = fp->rate[0][0][0]; newempty=fp->empty[0][0][0];
-  assert (newrate >= 0);
+  //assert (newrate >= 0);
   while (ftp!=NULL) {
     ftp->rate+=newrate-oldrate;
     ftp->empty+=newempty-oldempty;
@@ -1923,7 +1923,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
       total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
     else
       total_rate = 0;
-    assert (total_rate >= 0);
+    if (total_rate < 0) printf("Total Rate: %f\n",total_rate);
+	//assert (total_rate >= 0);
     new_flake_rate = tp->k*2*pow(tp->conc[0],2)*tp->tinybox*AVOGADROS_NUMBER ;
     total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
 	if (total_rate + total_blast_rate + new_flake_rate == 0) break;
