@@ -1396,11 +1396,15 @@ void closeargs()
 }
 
 // (i,j) should not be empty. returns 0 if OK, 1 if mismatches with E or S or N or W, or unbound s.e.
-#define errortile(i,j) (                                                    \
-         (tileb[fp->Cell(i,j)][1] != tileb[fp->Cell(i,(j)+1)][3] ||         \
-          tileb[fp->Cell(i,j)][3] != tileb[fp->Cell(i,(j)-1)][1] ||         \
-          tileb[fp->Cell(i,j)][0] != tileb[fp->Cell((i)-1,j)][2] ||         \
-          tileb[fp->Cell(i,j)][2] != tileb[fp->Cell((i)+1,j)][0]) ? 1 : 0 ) \
+#define errortile(i,j) (                                                      \
+         ((tileb[fp->Cell(i,j)][1] != tileb[fp->Cell(i,(j)-1)][3] &&           \
+		  (fp->tube->glue)[tileb[fp->Cell(i,j)][1]][tileb[fp->Cell(i,(j)+1)][3]] < 0.8) || \
+		  (tileb[fp->Cell(i,j)][3] != tileb[fp->Cell(i,(j)+1)][1] &&           \
+		  (fp->tube->glue)[tileb[fp->Cell(i,j)][3]][tileb[fp->Cell(i,(j)-1)][1]] < 0.8) || \
+          (tileb[fp->Cell(i,j)][0] != tileb[fp->Cell((i)-1,j)][2] &&           \
+		  (fp->tube->glue)[tileb[fp->Cell(i,j)][0]][tileb[fp->Cell((i)-1,j)][2]] < 0.8) || \
+          (tileb[fp->Cell(i,j)][2] != tileb[fp->Cell((i)+1,j)][0] &&           \
+		  (fp->tube->glue)[tileb[fp->Cell(i,j)][2]][tileb[fp->Cell((i)+1,j)][0]] < 0.8)) ? 1 : 0 )
 
 #define getcolor(i,j) ( (fp->Cell(i,j)==0)? translate[0] : (              \
          (err==1) ? ( errortile(i,j) ? errorcolor : goodcolor ) : (       \

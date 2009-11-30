@@ -89,13 +89,17 @@ double exp(); double log();
 
 #define Mism(fp,i,j,n) (                                                   \
  ((fp->tube->tileb)[n][1] != (fp->tube->tileb)[fp->Cell(i,(j)+1)][3] &&    \
-  (fp->tube->tileb)[n][1]*(fp->tube->tileb)[fp->Cell(i,(j)+1)][3] > 0) +   \
+  (fp->tube->tileb)[n][1]*(fp->tube->tileb)[fp->Cell(i,(j)+1)][3] > 0 &&   \
+  (fp->tube->glue)[(fp->tube->tileb)[n][1]][(fp->tube->tileb)[fp->Cell(i,(j)+1)][3]] < 0.8) +   \
  ((fp->tube->tileb)[n][3] != (fp->tube->tileb)[fp->Cell(i,(j)-1)][1] &&    \
-  (fp->tube->tileb)[n][3]*(fp->tube->tileb)[fp->Cell(i,(j)-1)][1] > 0) +   \
+  (fp->tube->tileb)[n][3]*(fp->tube->tileb)[fp->Cell(i,(j)-1)][1] > 0 &&   \
+  (fp->tube->glue)[(fp->tube->tileb)[n][3]][(fp->tube->tileb)[fp->Cell(i,(j)-1)][1]] < 0.8) +   \
  ((fp->tube->tileb)[n][2] != (fp->tube->tileb)[fp->Cell((i)+1,j)][0] &&    \
-  (fp->tube->tileb)[n][2]*(fp->tube->tileb)[fp->Cell((i)+1,j)][0] > 0) +   \
+  (fp->tube->tileb)[n][2]*(fp->tube->tileb)[fp->Cell((i)+1,j)][0] > 0 &&   \
+  (fp->tube->glue)[(fp->tube->tileb)[n][2]][(fp->tube->tileb)[fp->Cell((i)+1,j)][0]] < 0.8) +   \
  ((fp->tube->tileb)[n][0] != (fp->tube->tileb)[fp->Cell((i)-1,j)][2] &&    \
-  (fp->tube->tileb)[n][0]*(fp->tube->tileb)[fp->Cell((i)-1,j)][2] > 0) )
+  (fp->tube->tileb)[n][0]*(fp->tube->tileb)[fp->Cell((i)-1,j)][2] > 0 && \
+  (fp->tube->glue)[(fp->tube->tileb)[n][0]][(fp->tube->tileb)[fp->Cell((i)-1,j)][2]] < 0.8) )   
 
 
 
