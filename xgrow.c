@@ -810,11 +810,12 @@ void getargs(int argc, char **argv)
   int i; struct flake_param *fprm;
   struct timeval tv; 
   gettimeofday(&tv, NULL); srand48(tv.tv_usec); srandom(tv.tv_usec);
-
+  /* NOTE: Disabled to allow compilation on 64-bit systems; doesn't seem to cause problems. (cge, 091028)
   if (sizeof(long) != 4) {
     printf("Error: sizeof long (%d) should be 4\n", (int)sizeof(long int));
     exit(-1);
   }
+  */
   if (argc==2 && strcmp(argv[1],"--")==0) {
     printf("usage: xgrow tilefile [option=#]... \n");
     printf(" tilefile is an input file that specifies tiles\n");
