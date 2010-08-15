@@ -1775,6 +1775,7 @@ void openwindow(int argc, char **argv)
  XEvent report;
  XColor xcolor,colorcell;
  Colormap cmap;
+ char *buffer;
  int i,j;
 # define icon_bitmap_width 16
 # define icon_bitmap_height 16
@@ -1989,18 +1990,15 @@ void openwindow(int argc, char **argv)
      }
    }
  
- /* BUG: if real screen is smaller than requested display, */
- /*      then this command causes a "BadMatch" crash.             */
- spinimage=XGetImage((Display *) display, (Drawable) playground,
-		     0,0,block*NCOLS,block*NROWS,
-		     AllPlanes,ZPixmap);
-
+ /* FIXME: I Don't know why 6 is the right value here!? 8 doesn't work */
+ buffer = malloc( block*block*NROWS*NCOLS*depth/6 );
+ spinimage=XCreateImage(display, CopyFromParent, depth, ZPixmap, 0, buffer,  block*NCOLS, block*NROWS, 32, 0);
+ XInitImage(spinimage);
+ 
  if (NULL==spinimage)
    {fprintf(stderr,"trouble creating image structure\n");
    exit(-1);
    } 
- /* make sure everything get written first time */
- //  for (i=0;i<block*block*VOLUME;i++) spinimage->data[i]=translate[0];
 
  /* make sure everything get written first time */
  for (i=0;i<block*NROWS;i++) 
