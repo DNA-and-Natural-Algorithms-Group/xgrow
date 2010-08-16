@@ -158,15 +158,15 @@ flake *free_flake(flake *fp)
 void print_tree(flake_tree *ftp, int L, char s)
 { int i;
  for (i=0;i<L;i++) printf(" ");
- printf("node %d %c (%d): empty %d, rate %g: L(%d) R(%d) U(%d)\n",
-	L,s,(int)ftp,ftp->empty,ftp->rate,
-	(int)ftp->left, (int)ftp->right, (int)ftp->up);
+ printf("node %d %c (%p): empty %d, rate %g: L(%p) R(%p) U(%p)\n",
+	L,s,ftp,ftp->empty,ftp->rate,
+	ftp->left, ftp->right, ftp->up);
  if (ftp->left!=NULL) print_tree(ftp->left,L+1,'L');
  if (ftp->right!=NULL) print_tree(ftp->right,L+1,'R');
  if (ftp->left==NULL) { 
    for (i=0;i<=L;i++) printf(" ");
-   printf("flake %d: %d tiles: tree_node(%d)\n",
-	  (int)ftp->fp->flake_ID, ftp->fp->tiles, (int)ftp->fp->tree_node);
+   printf("flake %d: %d tiles: tree_node(%p)\n",
+	  ftp->fp->flake_ID, ftp->fp->tiles, ftp->fp->tree_node);
  }
 }
 
