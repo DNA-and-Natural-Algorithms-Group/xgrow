@@ -90,16 +90,16 @@ double exp(); double log();
 #define Mism(fp,i,j,n) (                                                   \
  ((fp->tube->tileb)[n][1] != (fp->tube->tileb)[fp->Cell(i,(j)+1)][3] &&    \
   (fp->tube->tileb)[n][1]*(fp->tube->tileb)[fp->Cell(i,(j)+1)][3] > 0 &&   \
-  (fp->tube->glue)[(fp->tube->tileb)[n][1]][(fp->tube->tileb)[fp->Cell(i,(j)+1)][3]] < 0.8) +   \
+  (fp->tube->glue)[(fp->tube->tileb)[n][1]][(fp->tube->tileb)[fp->Cell(i,(j)+1)][3]] < min_strength) +   \
  ((fp->tube->tileb)[n][3] != (fp->tube->tileb)[fp->Cell(i,(j)-1)][1] &&    \
   (fp->tube->tileb)[n][3]*(fp->tube->tileb)[fp->Cell(i,(j)-1)][1] > 0 &&   \
-  (fp->tube->glue)[(fp->tube->tileb)[n][3]][(fp->tube->tileb)[fp->Cell(i,(j)-1)][1]] < 0.8) +   \
+  (fp->tube->glue)[(fp->tube->tileb)[n][3]][(fp->tube->tileb)[fp->Cell(i,(j)-1)][1]] < min_strength) +   \
  ((fp->tube->tileb)[n][2] != (fp->tube->tileb)[fp->Cell((i)+1,j)][0] &&    \
   (fp->tube->tileb)[n][2]*(fp->tube->tileb)[fp->Cell((i)+1,j)][0] > 0 &&   \
-  (fp->tube->glue)[(fp->tube->tileb)[n][2]][(fp->tube->tileb)[fp->Cell((i)+1,j)][0]] < 0.8) +   \
+  (fp->tube->glue)[(fp->tube->tileb)[n][2]][(fp->tube->tileb)[fp->Cell((i)+1,j)][0]] < min_strength) +   \
  ((fp->tube->tileb)[n][0] != (fp->tube->tileb)[fp->Cell((i)-1,j)][2] &&    \
   (fp->tube->tileb)[n][0]*(fp->tube->tileb)[fp->Cell((i)-1,j)][2] > 0 && \
-  (fp->tube->glue)[(fp->tube->tileb)[n][0]][(fp->tube->tileb)[fp->Cell((i)-1,j)][2]] < 0.8) )   
+  (fp->tube->glue)[(fp->tube->tileb)[n][0]][(fp->tube->tileb)[fp->Cell((i)-1,j)][2]] < min_strength) )   
 
 
 
@@ -259,6 +259,7 @@ extern double blast_rate_alpha;
 extern double blast_rate_beta;
 extern double blast_rate_gamma;
 extern double blast_rate;
+extern double min_strength;
 extern int *present_list;
 extern int present_list_len;
 extern int untiltiles,untiltilescount;

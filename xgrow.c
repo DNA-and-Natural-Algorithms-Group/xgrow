@@ -326,6 +326,7 @@ double blast_rate_gamma=0;
 double blast_rate=0;
 int first_tile, second_tile;
 int double_tiles=0;
+double min_strength=1;
 
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
@@ -631,6 +632,7 @@ int parse_arg_line(char *arg)
 	fparam->Gfc=0;
       fparam->N = count_flakes(import_fp);
     }
+  else if (strncmp(arg,"min_strength=",12)==0) {min_strength=atof(&arg[4]);}
   else {
     fprintf(stderr,"Could not parse argument '%s'\n",arg); 
     return -1;
@@ -856,6 +858,7 @@ void getargs(int argc, char **argv)
     printf("  blast_rate_gamma       rate also scales as exp(-gamma*(k-1)) [default=0]\n");
     printf("  zero_bonds            can tiles be added if they bond with 0 strength?\n");
     printf("  no_zero_bonds          the answer is no [default]\n");
+    printf("  min_strength=         set minimum bond energy below which attachments are considered incorrect\n");
     printf("  periodic              periodic boundary conditions\n");
     printf("  -linear               simulate linear A B tiles, write errs > stdout \n");
     printf("  -nw                   no X window (only if ?max set)\n");
@@ -1398,13 +1401,13 @@ void closeargs()
 // (i,j) should not be empty. returns 0 if OK, 1 if mismatches with E or S or N or W, or unbound s.e.
 #define errortile(i,j) (                                                      \
          ((tileb[fp->Cell(i,j)][1] != tileb[fp->Cell(i,(j)-1)][3] &&           \
-		  (fp->tube->glue)[tileb[fp->Cell(i,j)][1]][tileb[fp->Cell(i,(j)+1)][3]] < 0.8) || \
+		  (fp->tube->glue)[tileb[fp->Cell(i,j)][1]][tileb[fp->Cell(i,(j)+1)][3]] < min_strength) || \
 		  (tileb[fp->Cell(i,j)][3] != tileb[fp->Cell(i,(j)+1)][1] &&           \
-		  (fp->tube->glue)[tileb[fp->Cell(i,j)][3]][tileb[fp->Cell(i,(j)-1)][1]] < 0.8) || \
+		  (fp->tube->glue)[tileb[fp->Cell(i,j)][3]][tileb[fp->Cell(i,(j)-1)][1]] < min_strength) || \
           (tileb[fp->Cell(i,j)][0] != tileb[fp->Cell((i)-1,j)][2] &&           \
-		  (fp->tube->glue)[tileb[fp->Cell(i,j)][0]][tileb[fp->Cell((i)-1,j)][2]] < 0.8) || \
+		  (fp->tube->glue)[tileb[fp->Cell(i,j)][0]][tileb[fp->Cell((i)-1,j)][2]] < min_strength) || \
           (tileb[fp->Cell(i,j)][2] != tileb[fp->Cell((i)+1,j)][0] &&           \
-		  (fp->tube->glue)[tileb[fp->Cell(i,j)][2]][tileb[fp->Cell((i)+1,j)][0]] < 0.8)) ? 1 : 0 )
+		  (fp->tube->glue)[tileb[fp->Cell(i,j)][2]][tileb[fp->Cell((i)+1,j)][0]] < min_strength)) ? 1 : 0 )
 
 #define getcolor(i,j) ( (fp->Cell(i,j)==0)? translate[0] : (              \
          (err==1) ? ( errortile(i,j) ? errorcolor : goodcolor ) : (       \
