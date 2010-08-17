@@ -818,7 +818,7 @@ void update_rates(flake *fp, int ii, int jj)
       ii = (ii>>1); jj = (jj>>1);
     }
   }
-  if !(fp->rate[0][0][0] >= 0) printf("ERROR: fp->rate[0][0][0] < 0 in update_rates.\n")
+  if (fp->rate[0][0][0] < 0) printf("ERROR: fp->rate[0][0][0] < 0 in update_rates.\n");
 } // update_rates()
 
 void update_tube_rates(flake *fp)
