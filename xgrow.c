@@ -632,7 +632,7 @@ int parse_arg_line(char *arg)
 	fparam->Gfc=0;
       fparam->N = count_flakes(import_fp);
     }
-  else if (strncmp(arg,"min_strength=",12)==0) {min_strength=atof(&arg[4]);}
+  else if (strncmp(arg,"min_strength=",12)==0) {min_strength=atof(&arg[13]);}
   else {
     fprintf(stderr,"Could not parse argument '%s'\n",arg); 
     return -1;
@@ -1411,7 +1411,7 @@ void closeargs()
 		  (fp->tube->glue)[tileb[fp->Cell(i,j)][2]][tileb[fp->Cell((i)+1,j)][0]] < min_strength) || \
          (tileb[fp->Cell(i,j)][0] != tileb[fp->Cell((i)-1,j)][2] &&           \
            tileb[fp->Cell(i,j)][0]*tileb[fp->Cell((i)-1,(j))][2] > 0 &&   \
-		  (fp->tube->glue)[tileb[fp->Cell(i,j)][2]][tileb[fp->Cell((i)-1,j)][2]] < min_strength) ) ? 1 : 0 )
+		  (fp->tube->glue)[tileb[fp->Cell(i,j)][0]][tileb[fp->Cell((i)-1,j)][2]] < min_strength) ) ? 1 : 0 )
 
 #define getcolor(i,j) ( (fp->Cell(i,j)==0)? translate[0] : (              \
          (err==1) ? ( errortile(i,j) ? errorcolor : goodcolor ) : (       \
