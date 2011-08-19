@@ -18,6 +18,9 @@ GLIB_LIBS=`${PKG_CONFIG} --libs glib-2.0`
 xgrow: xgrow.c grow.c grow.h Makefile
 	gcc -Wall -g -O3 -o  xgrow xgrow.c grow.c  ${X11_FLAGS} -lm 
 
+xgrow-debug: xgrow.c grow.c grow.h Makefile
+	gcc -Wall -g -o  xgrow xgrow.c grow.c  ${X11_FLAGS} -lm 
+
 xgrow-small: xgrow.c grow.c grow.h Makefile
 	gcc -Wall -g -O3 -o  xgrow-small xgrow.c grow.c -DSMALL ${X11_FLAGS} -lm 
 

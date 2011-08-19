@@ -831,7 +831,7 @@ void update_tube_rates(flake *fp)
   oldrate = ftp->rate; oldempty=ftp->empty;
   newrate = fp->rate[0][0][0]; newempty=fp->empty[0][0][0];
   
-  if (newrate <= 0) printf("ERROR: newrate <= 0 in update_tube_rates.\n");
+  //if (newrate <= 0) printf("ERROR: newrate <= 0 in update_tube_rates.\n");
   
   while (ftp!=NULL) {
     ftp->rate+=newrate-oldrate;

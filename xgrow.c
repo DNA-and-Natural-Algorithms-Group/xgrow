@@ -517,7 +517,7 @@ int parse_arg_line(char *arg)
   }
   else if (strncmp(arg,"update_rate=",12)==0) 
     update_rate=MAX(1,MIN(atol(&arg[12]),10000000));
-  else if (strncmp(arg,"tracefile=",10)==0) tracefp=fopen(&arg[10], "a");
+  else if (strncmp(arg,"tracefile=",10)==0) tracefp=fopen(strtok(&arg[10],newline), "a");
   else if (strncmp(arg,"movie",5)==0) { export_mode=2; export_movie=1; }
   else if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
   else if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
