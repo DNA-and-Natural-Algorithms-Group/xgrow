@@ -378,14 +378,15 @@ int parse_arg_line(char *arg)
   else if (strncmp(arg,"k=",2)==0) ratek=atof(&arg[2]);
   else if (strncmp(arg,"Gmc=",4)==0) Gmc=atof(&arg[4]);
   else if (strncmp(arg,"Gse=",4)==0) Gse=atof(&arg[4]);
-  else if (strncmp(arg,"Gmch=",5)==0) {hydro=1; Gmch=atof(&arg[5]);}
-  else if (strncmp(arg,"Gseh=",5)==0) {hydro=1; Gseh=atof(&arg[5]);}
-  else if (strncmp(arg,"Ghyd=",5)==0) {hydro=1; Ghyd=atof(&arg[5]);}
+  // FIXME FIXME FIXME: HYDRO OPTIONS ARE DISABLED
+  //else if (strncmp(arg,"Gmch=",5)==0) {hydro=1; Gmch=atof(&arg[5]);}
+  //else if (strncmp(arg,"Gseh=",5)==0) {hydro=1; Gseh=atof(&arg[5]);}
+  //else if (strncmp(arg,"Ghyd=",5)==0) {hydro=1; Ghyd=atof(&arg[5]);}
   else if (strncmp(arg,"Gas=",4)==0) {hydro=1; Gas=atof(&arg[4]);}
   else if (strncmp(arg,"Gam=",4)==0) {hydro=1; Gam=atof(&arg[4]);}
   else if (strncmp(arg,"Gae=",4)==0) {hydro=1; Gae=atof(&arg[4]);}
-  else if (strncmp(arg,"Gah=",4)==0) {hydro=1; Gah=atof(&arg[4]);}
-  else if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
+  //else if (strncmp(arg,"Gah=",4)==0) {hydro=1; Gah=atof(&arg[4]);}
+  //else if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
   else if (strncmp(arg,"Gfc=",4)==0) {Gfc=atof(&arg[4]);}
   else if (strncmp(arg,"stoic=",6)==0) {
     double sts; int stn; char *sp;
@@ -563,7 +564,7 @@ int parse_arg_line(char *arg)
   else if (strncmp(arg,"fill_X=",7)==0) fill_X=atof(&arg[7]);
   else if (strncmp(arg,"error_radius=",13)==0) error_radius=atof(&arg[13]);
   else if (strncmp(arg,"repair_unique_T=",15)==0) { repair_unique_T=atof(&arg[15]); repair_unique=1; }
-  else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(&arg[9], "a");
+  else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(strtok(&arg[9],newline), "a");
   else if (strncmp(arg,"largeflakedatafile=",19)==0) {
     char *c;
     c =strchr(arg,',') + 1;
@@ -573,8 +574,8 @@ int parse_arg_line(char *arg)
   else if (strncmp(arg,"untiltilescountfile=",20)==0) {
     untiltilescountfp=fopen(&arg[20], "a");
   }
-  else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(&arg[10], "w");
-  else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(&arg[11], "w");
+  else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(strtok(&arg[10],newline), "w");
+  else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(strtok(&arg[11],newline), "w");
   else if (strncmp(arg,"testing",7) == 0) {
     testing = 1;
   }
