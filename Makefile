@@ -1,4 +1,4 @@
-X11_FLAGS=-I/usr/X11R6/lib/include -L/usr/X11R6/lib -lX11
+X11_FLAGS=-I/usr/X11R6/include/ -L/usr/X11R6/lib -lX11
 
 #if pkg-config is not in your default path, add the full path here
 PKG_CONFIG=pkg-config

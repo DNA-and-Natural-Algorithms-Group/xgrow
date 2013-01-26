@@ -2430,9 +2430,9 @@ int main(int argc, char **argv)
 				stringbuffer,strlen(stringbuffer));
 	       /* later: if down button, draw T=1/T=2 diagram */
 	       mousing=3; showphase();
-	     } else if (b==1) { // "puncture"
+	     } else if (b==2) { // "puncture"
 	       mousing=1; clear_x=x; clear_y=y;  /* prepare to clear a region */
-	     } else if (b==2) { // "identify"
+	     } else if (b==1) { // "identify"
 	       int i,j,t;
 	       i=MIN(MAX(0,y-2),size-1); j=MIN(MAX(0,x-2),size-1); t=fp->Cell(i,j);
 	       sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
