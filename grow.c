@@ -873,7 +873,7 @@ int between_double_tile (flake *fp, tube *tp, int i, int j, Trep n) {
 void change_cell(flake *fp, int i, int j, Trep n)
 {
   int size=(1<<fp->P);  tube *tp=fp->tube; 
-  //  printf("Entering change cell to change flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
+  dprintf("Entering change cell to change flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
   if (periodic) { i=(i+size)%size; j=(j+size)%size; }
   else if (i<0 || i>=size || j<0 || j>=size) return; // can't change tiles beyond central field
   if (fp->Cell(i,j)==n) return;
@@ -2104,7 +2104,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
     }
 
     choose_cell(fp, &i, &j, &n); chunk=0;
-    // printf("Chose cell %d,%d tile %d.\n",i,j,n);
+    dprintf("Chose cell %d,%d tile %d.\n",i,j,n);
     if (fission_allowed==2 && n==0) { // must choose either single tile, EW/NS pairs, or block
       double sum=0, rsum; 
       sum = calc_rates(fp,i,j,tp->rv); 
@@ -2264,7 +2264,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	/* hydrolysis happens here */
 	if (oldn>0 && n>0) change_cell(fp,i,j,n);
 	if (n==0) {  /* dissociation: check connectedness */
-          int d, k, dn, di[4], dj[4], oldns[4], removals[4];
+          int d, k, dn, di[7], dj[7], oldns[7], removals[7];
           if      (chunk==0 && !tp->dt_right[oldn]) { 
 	    dn=1; di[0]=i; dj[0]=j; 
 	  }
@@ -2273,11 +2273,30 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	    di[0]=i; 
 	    dj[0]=j; 
 	    di[1]=i; 
-	    dj[1]=j+1; 
+	    dj[1]=j+1;
+       if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; dprintf("Double in chunk detected\n");}
 	  }
-          else if (chunk==2) { dn=2; di[0]=i; dj[0]=j; di[1]=i+1; dj[1]=j; }
-          else { dn=4; di[0]=i; dj[0]=j;   di[1]=i; dj[1]=j+1; 
-	  di[2]=i; dj[2]=j+1; di[3]=i+1; dj[3]=j+1; }
+     else if (chunk==2) { 
+        dn=2; di[0]=i; dj[0]=j; di[1]=i+1; dj[1]=j; 
+        /* Check to see if either tile is a double tile. */
+        if (tp->dt_right[n]) { dn++; di[dn-1]=i; dj[dn-1]=j+1; }
+        if (tp->dt_right[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+1; dprintf("Double in chunk detected\n");}
+        if (tp->dt_left[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; dprintf("Double in chunk detected\n");}
+      }
+      else { 
+        dn=4;
+        di[0]=i; dj[0]=j;
+        di[1]=i; dj[1]=j+1; 
+        di[2]=i; dj[2]=j+1;
+        di[3]=i+1; dj[3]=j+1; 
+        
+        /* Check to see if tiles are doubles. There are 3 possibilities here.
+           Note that some doubles will be entirely within the 2x2 block and
+           thus aren't considered here. */
+        if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; dprintf("Double in chunk detected\n");}
+        if (tp->dt_right[fp->Cell(i+1,j+1)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+2; dprintf("Double in chunk detected\n");}
+        if (tp->dt_left[fp->Cell(i+1,j)])    { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; dprintf("Double in chunk detected\n");}
+      }
 	
 	  if (dn > 1) {
 	    // determine the ordering of tiles to be removed
