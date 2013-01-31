@@ -258,17 +258,12 @@ void free_tube(tube *tp)
 
 void set_Gses(tube *tp, double Gse, double Gseh) {
   int n,m;
-  for (n=1; n<=tp->N; n++)
-    for (m=1; m<=tp->N; m++) {
-      
-      tp->Gse_EW[n][m] = ((((tp->tileb)[n][3]==(tp->tileb)[m][1]) *
-			   (tp->strength)[(tp->tileb)[m][1]]) +
-			  (tp->glue)[(tp->tileb)[n][3]][(tp->tileb)[m][1]])*
-	(tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
-      tp->Gse_NS[n][m] = (((tp->tileb)[n][2]==(tp->tileb)[m][0]) *
-			  (tp->strength)[(tp->tileb)[m][0]] +
-			  (tp->glue)[(tp->tileb)[n][2]][(tp->tileb)[m][0]])* 
-	(tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
+  for (n=1; n<=tp->N; n++) for (m=1; m<=tp->N; m++) {
+    tp->Gse_EW[n][m] = ((((tp->tileb)[n][3]==(tp->tileb)[m][1]) * (tp->strength)[(tp->tileb)[m][1]]) +
+                       (tp->glue)[(tp->tileb)[n][3]][(tp->tileb)[m][1]]) * (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
+    tp->Gse_NS[n][m] = (((tp->tileb)[n][2]==(tp->tileb)[m][0]) * (tp->strength)[(tp->tileb)[m][0]] +
+			                 (tp->glue)[(tp->tileb)[n][2]][(tp->tileb)[m][0]]) * (tp->hydro?(((n>tp->N/2 || m>tp->N/2))?Gseh:Gse):Gse);
+    if ((tp->dt_right[m] == n) && (tp->Gse_EW[n][m] < 1000)) tp->Gse_EW[n][m] = 1000; // FIXME THIS IS A HACK
     }
 }
 
