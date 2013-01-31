@@ -52,9 +52,9 @@ unsigned char ring[256];
 /* This is hypothetical on i,j being tile n != 0.                       */
 /* CONNECTED is the non-hypothetical version.                           */
 #define HCONNECTED_N(fp,i,j,n) (fp->tube->Gse_NS[fp->Cell((i)-1,j)][n]>0)
-#define HCONNECTED_E(fp,i,j,n) (fp->tube->Gse_EW[fp->Cell(i,(j)+1)][n]>0)
+#define HCONNECTED_E(fp,i,j,n) ( (fp->tube->Gse_EW[fp->Cell(i,(j)+1)][n]>0) || ( fp->tube->dt_right[n] && ( fp->tube->dt_right[n] == fp->Cell(i,(j)+1) ) ) )
 #define HCONNECTED_S(fp,i,j,n) (fp->tube->Gse_NS[n][fp->Cell((i)+1,j)]>0)
-#define HCONNECTED_W(fp,i,j,n) (fp->tube->Gse_EW[n][fp->Cell(i,(j)-1)]>0)
+#define HCONNECTED_W(fp,i,j,n) ( (fp->tube->Gse_EW[n][fp->Cell(i,(j)-1)]>0) || ( fp->tube->dt_left[n] && ( fp->tube->dt_left[n] == fp->Cell(i,(j)-1) ) )  )
 #endif
 
 #define HCONNECTED(fp,i,j,n) \
@@ -390,24 +390,18 @@ void recalc_G(flake *fp)
   /* add up all tile's entropy, bond energy, and hydrolysis energy */
   /* while we're at it, make sure 'mismatches' is correct          */
   /* and re-evaluate all off-rate & hydrolysis rates               */
-  for (i=0;i<size;i++)
-    for(j=0;j<size;j++) {
+  for (i=0;i<size;i++) for(j=0;j<size;j++) {
       if ((n=fp->Cell(i,j))>0) {
-	fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n)/2.0 - tp->Gcb[n];
-	/* Don't count Gmc for both sides of a double tile */
-	/* Don't count Gse between double tile */
-	if (tp->dt_right[n]) {
-	  fp->G += log(tp->conc[n]);
-	  fp->G += fp->tube->Gse_EW[fp->Cell(i,(j+1)%size)][n];
-	}
-	fp->mismatches += Mism(fp,i,j,n); fp->tiles++;
-	update_rates(fp,i,j);
-      } else if 
-	( fp->Cell(i+1,j) || fp->Cell(i,j+1) ||
-	  fp->Cell(i-1,j) || fp->Cell(i,j-1) ) {
-	update_rates(fp,i,j);
+        if (tp->dt_right[n]) fp->G += -log(tp->conc[n]) - Gse_double(fp,i,j,n)/2.0 - tp->Gcb[n];
+        else if (!tp->dt_left[n]) fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n)/2.0 - tp->Gcb[n];
+
+        fp->mismatches += Mism(fp,i,j,n); fp->tiles++;
+        update_rates(fp,i,j);
+      } 
+      else if ( fp->Cell(i+1,j) || fp->Cell(i,j+1) || fp->Cell(i-1,j) || fp->Cell(i,j-1) ) {
+	      update_rates(fp,i,j);
       }
-    }
+  }
   fp->mismatches/=2;
   update_tube_rates(fp);
 } // recalc_G()
@@ -422,7 +416,8 @@ double calc_dG_bonds(flake *fp)
   for (i=0;i<size;i++)
     for(j=0;j<size;j++) {
       if ((n=fp->Cell(i,j))>0) {
-	dG += - Gse(fp,i,j,n)/2.0 - tp->Gcb[n];
+        if (tp->dt_right[n]) fp->G += - Gse_double(fp,i,j,n)/2.0 - tp->Gcb[n];
+        else if (!tp->dt_left[n]) fp->G += - Gse(fp,i,j,n)/2.0 - tp->Gcb[n];
       }
     }
   return dG; 
@@ -672,7 +667,9 @@ void remove_flake(flake *fp) {
 /* 0 <= i,j < 2^P                                                          */
 double calc_rates(flake *fp, int i, int j, double *rv)
 {
-  int n,mi,ei,hi,mo,eo,ho; double r, sumr; tube *tp=fp->tube;
+  int n,mi,ei,hi,mo,eo,ho;
+  double r, sumr; 
+  tube *tp=fp->tube;
   Trep nN,nE,nS,nW; int N=fp->N; int size=(1<<fp->P);
   int seedchunk[4]; 
 
@@ -692,17 +689,15 @@ double calc_rates(flake *fp, int i, int j, double *rv)
   seedchunk[0] = (i   == fp->seed_i && j   == fp->seed_j) || 
     (i == fp->seed_i && ((tp->dt_right[fp->seed_n] && j == fp->seed_j + 1)  ||
 			 (tp->dt_left[fp->seed_n] && j == fp->seed_j - 1)));
-  r = tp->k * exp(-Gse(fp,i,j,n)); 
+  if (!tp->dt_right[n]) {
+    r = tp->k * exp(-Gse(fp,i,j,n));
+    } 
+  else {
+    r = tp->k * exp(-Gse_double(fp,i,j,n));
+    } 
   if (seedchunk[0] && (!wander || fp->tiles==1 || (fp->tiles==2 && fp->seed_is_double_tile)))
     r=0; 
-  // Count the attachments of the right side of a double tile to the
-  // crystal, but ignore the attachment of the double tile squares to
-  // each other.  
-  // Note : assumes attachment given to bond between double tiles is
-  // symmetric.
-  if (tp->dt_right[n]) {
-    r *= exp(-Gse(fp,i,j+1,tp->dt_right[n])+2*fp->tube->Gse_EW[tp->dt_right[n]][n]);
-  }
+
   sumr=r;
   if (fission_allowed==2) {              // rates for pairs and 2x2 block dissoc
     if (rv!=NULL) rv[1+N+0]=r;
@@ -710,6 +705,7 @@ double calc_rates(flake *fp, int i, int j, double *rv)
     seedchunk[2] = (i+1 == fp->seed_i && j   == fp->seed_j) || seedchunk[0];
     seedchunk[3] = (i+1 == fp->seed_i && j+1 == fp->seed_j) || seedchunk[1] || seedchunk[2];
     if ( (seedchunk[1] && (!wander || fp->tiles==2)) || (!periodic && j+1==size) ) r=0; 
+    else if (tp->dt_right[n]) r = 0;
     else r = tp->k * exp(-chunk_Gse_EW(fp,i,j,n)) * (fp->Cell(i,j+1)!=0); 
     sumr+=r; if (rv!=NULL) rv[1+N+1]=r; 
     if ( (seedchunk[2] && (!wander || fp->tiles==2)) || (!periodic && i+1==size) ) r=0; 
@@ -796,13 +792,11 @@ void update_rates(flake *fp, int ii, int jj)
   if (!(ii < 0 || ii >= size || jj < 0 || jj >= size)) {
     oldrate  = fp->rate[fp->P][ii][jj];
     oldempty = fp->empty[fp->P][ii][jj];
-    newempty = (fp->Cell(ii,jj)==0) &&
-      ( fp->Cell(ii+1,jj) || fp->Cell(ii,jj+1) ||
-	fp->Cell(ii-1,jj) || fp->Cell(ii,jj-1) );
+    newempty = (fp->Cell(ii,jj)==0) && ( fp->Cell(ii+1,jj) || fp->Cell(ii,jj+1) || fp->Cell(ii-1,jj) || fp->Cell(ii,jj-1) );
     if (newempty && tp!=NULL && tp->T>0) { 
       /* calculate how many tile types could make >= T bonds */
       for (n=1;n<=fp->N;n++)
-	if (Gse(fp,ii,jj,n)>=tp->T) newempty++;
+    	if (Gse(fp,ii,jj,n)>=tp->T) newempty++;
       newempty--;  newempty=(newempty>0);  /* only care if exists */
     }
     newrate  = calc_rates(fp, ii, jj, NULL);
@@ -810,11 +804,11 @@ void update_rates(flake *fp, int ii, int jj)
       fp->rate[p][ii][jj] += newrate-oldrate;
       fp->empty[p][ii][jj] += newempty-oldempty;
       if (p<fp->P)
-	/* always fix-up any numerical error that could have accumulated here */
-	fp->rate[p][ii][jj] = fp->rate[p+1][ii<<1][jj<<1]   +
-	  fp->rate[p+1][ii<<1][(jj<<1)+1] +
-	  fp->rate[p+1][(ii<<1)+1][jj<<1] +
-	  fp->rate[p+1][(ii<<1)+1][(jj<<1)+1];
+      	/* always fix-up any numerical error that could have accumulated here */
+      	fp->rate[p][ii][jj] = fp->rate[p+1][ii<<1][jj<<1]   +
+    	  fp->rate[p+1][ii<<1][(jj<<1)+1] +
+    	  fp->rate[p+1][(ii<<1)+1][jj<<1] +
+    	  fp->rate[p+1][(ii<<1)+1][(jj<<1)+1];
       ii = (ii>>1); jj = (jj>>1);
     }
   }
@@ -888,7 +882,10 @@ void change_cell(flake *fp, int i, int j, Trep n)
 	return; // ditto
       }
       //      printf("Changing flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
-      fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n);   
+      if (tp->dt_right[n]) fp->G += -log(tp->conc[n]) - Gse_double_left(fp,i,j,n);
+      else if (tp->dt_left[n]) fp->G += - Gse_double_right(fp,i,j,n);
+      else fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n);
+      
       // Don't subtract [] if we're adding the other half of a dt seed:
       if (!fp->seed_is_double_tile || fp->tiles > 1) {
 	tp->conc[n] -= fp->flake_conc; 
@@ -916,7 +913,10 @@ void change_cell(flake *fp, int i, int j, Trep n)
     } else if (n==0) {                              /* tile loss */
       tp->conc[0] += fp->flake_conc; 
       tp->conc[fp->Cell(i,j)] += fp->flake_conc; 
-      fp->G += log(tp->conc[fp->Cell(i,j)]) + Gse(fp,i,j,fp->Cell(i,j));
+      if (tp->dt_right[fp->Cell(i,j)]) fp->G += +log(tp->conc[fp->Cell(i,j)]) + Gse_double_left(fp,i,j,fp->Cell(i,j));
+      else if (tp->dt_left[fp->Cell(i,j)]) fp->G += + Gse_double_right(fp,i,j,fp->Cell(i,j));
+      else fp->G += +log(tp->conc[fp->Cell(i,j)]) + Gse(fp,i,j,fp->Cell(i,j));
+      //fp->G += log(tp->conc[fp->Cell(i,j)]) + Gse(fp,i,j,fp->Cell(i,j));
 
       // monomer flakes don't deplete []; just became monomer!
       // zzz check this
@@ -2274,14 +2274,14 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	    dj[0]=j; 
 	    di[1]=i; 
 	    dj[1]=j+1;
-       if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; dprintf("Double in chunk detected\n");}
+       if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; printf("Double in chunk detected\n");}
 	  }
      else if (chunk==2) { 
         dn=2; di[0]=i; dj[0]=j; di[1]=i+1; dj[1]=j; 
         /* Check to see if either tile is a double tile. */
-        if (tp->dt_right[n]) { dn++; di[dn-1]=i; dj[dn-1]=j+1; }
-        if (tp->dt_right[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+1; dprintf("Double in chunk detected\n");}
-        if (tp->dt_left[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; dprintf("Double in chunk detected\n");}
+        if (tp->dt_right[n]) { dn++; di[dn-1]=i; dj[dn-1]=j+1; printf("Double in chunk detected\n");}
+        if (tp->dt_right[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+1; printf("Double in chunk detected\n");}
+        if (tp->dt_left[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; printf("Double in chunk detected\n");}
       }
       else { 
         dn=4;
@@ -2293,9 +2293,9 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
         /* Check to see if tiles are doubles. There are 3 possibilities here.
            Note that some doubles will be entirely within the 2x2 block and
            thus aren't considered here. */
-        if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; dprintf("Double in chunk detected\n");}
-        if (tp->dt_right[fp->Cell(i+1,j+1)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+2; dprintf("Double in chunk detected\n");}
-        if (tp->dt_left[fp->Cell(i+1,j)])    { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; dprintf("Double in chunk detected\n");}
+        if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; printf("Double in chunk detected\n");}
+        if (tp->dt_right[fp->Cell(i+1,j+1)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+2; printf("Double in chunk detected\n");}
+        if (tp->dt_left[fp->Cell(i+1,j)])    { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; printf("Double in chunk detected\n");}
       }
 	
 	  if (dn > 1) {

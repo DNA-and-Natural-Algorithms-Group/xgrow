@@ -16,7 +16,7 @@
 #define Trep unsigned char
 #endif
 
-#define DEBUG 1
+#define DEBUG 0
 #define dprintf if (DEBUG) printf
 #define d2printf if (DEBUG==2) printf
 
@@ -52,6 +52,25 @@ double exp(); double log();
 /* note that n != 0  and assumes 0 <= i,j < (1<<fp->P)                  */
 #define Gse(fp,i,j,n) (                                \
         fp->tube->Gse_EW[ n ] [ fp->Cell(i,(j)-1) ] +  \
+        fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ n ] +  \
+        fp->tube->Gse_NS[ n ] [ fp->Cell((i)+1,j) ] +  \
+        fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] )
+
+#define Gse_double(fp,i,j,n) (                                \
+        fp->tube->Gse_EW[ n ] [ fp->Cell(i,(j)-1) ] +  \
+        fp->tube->Gse_NS[ n ] [ fp->Cell((i)+1,j) ] +  \
+        fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] + \
+        fp->tube->Gse_EW[ fp->Cell(i,(j)+2) ] [ fp->Cell(i,(j)+1) ] +  \
+        fp->tube->Gse_NS[ fp->Cell(i,(j)+1) ] [ fp->Cell((i)+1,(j)+1) ] +  \
+        fp->tube->Gse_NS[ fp->Cell((i)-1,(j)+1) ] [ fp->Cell(i,(j)+1) ] )
+           
+#define Gse_double_left(fp,i,j,n) (                                \
+       fp->tube->Gse_EW[ n ] [ fp->Cell(i,(j)-1) ] +  \
+       fp->tube->Gse_NS[ n ] [ fp->Cell((i)+1,j) ] +  \
+       fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] )
+              
+              
+#define Gse_double_right(fp,i,j,n) (                                \
         fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ n ] +  \
         fp->tube->Gse_NS[ n ] [ fp->Cell((i)+1,j) ] +  \
         fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] )
