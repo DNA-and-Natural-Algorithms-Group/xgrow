@@ -1003,7 +1003,7 @@ void write_datalines(FILE *out, char *text)
       dG_bonds = calc_dG_bonds(fpp);
       if (tp->hydro) fprintf(out, " %f %f %f %f %f %f %f %f %f ",
 	    Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
-      fprintf(out, " %f %f %f %f %d %d %ld %d %f %f%s",
+      fprintf(out, " %f %f %f %f %d %d %lld %d %f %f%s",
 	    Gmc,tp->Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events,
 	    perimeter, fpp->G, dG_bonds,text);
       if (strcmp(text,"")==0) break;
@@ -1711,7 +1711,7 @@ void repaint()
 	    fp->seed_n, fp->seed_i, fp->seed_j);
       XDrawImageString(display,window,gc,5,(++i)*font_height,
 	    stringbuffer,strlen(stringbuffer));
-      sprintf(stringbuffer,"%ld events, %d tiles, %d mismatches",
+      sprintf(stringbuffer,"%lld events, %d tiles, %d mismatches",
 	    fp->events, fp->tiles, fp->mismatches);
       XDrawImageString(display,window,gc,5,(++i)*font_height,
 	    stringbuffer,strlen(stringbuffer));
@@ -1747,7 +1747,7 @@ void repaint()
    }
    XDrawImageString(display,window,gc,5,(++i)*font_height,
 	 stringbuffer,strlen(stringbuffer));
-   sprintf(stringbuffer, "%ld events (%lda,%ldd,%ldh,%ldf), %ld tiles total %s      ",
+   sprintf(stringbuffer, "%lld events (%llda,%lldd,%lldh,%lldf), %lld tiles total %s      ",
 	 tp->events, tp->stat_a, tp->stat_d, tp->stat_h, tp->stat_f,
 	 tp->stat_a-tp->stat_d+tp->num_flakes, tp->ewrapped?"[wrapped]":"");
    XDrawImageString(display,window,gc,5,(++i)*font_height,

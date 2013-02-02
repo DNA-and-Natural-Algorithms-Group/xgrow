@@ -16,6 +16,8 @@
 #define Trep unsigned char
 #endif
 
+#define evint unsigned long long
+
 #define DEBUG 0
 #define dprintf if (DEBUG) printf
 #define d2printf if (DEBUG==2) printf
@@ -145,7 +147,7 @@ typedef struct flake_struct {
    double G;            /* cumulative energy of tile flake                  */
    int seed_i,seed_j;   /* special site which won't change                  */
    Trep seed_n; 
-   long int events;     /* total on, off, hydrolysis events in this flake   */
+   evint events;     /* total on, off, hydrolysis events in this flake   */
    int tiles;           /* total number of tiles in this flake              */
    int seed_is_double_tile;          /* If the seed is a double tile, it will be a monomer,
 					but the number of tiles will be reported as 2.  */
@@ -247,8 +249,8 @@ typedef struct tube_struct {
    /* NOTE n could be empty tile, for which Gse = 0    */
    /* coordinate system is: i+,j+ moves S,E            */
    double t;            /* cumulative time in seconds                       */
-   long int events;     /* cumulative number of events                      */
-   long int stat_a,stat_d,/* tally of number of association, dissociation,  */
+   evint events;     /* cumulative number of events                      */
+   evint stat_a,stat_d,/* tally of number of association, dissociation,  */
 	stat_h,stat_f;   /* "hydrolysis", and "fission" events               */
    int ewrapped;        /* has the event counter wrapped around?            */
    double *rv;          /* scratch space, size fp->1+N+4 (for chunk_fission)*/
@@ -311,10 +313,13 @@ void update_tube_rates(flake *fp);
 void change_cell(flake *fp, int i, int j, Trep n);
 void change_seed(flake *fp, int new_i, int new_j);
 int flake_fission(flake *fp, int i, int j);
-void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, int smin);
+void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax, int smin);
 void linear_simulate( double ratek, double Gmc, double Gse,
       double tmax, int emax, int smax);
 
+#define FI_OFF 0
+#define FI_OK 1
+#define F_CHUNK 2
 
 #endif /* ifdef __GROW_H__ */
 

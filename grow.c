@@ -1678,22 +1678,22 @@ void order_removals(tube *tp, flake *fp,
 	    outside_neighbors = 0;
 
 	    // Check bottom
-	    if (fp->Cell(di_down,dj[t]) && 
+	    if (CONNECTED_S(fp,di[t],dj[t]) && 
 		  not_in_block(di_down,dj[t],di,dj,t,n,size)) {
 	       outside_neighbors = 1;
 	    }
 	    // Top 
-	    if (fp->Cell(di_up,dj[t]) && 
+	    if (CONNECTED_N(fp,di[t],dj[t]) && 
 		  not_in_block(di_up,dj[t],di,dj,t,n,size)) {
 	       outside_neighbors = 1;
 	    }
 	    // Left
-	    if (fp->Cell(di[t],dj_left) && 
+	    if (CONNECTED_W(fp,di[t],dj[t]) && 
 		  not_in_block(di[t],dj_left,di,dj,t,n,size)) {
 	       outside_neighbors = 1;
 	    }
 	    // Right
-	    if (fp->Cell(di[t],dj_right) && 
+	    if (CONNECTED_E(fp,di[t],dj[t]) && 
 		  not_in_block(di[t],dj_right,di,dj,t,n,size)) {
 	       outside_neighbors = 1;
 	    }
@@ -1823,14 +1823,18 @@ void get_random_wander_permutation (int di[6], int dj[6],
 
 
 /* simulates 'events' events */
-void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, int smin)
+void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax, int smin)
 {
    int i,j,n,oldn; double dt; flake *fp; int chunk, seedchunk[4];
    double total_rate, total_blast_rate, new_flake_rate, event_choice; long int emaxL;
    int size=(1<<tp->P), N=tp->N;  
    if (tp->flake_list==NULL && tp->tinybox == 0) return;  /* no flakes! */
-   //   if (tp->events + 2*events > INT_MAX) {
-   if (tp->events + 2*events > 1000000000) {
+   
+   /* Check to see wehether the number of events needs to be wrapped.
+    * As we are using unsigned long long, this should never actually
+    * happen. FIXME: think about removing this.
+    */
+   if (tp->events + 2*events >= ULLONG_MAX) {
       tp->ewrapped=1; tp->events=0; 
       tp->stat_a-=tp->stat_d; tp->stat_d=0; tp->stat_h=0; tp->stat_f=0;
       fp=tp->flake_list; 
@@ -1844,6 +1848,9 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 
 
    fp=tp->flake_list; 
+   /* Ensure that there are either reasonable seeds in each flake, or
+    * we are using tinybox.
+    */
    while (fp!=NULL) {  
 
       assert (!tp->tinybox ||
@@ -1874,8 +1881,10 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
    }
    total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
    new_flake_rate = tp->k*2*pow(tp->conc[0],2)*tp->tinybox*AVOGADROS_NUMBER ;
-   //assert (total_rate + total_blast_rate + new_flake_rate >= 0); // can be zero in aTAM if finite-sized assembly is done
+  
+   // FIXME: used to have an assert here to check that total overall rate >= 0, but this seems pointless (all rates are >=0)
 
+   /* MAIN LOOP OF SIMULATE */
    while (tp->events < emaxL && 
 	 (tmax==0 || tp->t < tmax) && 
 	 (smax==0 || tp->stat_a-tp->stat_d < smax) &&
@@ -1883,12 +1892,14 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	 (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
 	 total_blast_rate+total_rate+new_flake_rate > 0 &&
 	 (tp->seconds_per_C == 0 || tp->currentC > tp->endC)) {
+      
+      /* If all tiles desired by untiltiles are present, then return. [untiltiles] */
       if (untiltiles && tp->all_present) {
 	 return;
       }
 
 
-      /* First check if time is such that we need to update the temperature */
+      /* First check if time is such that we need to update the temperature [anneal] */
       if (tp->anneal_t && (tp->t > tp->next_update_t)) {
 	 tp->Gse = tp->Gse_final- (tp->Gse_final - tp->anneal_g)*exp(-tp->t/tp->anneal_t);
 	 set_Gses(tp,tp->Gse,0);  // NOT SAFE FOR HYDROLYSIS
@@ -1906,6 +1917,10 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	 update_all_rates (tp);
       }
 
+      /* Check concentrations of double tiles. [doubletile]
+       * FIXME: is this actually necessary? right hand side concentration might be
+       * better off ignored.
+       */
       for (i = 0; i < N; i++) {
 	 if (tp->dt_right[i]) {
 	    if (tp->conc[i] != tp->conc[tp->dt_right[i]]) {
@@ -1924,10 +1939,18 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
       new_flake_rate = tp->k*2*pow(tp->conc[0],2)*tp->tinybox*AVOGADROS_NUMBER ;
       total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
       if (total_rate + total_blast_rate + new_flake_rate == 0) break;
+      
+      
+      // Choose a time step.
       dt = -log(drand48()) / (total_rate + total_blast_rate + new_flake_rate);
       event_choice = drand48()*(total_rate+total_blast_rate+new_flake_rate);
 
-      if (blast_rate>0 && event_choice < total_blast_rate) {  
+      /* Now choose one of three possible actions:
+       * (1) blast
+       * (2) create a new flake
+       * (3) have a tile event (kTAM/aTAM)
+       */
+      if (blast_rate>0 && event_choice < total_blast_rate) { // blast event (FIXME: not looked at)
 	 int kb=size,ii,jj,ic,jc,di,dj,seed_here,flake_n;
 
 	 while(kb==size) { double dr = drand48()*blast_rate;
@@ -1963,7 +1986,8 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	    }
 	 }
 	 tp->t += dt;
-      } else if (new_flake_rate && event_choice < (total_blast_rate + new_flake_rate)) {
+      } 
+      else if (new_flake_rate && event_choice < (total_blast_rate + new_flake_rate)) { // new flake event (FIXME: not looked at)
 	 int m,r,x,d,di,dj,c;
 	 double flake_conc;
 	 // Add a new flake
@@ -2049,14 +2073,17 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	 }       
 	 tp->t += dt;
       }
-      else { // blast error case and new flake case above, kTAM / aTAM below
+      else { // tile (aTAM / kTAM) event
+	 
 	 fp=choose_flake(tp);
+	 
+	 /* ensure that the seed state in our chosen flake is reasonable */
 	 assert (!tp->dt_left[fp->Cell(fp->seed_i,fp->seed_j)]);
 	 assert (!tp->tinybox ||
 	       fp->tiles > 2 || (!fp->seed_is_double_tile && fp->tiles > 1));
 
 	 /* let the designated seed site wander around */
-	 /* must do this very frequently, else treadmilling would get stuck */
+	 /* must do this very frequently, else treadmilling would get stuck FIXME: not looked at */
 	 if (wander) {  
 	    int new_i, new_j;
 	    // Pick a new seed adjacent to the old one
@@ -2097,15 +2124,19 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	       }
 	    }
 	 }
-
-	 choose_cell(fp, &i, &j, &n); chunk=0;
+      
+	 /* choose a cell to modify, and what the new tile type should tentatively be (0 is detachment) */
+	 choose_cell(fp, &i, &j, &n); 
 	 dprintf("Chose cell %d,%d tile %d.\n",i,j,n);
-	 if (fission_allowed==2 && n==0) { // must choose either single tile, EW/NS pairs, or block
+
+	 chunk = 0;
+	 if (fission_allowed==F_CHUNK && n==0) { // for chunk fission, decide on a chunk type [chunk_fission] 
 	    double sum=0, rsum; 
 	    sum = calc_rates(fp,i,j,tp->rv); 
 	    rsum=sum*drand48();
 	    if (sum == 0) {
-	       // In this case, which chunk to choose is arbitrary, but we'll select 0
+	       // If our total rate is zero, we'll simply choose to detach a single tile
+	       // FIXME: can this happen in a non-bug fashion?
 	       chunk = 0;
 	    }
 	    else {
@@ -2114,13 +2145,16 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	    }
 	    if (chunk<0 || chunk>3) printf("impossible chunk chosen!!!\n");
 	 }
+	 
+	 /* FIXME: much of this matters only if chunk_fission is on. In general, can we only calculate the one to match chunk? */
 	 seedchunk[0] = ((i   == fp->seed_i && j   == fp->seed_j) ||
 	       (tp->dt_right[fp->seed_n] && i == fp->seed_i && j == fp->seed_j + 1) ||
 	       (tp->dt_left[fp->seed_n] && i == fp->seed_i && j == fp->seed_j - 1));
 	 seedchunk[1] = (n==0 && i   == fp->seed_i && j+1 == fp->seed_j) || seedchunk[0];
 	 seedchunk[2] = (n==0 && i+1 == fp->seed_i && j   == fp->seed_j) || seedchunk[0];
 	 seedchunk[3] = (n==0 && i+1 == fp->seed_i && j+1 == fp->seed_j) || seedchunk[1] || seedchunk[2];
-	 if (wander && n==0) {
+	 
+	 if (wander && n==0) { // If [wander] is on, try to move the seed tile if it is set to be removed. FIXME: not looked at
 	    int new_i=fp->seed_i, new_j=fp->seed_j;
 	    if (chunk==0 && seedchunk[0]) {
 	       // looks like we're trying to dissociate the seed tile.
@@ -2206,17 +2240,24 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 	    seedchunk[2] = (i+1 == fp->seed_i && j   == fp->seed_j) || seedchunk[0];
 	    seedchunk[3] = (i+1 == fp->seed_i && j+1 == fp->seed_j) || seedchunk[1] || seedchunk[2];
 	 }
+
 	 oldn = fp->Cell(i,j);
-	 tp->t += dt;  // increment time whether or not seed tile event is effective
+	 tp->t += dt;  // increment time whether or not seed tile event is effective FIXME: why?
+	 
 	 //     if (seedchunk[chunk]) 
 	 //       printf("seedchunk triggered by %d,%d chunk %d !\n",i,j,chunk);
-	 if (!seedchunk[chunk]) { /* can't change seed tile */
+	 
+	 if (!seedchunk[chunk]) { /* only make a change if we aren't changing a seed tile */
+	    
 	    if (tp->T>0) { /* irreversible Tile Assembly Model */
-	       if (n>0 && Gse(fp,i,j,n)>=tp->T) { 
+	       
+	       /* If the tile can attach, then have it attach.
+		*/
+	       if (n>0 && Gse(fp,i,j,n)>=tp->T && double_tile_allowed(tp,fp,i,j,n)) {
 		  change_cell(fp,i,j,n);
 		  if (tp->dt_right[n])
 		     change_cell(fp,i,j+1,tp->dt_right[n]);
-		  if (tp->dt_left[n])
+		  else if (tp->dt_left[n])
 		     change_cell(fp,i,j-1,tp->dt_left[n]);
 	       }
 	       else { tp->stat_a++; tp->stat_d++; tp->events+=2; fp->events+=2; } 
@@ -2231,9 +2272,13 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 		  equal chance to be chosen & rejected -- this is inefficient, but 
 		  unless fp->empty were to be changed, we can't handle unequal tile
 		  concentrations. */
-	    } else { /* reversible kTAM model */
-	       if (zero_bonds_allowed==0) {
-		  /* to add, must have se contact */
+	    } 
+	    else { /* reversible kTAM model */
+	       
+	       /* TILE ADDITION */
+
+	       if (zero_bonds_allowed==0) { /* [zero_bonds] is not set, so require connectivity. */
+		  
 		  if (oldn==0 && HCONNECTED(fp,i,j,n) && 
 			double_tile_allowed(tp,fp,i,j,n)) {
 		     change_cell(fp,i,j,n);
@@ -2242,23 +2287,28 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 		     if (tp->dt_left[n])
 			change_cell(fp,i,j-1,tp->dt_left[n]);
 		  }
+		  
 		  /* zero-bond tile additions fall off immediately;
 		     count them or else, if there are lots, the display
 		     can be super-slow! */
 		  if (oldn==0 && !HCONNECTED(fp,i,j,n)) 
 		  { tp->stat_a++; tp->stat_d++; tp->events+=2; fp->events+=2; } 
 	       }
-	       else if (oldn==0 && double_tile_allowed(tp,fp,i,j,n)) {
+	       else if (oldn==0 && double_tile_allowed(tp,fp,i,j,n)) { /* [zero_bonds is set, so let any attachment happen */
 		  change_cell(fp,i,j,n);
 		  if (tp->dt_right[n])
 		     change_cell(fp,i,j+1,n);
 		  if (tp->dt_left[n])
 		     change_cell(fp,i,j-1,n);
 	       }
+	       /* FIXME: is zero_bonds a good option to have? It may break some serious things with fission code */
 
 	       /* hydrolysis happens here */
 	       if (oldn>0 && n>0) change_cell(fp,i,j,n);
-	       if (n==0) {  /* dissociation: check connectedness */
+	       
+	       /* TILE REMOVAL */
+
+	       if (n==0) {  
 		  int d, k, dn, di[7], dj[7], oldns[7], removals[7];
 		  if      (chunk==0 && !tp->dt_right[oldn]) { 
 		     dn=1; di[0]=i; dj[0]=j; 
@@ -2335,7 +2385,7 @@ void simulate(tube *tp, int events, double tmax, int emax, int smax, int fsmax, 
 			      }
 			      break;
 			   }
-			} else if (0) { // should be fission_proof, according to local test
+			} else if (0) { // should be fission_proof, according to local test FIXME: remove?
 			   // this is time consuming!  here only for debugging!
 			   if (flake_fission(fp,i,j)) {
 			      printf("Fission_proof locale fissioned at %d,%d [chunk cell %d/%d]: "
