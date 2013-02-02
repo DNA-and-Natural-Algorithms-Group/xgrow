@@ -150,12 +150,12 @@ typedef struct flake_struct {
    evint events;     /* total on, off, hydrolysis events in this flake   */
    int tiles;           /* total number of tiles in this flake              */
    int seed_is_double_tile;          /* If the seed is a double tile, it will be a monomer,
-					but the number of tiles will be reported as 2.  */
+                                        but the number of tiles will be reported as 2.  */
    int mismatches;                   /* number of se edges that don't agree              */
    struct flake_struct *next_flake;  /* for NULL-terminated linked list     */
    struct flake_tree_struct *tree_node;  /* for tree of flakes              */
    int *is_present;                  /* records whether each of the watched
-					tile types are present              */
+                                        tile types are present              */
 
    int flake_ID;        /* which flake is this (for display use only)       */
    void *chain_hash;    /* When flake has visited particular states;        */
@@ -180,27 +180,27 @@ typedef struct assembly_list_struct {
 typedef struct tube_struct {
    int **tileb;         /* {N E S W} bond types for each tile type */
    double *strength;    /* bond strengths.  assumes tile types stick to
-			   each other and not other types of tiles          */
+                           each other and not other types of tiles          */
    double **glue;       /* A generalized version of the strength function:
-			   The level of "glue" between various bond types   */
+                           The level of "glue" between various bond types   */
    int num_bindings;    /* length of strength */
    int *dt_right;     /* The right half of a double tile.  
-			 If it doesn't have one, or the tile is the  
-			 left half of a double tile, the value 
-			 here is 0 */
+                         If it doesn't have one, or the tile is the  
+                         left half of a double tile, the value 
+                         here is 0 */
    int *dt_left;     /* The left half of a double tile.  
-			If it doesn't have one, or the tile is the  
-			right half of a double tile, the value 
-			here is 0 */
+                        If it doesn't have one, or the tile is the  
+                        right half of a double tile, the value 
+                        here is 0 */
    double tinybox;         /* If this value is nonzero, indicates that
-			      each kind of two tile flake should be
-			      dynamically created at a rate
-			      tinybox*k_f*tp->conc[0]^2 */
+                              each kind of two tile flake should be
+                              dynamically created at a rate
+                              tinybox*k_f*tp->conc[0]^2 */
    double anneal_g,     /* Used if annealing is on.  If so, adjust Gse over */
-	  anneal_t;         /* time, with time constant anneal_t                */  
+          anneal_t;         /* time, with time constant anneal_t                */  
    double Gse_final;    /* Gse to approach asymptotically in anneal         */
    double update_freq;  /* Number of times to update the interval per time 
-			   constant                                         */
+                           constant                                         */
    int updates;         /* Number of updates that have taken place          */
    double anneal_h;     /* Next 5 are variables for linear anneal           */
    double anneal_s;
@@ -215,13 +215,13 @@ typedef struct tube_struct {
 
    int num_flakes;      /* how many flakes do we have here?                 */
    int total_flakes;    /* how many flakes have we made, total 
-			   (in tinybox may not be the same as num_flakes)   */
+                           (in tinybox may not be the same as num_flakes)   */
    int largest_flake;    /* id of largest flake                              */
    int largest_flake_size; /* size of largest flake                          */
    flake *flake_list;   /* for NULL-terminated linked list                  */
    flake_tree *flake_tree; /* binary tree for fast event selection          */
    int default_seed_i,   /* The last seed_i stated, which is used in creating
-			    new flakes */
+                            new flakes */
        default_seed_j;
    double initial_Gfc;
    Trep hydro; /* does this tile set use hydrolysis rules?         */
@@ -235,7 +235,7 @@ typedef struct tube_struct {
    /* but events violating the model are discarded     */
    double k;            /* forward rate constant for on-events.             */
    double kas,kao,      /* f.r.c (ratio to k) for "hydrolysis" spontaneous, */
-	  kam,kae,kah;  /* and when input se are mismatched, empty, or      */
+          kam,kae,kah;  /* and when input se are mismatched, empty, or      */
    /* input tiles are "hydrolized". kao is the ratio   */
    /* of output-triggered/input-triggered rates.       */
    double *conc;        /* concentration of each tile type n = 1...N        */
@@ -251,7 +251,7 @@ typedef struct tube_struct {
    double t;            /* cumulative time in seconds                       */
    evint events;     /* cumulative number of events                      */
    evint stat_a,stat_d,/* tally of number of association, dissociation,  */
-	stat_h,stat_f;   /* "hydrolysis", and "fission" events               */
+         stat_h,stat_f;   /* "hydrolysis", and "fission" events               */
    int ewrapped;        /* has the event counter wrapped around?            */
    double *rv;          /* scratch space, size fp->1+N+4 (for chunk_fission)*/
    int *Fnext, *Fgroup; /* size x size array for fill scratch space         */
@@ -260,9 +260,9 @@ typedef struct tube_struct {
    /* Testing variables */
    int watching_states; /* true if we are testing xgrow, false otherwise */
    int chains;          /* Number of chains that we are going to follow for 
-			   testing purposes */
+                           testing purposes */
    void *chain_states;  /* Hash of assemblies that are indicator variables; 
-			   use for testing purposes */
+                           use for testing purposes */
    int tracking_seen_states;     /* tracking states that are seen             */
    int states_seen_count;    /* For use in testing --find a time at which */
    void  *states_seen_hash;   /* hash that records which states we have been to. */
