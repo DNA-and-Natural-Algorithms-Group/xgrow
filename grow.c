@@ -1595,7 +1595,13 @@ void error_radius_flake(flake *fp, double rad)
 
 } // error_radius_flake()
 
-
+/* Check to see if a double tile can fit with tile type n at i,j. While this is obvious
+ * (check to see if a tile is blocking), if the tile type n is the left side of a double tile,
+ * and we are in kTAM, this returns FALSE if the right hand side can attach to i,j+1 by some
+ * bond. This is done to prevent doubling of on-rates. FIXME: Is this actually a good idea,
+ * or is there some better way to do this?
+ * FIXME: this is also wrong for (nondeterministic tile systems in) aTAM, as it does double on-rate there.
+ */
 int double_tile_allowed(tube *tp, flake *fp, int i, int j, int n) {
    int size = (1<<(tp->P));
    int right_side_can_attach, left_side_can_attach;
@@ -1603,7 +1609,10 @@ int double_tile_allowed(tube *tp, flake *fp, int i, int j, int n) {
    if (!tp->dt_right[n] && !tp->dt_left[n]) 
       return 1;
    j_norm = (j+size)%size;
-   left_side_can_attach =  tp->dt_right[n] && ((periodic || j + 1 < size) && fp->Cell(i,j_norm+1) == 0 && 
+   if (tp->T>0)
+      left_side_can_attach =  tp->dt_right[n] && ((periodic || j + 1 < size) && fp->Cell(i,j_norm+1) == 0); 
+   else
+      left_side_can_attach =  tp->dt_right[n] && ((periodic || j + 1 < size) && fp->Cell(i,j_norm+1) == 0 && 
          !HCONNECTED(fp,i,j_norm+1,tp->dt_right[n]));
    //if (tp->dt_right[n] && !left_side_can_attach) 
    //  printf("Rejecting %d,%d for left side tile %d.\n",i,j,n);
