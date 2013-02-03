@@ -490,13 +490,12 @@ void insert_flake(flake *fp, tube *tp)
 
    kc    = tp->k*tp->conc[0];
    rate  = fp->rate[0][0][0];
-   empty = fp->empty[0][0][0];
 
    /* If the flake_tree is empty, make the root. */
    if (tp->flake_tree==NULL) {
       ftp = (flake_tree *)malloc(sizeof(flake_tree));
       ftp->left=ftp->right=NULL; ftp->fp=fp; ftp->up=NULL;
-      ftp->empty=empty; ftp->rate=rate;
+      ftp->rate=rate;
       tp->flake_tree=ftp;
       fp->tree_node=ftp;
    } else {
@@ -504,27 +503,27 @@ void insert_flake(flake *fp, tube *tp)
       while (1) {
          if (ftp->fp!=NULL || (ftp->rate+kc*ftp->empty < rate+kc*empty)) {
             ftpL = (flake_tree *)malloc(sizeof(flake_tree));
-            ftpL->rate=ftp->rate; ftpL->empty=ftp->empty; 
+            ftpL->rate=ftp->rate; 
             ftpL->fp=ftp->fp; ftpL->left=ftp->left; ftpL->right=ftp->right;
             ftpL->up=ftp;
             if (ftp->fp!=NULL) ftp->fp->tree_node=ftpL;
 
             ftpR = (flake_tree *)malloc(sizeof(flake_tree));
-            ftpR->rate=rate; ftpR->empty=empty; 
+            ftpR->rate=rate; 
             ftpR->fp=fp; ftpR->left=ftpR->right=NULL;
             ftpR->up=ftp;
             fp->tree_node=ftpR;
 
-            ftp->rate+=rate; ftp->empty+=empty;
+            ftp->rate+=rate; 
             ftp->left=ftpL; ftp->right=ftpR; ftp->fp=NULL;
 
             break;
-         } else if (ftp->left->rate+kc*ftp->left->empty < 
-               ftp->right->rate+kc*ftp->right->empty) {
-            ftp->rate+=rate; ftp->empty+=empty;
+         } else if (ftp->left->rate < 
+               ftp->right->rate) {
+            ftp->rate+=rate; 
             ftp=ftp->left;
          } else {
-            ftp->rate+=rate; ftp->empty+=empty;
+            ftp->rate+=rate; 
             ftp=ftp->right;
          }
       }
@@ -667,12 +666,27 @@ double calc_rates(flake *fp, int i, int j, double *rv)
    tube *tp=fp->tube;
    Trep nN,nE,nS,nW; int N=fp->N; int size=(1<<fp->P);
    int seedchunk[4]; 
+   double kc;
+   int newempty;
 
+   
    if (rv!=NULL) for (n=0;n<=N+4;n++) rv[n]=0;
    if (tp==NULL) return 0;
-   if (tp->T>0) return 0;   /* no off-rates: irreversible Tile Assembly Model */
+   kc = tp->k*tp->conc[0]; /* on-rate */
    n = fp->Cell(i,j);
-   if (n==0) return 0;                           /* no off-rate for empties   */
+   if (tp->T>0 && n!=0) return 0;   
+   if (tp->T>0 && n==0) {
+        /* calculate how many tile types could make >= T bonds */
+        //FIXME breaks for doubles?
+         for (n=1;n<=fp->N;n++)
+            if (Gse(fp,i,j,n)>=tp->T) newempty++;
+         newempty--;  newempty=(newempty>0); return kc*newempty;  /* only care if exists */
+   }
+   if (n==0) {
+      if ( fp->Cell(i+1,j) || fp->Cell(i,j+1) || fp->Cell(i-1,j) || fp->Cell(i,j-1) )
+         return kc;
+      else return 0;
+   }
    if (tp->dt_left[n]) return 0;                 /* similarly, no off-rate for the  
                                                     right side of a double tile */
    // NOTE: w/o wander, seed site can't dissociate.  So set rate to zero.
@@ -779,27 +793,14 @@ double calc_rates(flake *fp, int i, int j, double *rv)
 void update_rates(flake *fp, int ii, int jj)
 {
    int n,p; int size=(1<<fp->P); tube *tp=fp->tube;
-   int oldempty, newempty;
 
    // wrap in case ii,jj go beyond the central field of 1-cell protection zone
    if (periodic) { ii=(ii+size)%size; jj=(jj+size)%size; }
 
    if (!(ii < 0 || ii >= size || jj < 0 || jj >= size)) {
-      oldempty = fp->empty[fp->P][ii][jj];
-      newempty = (fp->Cell(ii,jj)==0) && ( fp->Cell(ii+1,jj) || fp->Cell(ii,jj+1) || fp->Cell(ii-1,jj) || fp->Cell(ii,jj-1) );
-      if (newempty && tp!=NULL && tp->T>0) { 
-         /* calculate how many tile types could make >= T bonds */
-         for (n=1;n<=fp->N;n++)
-            if (Gse(fp,ii,jj,n)>=tp->T) newempty++;
-         newempty--;  newempty=(newempty>0);  /* only care if exists */
-      }
-
       fp->rate[fp->P][ii][jj] = calc_rates(fp, ii, jj, NULL);
-      fp->empty[fp->P][ii][jj] = newempty;
-
       for (p=fp->P-1; p>=0; p--) {
          ii = (ii>>1); jj = (jj>>1);
-         fp->empty[p][ii][jj] += newempty-oldempty;
          fp->rate[p][ii][jj] = fp->rate[p+1][ii<<1][jj<<1]   +
             fp->rate[p+1][ii<<1][(jj<<1)+1] +
             fp->rate[p+1][(ii<<1)+1][jj<<1] +
@@ -812,18 +813,17 @@ void update_rates(flake *fp, int ii, int jj)
 void update_tube_rates(flake *fp)
 {
    flake_tree *ftp=fp->tree_node; 
-   double oldrate, newrate; int oldempty, newempty;
+   double oldrate, newrate; 
 
    if (ftp==NULL) return;
 
-   oldrate = ftp->rate; oldempty=ftp->empty;
-   newrate = fp->rate[0][0][0]; newempty=fp->empty[0][0][0];
+   oldrate = ftp->rate; 
+   newrate = fp->rate[0][0][0]; 
 
    //if (newrate <= 0) printf("ERROR: newrate <= 0 in update_tube_rates.\n");
 
    while (ftp!=NULL) {
       ftp->rate+=newrate-oldrate;
-      ftp->empty+=newempty-oldempty;
       ftp=ftp->up;
    }
    // Make sure tree notes don't accumulate numerical error
@@ -1097,15 +1097,14 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
    int p,i,j,di=1,dj=1,n,oops;   tube *tp=fp->tube;
 
 
-   kc = tp->k*tp->conc[0];
-   sum = fp->rate[0][0][0] + kc*fp->empty[0][0][0];
+   sum = fp->rate[0][0][0];
 
    i=0; j=0;  r=drand48();  // we'll re-use this random number for all levels
    for (p=0; p<fp->P; p++) { /* choosing subquadrant from within p:i,j */
-      k00 = fp->rate[p+1][2*i][2*j]+kc*fp->empty[p+1][2*i][2*j];
-      k10 = fp->rate[p+1][2*i+1][2*j]+kc*fp->empty[p+1][2*i+1][2*j];
-      k01 = fp->rate[p+1][2*i][2*j+1]+kc*fp->empty[p+1][2*i][2*j+1];
-      k11 = fp->rate[p+1][2*i+1][2*j+1]+kc*fp->empty[p+1][2*i+1][2*j+1];
+      k00 = fp->rate[p+1][2*i][2*j];
+      k10 = fp->rate[p+1][2*i+1][2*j];
+      k01 = fp->rate[p+1][2*i][2*j+1];
+      k11 = fp->rate[p+1][2*i+1][2*j+1];
       sum = (k00+k01+k10+k11);  
       /* avoid possible round-off error... but still check for it */
       d2printf("%f / %f for choosing %d from %d: %d %d\n",r,sum,p+1,p,i,j);
@@ -1159,13 +1158,12 @@ flake *choose_flake(tube *tp)
 
    r=drand48();  // we'll re-use this random number for all levels
    while (ftp->fp==NULL) {
-      kL = ftp->left->rate+kc*ftp->left->empty;
-      kR = ftp->right->rate+kc*ftp->right->empty;
+      kL = ftp->left->rate;
+      kR = ftp->right->rate;
       /* always fix-up any numerical error that could have accumulated here */
       assert (ftp->left->fp == NULL || ftp->left->rate >= -0.1);
       assert (ftp->right->fp == NULL || ftp->right->rate >= -0.1);
       ftp->rate = ftp->left->rate+ftp->right->rate;
-      ftp->empty = ftp->left->empty+ftp->right->empty; // shouldn't be necessary
       do {
          r = r*(kL+kR);  oops=0;
          if ( (r-=kL) < 0) { ftp=ftp->left; r=(r+kL)/kL; } else
@@ -1887,7 +1885,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
    }
 
    if (tp->flake_tree) {
-      total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+      total_rate = tp->flake_tree->rate+tp->k*tp->conc[0];
    }
    else {
       total_rate = 0;
@@ -1944,7 +1942,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
       }
 
       if (tp->flake_tree) 
-         total_rate = tp->flake_tree->rate+tp->k*tp->conc[0]*tp->flake_tree->empty;
+         total_rate = tp->flake_tree->rate+tp->k*tp->conc[0];
       else
          total_rate = 0;
       if (total_rate < 0) printf("ERROR: Total Rate: %f (< 0) in simulate.\n",total_rate);
