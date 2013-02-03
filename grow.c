@@ -672,7 +672,6 @@ double calc_rates(flake *fp, int i, int j, double *rv)
    
    if (rv!=NULL) for (n=0;n<=N+4;n++) rv[n]=0;
    if (tp==NULL) return 0;
-   kc = tp->k*tp->conc[0]; /* on-rate */
    n = fp->Cell(i,j);
    if (tp->T>0 && n!=0) return 0;   
    if (tp->T>0 && n==0) {
@@ -680,11 +679,11 @@ double calc_rates(flake *fp, int i, int j, double *rv)
         //FIXME breaks for doubles?
          for (n=1;n<=fp->N;n++)
             if (Gse(fp,i,j,n)>=tp->T) newempty++;
-         newempty--;  newempty=(newempty>0); return kc*newempty;  /* only care if exists */
+         newempty--;  newempty=(newempty>0); return tp->k*tp->conc[0];  /* only care if exists */
    }
    if (n==0) {
       if ( fp->Cell(i+1,j) || fp->Cell(i,j+1) || fp->Cell(i-1,j) || fp->Cell(i,j-1) )
-         return kc;
+         return tp->k*tp->conc[0];
       else return 0;
    }
    if (tp->dt_left[n]) return 0;                 /* similarly, no off-rate for the  
