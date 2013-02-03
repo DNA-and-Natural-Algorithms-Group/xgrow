@@ -1115,11 +1115,12 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
             if ( (r-=k10) < 0) { di=1; dj=0; r=(r+k10)/k10; } else
                if ( (r-=k01) < 0) { di=0; dj=1; r=(r+k01)/k01; } else
                   if ( (r-=k11) < 0) { di=1; dj=1; r=(r+k11)/k11; } else 
-                  { r=drand48(); oops=1; }
+                  { printf("Cell choice rand error!\n"); r=drand48(); oops=1; }
       } while (oops); 
       /* always fix-up any numerical error that could have accumulated here */
-      fp->rate[p][i][j] = fp->rate[p+1][2*i][2*j]+fp->rate[p+1][2*i][2*j+1]+
-         fp->rate[p+1][2*i+1][2*j]+fp->rate[p+1][2*i+1][2*j+1];
+      // FIXME: needed?
+      //fp->rate[p][i][j] = fp->rate[p+1][2*i][2*j]+fp->rate[p+1][2*i][2*j+1]+
+      //   fp->rate[p+1][2*i+1][2*j]+fp->rate[p+1][2*i+1][2*j+1];
       i=2*i+di; j=2*j+dj;
    }
    *ip=i; *jp=j;
