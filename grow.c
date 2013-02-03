@@ -677,14 +677,16 @@ double calc_rates(flake *fp, int i, int j, double *rv)
    if (tp->T>0 && n==0) {
         /* calculate how many tile types could make >= T bonds */
         //FIXME breaks for doubles?
-         for (n=1;n<=fp->N;n++)
-            if (Gse(fp,i,j,n)>=tp->T) newempty++;
-         newempty--;  newempty=(newempty>0); return tp->k*tp->conc[0];  /* only care if exists */
+      r=0;
+      for (n=1;n<=fp->N;n++)
+         if (Gse(fp,i,j,n)>=tp->T) r += tp->k*tp->conc[n];
+      return r;  /* only care if exists */
    }
    if (n==0) {
-      if ( fp->Cell(i+1,j) || fp->Cell(i,j+1) || fp->Cell(i-1,j) || fp->Cell(i,j-1) )
-         return tp->k*tp->conc[0];
-      else return 0;
+      r=0;
+      for (n=1;n<=fp->N;n++)
+         if (Gse(fp,i,j,n)>0) r += tp->k*tp->conc[n];
+      return r;  /* only care if exists */
    }
    if (tp->dt_left[n]) return 0;                 /* similarly, no off-rate for the  
                                                     right side of a double tile */
@@ -1115,10 +1117,6 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
                   if ( (r-=k11) < 0) { di=1; dj=1; r=(r+k11)/k11; } else 
                   { printf("Cell choice rand error!\n"); r=drand48(); oops=1; }
       } while (oops); 
-      /* always fix-up any numerical error that could have accumulated here */
-      // FIXME: needed?
-      //fp->rate[p][i][j] = fp->rate[p+1][2*i][2*j]+fp->rate[p+1][2*i][2*j+1]+
-      //   fp->rate[p+1][2*i+1][2*j]+fp->rate[p+1][2*i+1][2*j+1];
       i=2*i+di; j=2*j+dj;
    }
    *ip=i; *jp=j;
@@ -1126,8 +1124,12 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
 
    if (fp->Cell(i,j) == 0) {   /* choose on-event for type 1...N            */
       do {
-         r = r * tp->conc[0];  cum = 0;  oops=0;
-         for (n=1; n<=fp->N; n++) if (r < (cum += tp->conc[n])) break; 
+         r = r * fp->rate[fp->P][i][j];  cum = 0;  oops=0;
+         for (n=1; n<=fp->N; n++) {
+            if (Gse(fp,i,j,n)==0) continue;
+            if (tp->T>0 && Gse(fp,i,j,n)<tp->T) continue;
+            if (r < (cum += tp->k*tp->conc[n])) break;
+         }
          if (n>fp->N) { // apparently conc[0] is not the sum of conc[n], oops
             printf("Concentration sum error!!! %f =!= %f\n",tp->conc[0],cum); 
             r=drand48(); oops=1; 
@@ -1884,7 +1886,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
    }
 
    if (tp->flake_tree) {
-      total_rate = tp->flake_tree->rate+tp->k*tp->conc[0];
+      total_rate = tp->flake_tree->rate;
    }
    else {
       total_rate = 0;
@@ -1941,7 +1943,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
       }
 
       if (tp->flake_tree) 
-         total_rate = tp->flake_tree->rate+tp->k*tp->conc[0];
+         total_rate = tp->flake_tree->rate;
       else
          total_rate = 0;
       if (total_rate < 0) printf("ERROR: Total Rate: %f (< 0) in simulate.\n",total_rate);
