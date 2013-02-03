@@ -1028,16 +1028,18 @@ void change_cell(flake *fp, int i, int j, Trep n)
    // Also change these in case of double tiles or chunk_fission
    // TODO : just check if we have double tiles or chunk fission before
    // doing these tedious updates
-   update_rates(fp,i-1,j+1);
-   update_rates(fp,i+1,j+1);
-   update_rates(fp,i-1,j-1);
-   update_rates(fp,i+1,j-1);
-   update_rates(fp,i,j+2);
-   update_rates(fp,i-1,j+2);
-   update_rates(fp,i+1,j+2);
-   update_rates(fp,i,j-2);
-   update_rates(fp,i-1,j-2);
-   update_rates(fp,i+1,j-2);
+   // FIXME: these are disabled because tiles being added/removed singly
+   // should mean they don't matter. FIXME FIXME FIXME
+   // update_rates(fp,i-1,j+1);
+   // update_rates(fp,i+1,j+1);
+   // update_rates(fp,i-1,j-1);
+   // update_rates(fp,i+1,j-1);
+   // update_rates(fp,i,j+2);
+   // update_rates(fp,i-1,j+2);
+   // update_rates(fp,i+1,j+2);
+   // update_rates(fp,i,j-2);
+   // update_rates(fp,i-1,j-2);
+   // update_rates(fp,i+1,j-2);
    if (tp!=NULL) update_tube_rates(fp);
 } // change_cell()
 
