@@ -779,13 +779,12 @@ double calc_rates(flake *fp, int i, int j, double *rv)
 void update_rates(flake *fp, int ii, int jj)
 {
    int n,p; int size=(1<<fp->P); tube *tp=fp->tube;
-   double oldrate, newrate; int oldempty, newempty;
+   int oldempty, newempty;
 
    // wrap in case ii,jj go beyond the central field of 1-cell protection zone
    if (periodic) { ii=(ii+size)%size; jj=(jj+size)%size; }
 
    if (!(ii < 0 || ii >= size || jj < 0 || jj >= size)) {
-      oldrate  = fp->rate[fp->P][ii][jj];
       oldempty = fp->empty[fp->P][ii][jj];
       newempty = (fp->Cell(ii,jj)==0) && ( fp->Cell(ii+1,jj) || fp->Cell(ii,jj+1) || fp->Cell(ii-1,jj) || fp->Cell(ii,jj-1) );
       if (newempty && tp!=NULL && tp->T>0) { 
@@ -794,17 +793,17 @@ void update_rates(flake *fp, int ii, int jj)
             if (Gse(fp,ii,jj,n)>=tp->T) newempty++;
          newempty--;  newempty=(newempty>0);  /* only care if exists */
       }
-      newrate  = calc_rates(fp, ii, jj, NULL);
-      for (p=fp->P; p>=0; p--) {
-         fp->rate[p][ii][jj] += newrate-oldrate;
-         fp->empty[p][ii][jj] += newempty-oldempty;
-         if (p<fp->P)
-            /* always fix-up any numerical error that could have accumulated here */
-            fp->rate[p][ii][jj] = fp->rate[p+1][ii<<1][jj<<1]   +
-               fp->rate[p+1][ii<<1][(jj<<1)+1] +
-               fp->rate[p+1][(ii<<1)+1][jj<<1] +
-               fp->rate[p+1][(ii<<1)+1][(jj<<1)+1];
+
+      fp->rate[fp->P][ii][jj] = calc_rates(fp, ii, jj, NULL);
+      fp->empty[fp->P][ii][jj] = newempty;
+
+      for (p=fp->P-1; p>=0; p--) {
          ii = (ii>>1); jj = (jj>>1);
+         fp->empty[p][ii][jj] += newempty-oldempty;
+         fp->rate[p][ii][jj] = fp->rate[p+1][ii<<1][jj<<1]   +
+            fp->rate[p+1][ii<<1][(jj<<1)+1] +
+            fp->rate[p+1][(ii<<1)+1][jj<<1] +
+            fp->rate[p+1][(ii<<1)+1][(jj<<1)+1];
       }
    }
    if (fp->rate[0][0][0] < 0) printf("ERROR: fp->rate[0][0][0] < 0 in update_rates.\n");
