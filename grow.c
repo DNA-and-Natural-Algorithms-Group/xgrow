@@ -214,7 +214,7 @@ tube *init_tube(Trep P, Trep N, int num_bindings)
    for (n=0;n<N+1;n++) for (m=0;m<N+1;m++) tp->Gse_NS[n][m]=0;
 
    tp->events=0; tp->t=0; tp->ewrapped=0;
-   tp->stat_a=tp->stat_d=tp->stat_h=tp->stat_f=0;
+   tp->stat_a=tp->stat_d=tp->stat_h=tp->stat_f=tp->stat_m=0;
    tp->untiltilescount=0;
 
    tp->rv  = (double *)calloc(sizeof(double),1+N+4);
@@ -376,8 +376,8 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
 /* BUG: if conc's go to zero, log returns nan                       */
 void recalc_G(flake *fp)
 {
-   int n,i,j,size=(1<<fp->P);  tube *tp=fp->tube;
-
+   int n,i,j,size=(1<<fp->P), oldmm;  tube *tp=fp->tube;
+   oldmm = fp->mismatches;
    fp->G = 0; fp->mismatches=0; fp->tiles=0;
    /* OLD: don't count the seed tile concentration */
    /* NEW: count it only if 'wander' is on -- but only in the display */
@@ -398,6 +398,7 @@ void recalc_G(flake *fp)
       }
    }
    fp->mismatches/=2;
+   tp->stat_m = fp->mismatches - oldmm;
    update_tube_rates(fp);
 } // recalc_G()
 
@@ -905,6 +906,7 @@ void change_cell(flake *fp, int i, int j, Trep n)
             tp->largest_flake_size = fp->tiles;
          }
          fp->mismatches += Mism(fp,i,j,n);
+         tp->stat_m += Mism(fp,i,j,n);
       } 
       else if (n==0) {                              /* tile loss */
          tp->conc[0] += fp->flake_conc; 
@@ -931,6 +933,7 @@ void change_cell(flake *fp, int i, int j, Trep n)
          }
          tp->stat_d++; fp->tiles--; 
          fp->mismatches -= Mism(fp,i,j,fp->Cell(i,j));
+         tp->stat_m -= Mism(fp,i,j,fp->Cell(i,j));
       } 
       else {                               /* tile hydrolysis or replacement */
          fp->G += Gse(fp,i,j,fp->Cell(i,j)) - Gse(fp,i,j,n) +
@@ -1579,8 +1582,8 @@ void repair_flake(flake *fp, double T, double Gse)
 /* (also see recalc_G for original #mismatches count, as displayed in window always) */
 void error_radius_flake(flake *fp, double rad)
 {
-   int n,i,j,ii,jj,size=(1<<fp->P),solid; 
-
+   int n,i,j,ii,jj,size=(1<<fp->P),solid, oldmm; 
+   oldmm = fp->mismatches;
    fp->mismatches=0; 
    for (i=0;i<size;i++)
       for(j=0;j<size;j++) {
@@ -1593,6 +1596,7 @@ void error_radius_flake(flake *fp, double rad)
          }
       }
    fp->mismatches/=2;  // errors right on boundary of radius may not be counted twice.
+   fp->tube->stat_m = fp->mismatches - oldmm;
 
 } // error_radius_flake()
 
@@ -1835,7 +1839,7 @@ void get_random_wander_permutation (int di[6], int dj[6],
 
 
 /* simulates 'events' events */
-void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax, int smin)
+void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax, int smin, int mmax)
 {
    int i,j,n,oldn; double dt; flake *fp; int chunk, seedchunk[4];
    double total_rate, total_blast_rate, new_flake_rate, event_choice; long int emaxL;
@@ -1900,6 +1904,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
    while (tp->events < emaxL && 
          (tmax==0 || tp->t < tmax) && 
          (smax==0 || tp->stat_a-tp->stat_d < smax) &&
+         (mmax==0 || tp->stat_m < mmax) &&
          (fsmax==0 || tp->largest_flake_size < fsmax) &&
          (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
          total_blast_rate+total_rate+new_flake_rate > 0 &&
@@ -1909,7 +1914,6 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
       if (untiltiles && tp->all_present) {
          return;
       }
-
 
       /* First check if time is such that we need to update the temperature [anneal] */
       if (tp->anneal_t && (tp->t > tp->next_update_t)) {
@@ -2445,7 +2449,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
 /* for testing analytic solution to 2-tile 1D polymerization */
 /* simulates until some limit is reached (all must be given) */
 void linear_simulate(double ratek, double Gmc, double Gse, 
-      double tmax, int emax, int smax)
+      double tmax, int emax, int smax, int mmax)
 {
    double r,t; int e, s;
    Trep *tile;

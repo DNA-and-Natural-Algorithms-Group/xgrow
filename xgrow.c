@@ -343,7 +343,7 @@ int **tileb; double *stoic;
 int hydro; 
 int clean_cycles=0; double clean_X=1.0; int fill_cycles=0; double fill_X=1.0; 
 double error_radius=0.0; double repair_unique_T=2.0; int repair_unique=0;
-double tmax; int emax, smax, fsmax, smin;
+double tmax; int emax, smax, fsmax, smin, mmax;
 int seed_i,seed_j,seed_n;
 double tinybox = 0;
 double anneal_h, anneal_s, startC, endC, seconds_per_C = 0;
@@ -523,6 +523,7 @@ int parse_arg_line(char *arg)
    else if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
    else if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
    else if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
+   else if (strncmp(arg,"mmax=",6)==0) mmax=atoi(&arg[6]);
    else if (strncmp(arg,"smin=",5)==0) smin=atoi(&arg[5]);
    else if (strncmp(arg,"fsmax=",6)==0) fsmax=atoi(&arg[6]);
    else if (strncmp(arg,"untiltiles=",11)==0) {
@@ -869,6 +870,7 @@ void getargs(int argc, char **argv)
       printf("  tmax=                 quit after time t has passed\n");
       printf("  emax=                 quit after e events have occurred\n");
       printf("  smax=                 quit when the fragment or total size of fragments is size s\n");
+      printf("  mmax=                quit when there are at least mm mismatches by xgrow's interpretation\n");
       printf("  smin=                 quit when the fragment or total size of fragments goes to or below size s\n");
       printf("  fsmax=                 quit when a single fragment reaches size s\n");
       printf("  untiltiles=           quit when all (numbered) tiles in the comma-delineated list are in the assembly\n");
@@ -897,7 +899,7 @@ void getargs(int argc, char **argv)
       exit(1);
    }
 
-   tmax=0; emax=0; smax=0; fsmax=0; smin=-1;
+   tmax=0; emax=0; smax=0; fsmax=0; smin=-1; mmax=0;
    wander=0; periodic=0; linear=0; fission_allowed=0; zero_bonds_allowed=0;
    Gfc=0; datafp=NULL; arrayfp=NULL;  largeflakefp=NULL; untiltilescountfp=NULL;
    Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
@@ -920,7 +922,7 @@ void getargs(int argc, char **argv)
    for (i=2; i<argc; i++) {
       parse_arg_line(argv[i]);
    }
-   if (tmax==0 && emax==0 && smax==0 && fsmax==0 && smin==-1) XXX=1;
+   if (tmax==0 && emax==0 && smax==0 && mmax==0 && fsmax==0 && smin==-1) XXX=1;
    if (hydro && fission_allowed==2) {
       printf("* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(0);
    }
@@ -2063,7 +2065,7 @@ int main(int argc, char **argv)
    }
 
    if (linear) {
-      linear_simulate(ratek,Gmc,Gse,tmax,emax,smax);
+      linear_simulate(ratek,Gmc,Gse,tmax,emax,smax,mmax);
       return 0;
    }
 
@@ -2168,6 +2170,7 @@ int main(int argc, char **argv)
    while((tmax==0 || tp->t < tmax) && 
 	 (emax==0 || tp->events < emax) &&
 	 (smax==0 || tp->stat_a-tp->stat_d < smax) &&
+	 (mmax==0 || tp->stat_m < mmax) &&
 	 (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
 	 (fsmax==0 || tp->largest_flake_size < fsmax) &&
 	 (tp->seconds_per_C == 0 || tp->currentC > tp->endC) &&
@@ -2175,12 +2178,12 @@ int main(int argc, char **argv)
 
       Gse=tp->Gse;  // keep them sync'd in case "anneal" is ongoing.
       if (!XXX) {
-	 simulate(tp,update_rate,tmax,emax,smax,fsmax,smin);
+	 simulate(tp,update_rate,tmax,emax,smax,fsmax,smin,mmax);
 	 if (tracefp!=NULL) write_datalines(tracefp,"\n");
 	 if (export_mode==2 && export_movie==1) export_flake("movie",fp);
       } else {
 	 if (0==paused && 0==mousing && !XPending(display)) {
-	    simulate(tp,update_rate,tmax,emax,smax,fsmax,smin);
+	    simulate(tp,update_rate,tmax,emax,smax,fsmax,smin,mmax);
 	    fp = tp->flake_list;
 	    assert (!fp || !tp->tinybox ||
 		  ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));

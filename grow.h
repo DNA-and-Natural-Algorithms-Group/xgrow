@@ -252,6 +252,7 @@ typedef struct tube_struct {
    evint events;     /* cumulative number of events                      */
    evint stat_a,stat_d,/* tally of number of association, dissociation,  */
          stat_h,stat_f;   /* "hydrolysis", and "fission" events               */
+   int stat_m;
    int ewrapped;        /* has the event counter wrapped around?            */
    double *rv;          /* scratch space, size fp->1+N+4 (for chunk_fission)*/
    int *Fnext, *Fgroup; /* size x size array for fill scratch space         */
@@ -313,9 +314,9 @@ void update_tube_rates(flake *fp);
 void change_cell(flake *fp, int i, int j, Trep n);
 void change_seed(flake *fp, int new_i, int new_j);
 int flake_fission(flake *fp, int i, int j);
-void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax, int smin);
+void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax, int smin, int mmax);
 void linear_simulate( double ratek, double Gmc, double Gse,
-      double tmax, int emax, int smax);
+      double tmax, int emax, int smax, int mmax);
 
 #define FI_OFF 0
 #define FI_OK 1
