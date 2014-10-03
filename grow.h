@@ -18,7 +18,7 @@
 
 #define evint unsigned long long
 
-#define DEBUG 0
+#define DEBUG 2
 #define dprintf if (DEBUG) printf
 #define d2printf if (DEBUG==2) printf
 
@@ -64,7 +64,17 @@ double exp(); double log();
       fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] + \
       fp->tube->Gse_EW[ fp->Cell(i,(j)+2) ] [ fp->Cell(i,(j)+1) ] +  \
       fp->tube->Gse_NS[ fp->Cell(i,(j)+1) ] [ fp->Cell((i)+1,(j)+1) ] +  \
-      fp->tube->Gse_NS[ fp->Cell((i)-1,(j)+1) ] [ fp->Cell(i,(j)+1) ] )
+      fp->tube->Gse_NS[ fp->Cell((i)-1,(j)+1) ] [ fp->Cell(i,(j)+1) ] ) /* FIXME: is this right!? */
+
+#define Gse_vdouble(fp,i,j,n) (                                \
+      fp->tube->Gse_EW[ n ] [ fp->Cell(i,(j)-1) ] + \
+      fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ n ] + \
+      fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] + \
+      fp->tube->Gse_NS[ fp->Cell((i)+1,j) ] [ fp->Cell((i)+2,j) ] +  \
+      fp->tube->Gse_EW[ fp->Cell((i)+1,j) ] [ fp->Cell((i)+1,(j)-1) ]+  \
+      fp->tube->Gse_EW[ fp->Cell((i)+1,(j)+1) ] [ fp->Cell((i)+1,j) ] )  
+
+
 
 #define Gse_double_left(fp,i,j,n) (                                \
       fp->tube->Gse_EW[ n ] [ fp->Cell(i,(j)-1) ] +  \
@@ -77,10 +87,22 @@ double exp(); double log();
       fp->tube->Gse_NS[ n ] [ fp->Cell((i)+1,j) ] +  \
       fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] )
 
+#define Gse_vdouble_up(fp,i,j,n) (                                \
+      fp->tube->Gse_EW[ n ] [ fp->Cell(i,(j)-1) ] +  \
+      fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ n ] +  \
+      fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] )
+
+#define Gse_vdouble_down(fp,i,j,n) (                                \
+      fp->tube->Gse_EW[ n ] [ fp->Cell(i,(j)-1) ] +  \
+      fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ n ] +  \
+      fp->tube->Gse_NS[ n ] [ fp->Cell((i)+1,j) ] )
+
+
 /* definition for total sticky-end strength around a pair or a 2x2 chunk */
 /* -- note that if some site is empty, this still gives the correct      */
 /*    energy for dissociation                                            */
 /* Here, 0 <= i,j < 2^P if periodic, and 0 <= i,j < 2^P-1 otherwise.     */
+/* FIXME: does this work for doubles? */
 #define chunk_Gse_EW(fp,i,j,n) ( \
       Gse(fp,i,j,n) +                                                         \
       Gse(fp,i,((j)+1)%size,fp->Cell(i,((j)+1)%size)) -                       \
@@ -151,6 +173,7 @@ typedef struct flake_struct {
    int tiles;           /* total number of tiles in this flake              */
    int seed_is_double_tile;          /* If the seed is a double tile, it will be a monomer,
                                         but the number of tiles will be reported as 2.  */
+   int seed_is_vdouble_tile;          /* same for vdoubles */
    int mismatches;                   /* number of se edges that don't agree              */
    struct flake_struct *next_flake;  /* for NULL-terminated linked list     */
    struct flake_tree_struct *tree_node;  /* for tree of flakes              */
@@ -192,6 +215,9 @@ typedef struct tube_struct {
                         If it doesn't have one, or the tile is the  
                         right half of a double tile, the value 
                         here is 0 */
+   int *dt_down;      /* dt_down and dt_up are analagous to dt_right and dt_left
+                       for vertical tiles. */
+   int *dt_up;
    double tinybox;         /* If this value is nonzero, indicates that
                               each kind of two tile flake should be
                               dynamically created at a rate
@@ -299,7 +325,7 @@ void fill_flake(flake *fp, double X, int iters);
 void error_radius_flake(flake *fp, double rad);
 void repair_flake(flake *fp, double T, double Gse);
 void set_params(tube *tp, int** tileb, double* strength, double **glue, 
-      double* stoic, double anneal_g, double anneal_t, int updates_per_RC,double anneal_h,double anneal_s,double startC,double endC,double seconds_per_C,int *dt_right, int *dt_left, int hydro, double k, double Gmc, double Gse,
+      double* stoic, double anneal_g, double anneal_t, int updates_per_RC,double anneal_h,double anneal_s,double startC,double endC,double seconds_per_C,int *dt_right, int *dt_left, int *dt_down, int *dt_up, int hydro, double k, double Gmc, double Gse,
       double Gmch, double Gseh, double Ghyd, 
       double Gas, double Gam, double Gae, double Gah, double Gao, double T, double tinybox,
       int seed_i, int seed_j, double Gfc);

@@ -326,6 +326,7 @@ double blast_rate_gamma=0;
 double blast_rate=0;
 int first_tile, second_tile;
 int double_tiles=0;
+int vdouble_tiles=0;
 double min_strength=1;
 
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
@@ -338,6 +339,7 @@ int tthresh=0;
 double *strength;
 double **glue;
 int *dt_right, *dt_left;
+int *dt_down, *dt_up;
 int N, num_bindings, tileb_length;
 int **tileb; double *stoic;
 int hydro; 
@@ -515,6 +517,23 @@ int parse_arg_line(char *arg)
       dt_right[first_tile] = second_tile;
       dt_left[second_tile] = first_tile;
       double_tiles = 1;
+   }
+   else if (strncmp(arg,"vdoubletile=",12)==0) {
+      char *p;
+      first_tile = atoi(&arg[12]);
+      p = strchr(&arg[13],',');
+      if (p == NULL) {
+	 fprintf(stderr,"Two tiles with a comma separating them are required for the vdouble tile option.\n");
+	 return -1;
+      }
+      second_tile = atoi(p + 1);
+      if (tileb[first_tile][2] != tileb[second_tile][0]) {
+	 fprintf(stderr,"Pieces of a vdouble tile must have a matching bond in between them.\n");
+	 return -1;
+      }
+      dt_down[first_tile] = second_tile;
+      dt_up[second_tile] = first_tile;
+      vdouble_tiles = 1;
    }
    else if (strncmp(arg,"update_rate=",12)==0) 
       update_rate=MAX(1,MIN(atol(&arg[12]),10000000));
@@ -766,6 +785,8 @@ void read_tilefile(FILE *tilefp)
    strength = (double*) calloc(sizeof(double),num_bindings+1); 
    dt_left = (int *) calloc(sizeof(int),N+1);
    dt_right = (int *) calloc(sizeof(int),N+1);
+   dt_up = (int *) calloc(sizeof(int),N+1);
+   dt_down = (int *) calloc(sizeof(int),N+1);
 
    temp_char = getc (tilefp);  ungetc(temp_char, tilefp);
    if (temp_char == 'b') {
@@ -926,7 +947,7 @@ void getargs(int argc, char **argv)
    if (hydro && fission_allowed==2) {
       printf("* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(0);
    }
-   if (double_tiles) {
+   if (double_tiles || vdouble_tiles) {
       //if (fission_allowed != 0) {
       //printf("Double tiles cannot be used with fission or chunk_fission currently.\n");
       //exit(0);
@@ -1331,7 +1352,7 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
    srand(time(0));
    i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_i;
    j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_j;
-   while ((current_flake->Cell(i,j)) == 0 || tp->dt_left[current_flake->Cell(i,j)])
+   while ((current_flake->Cell(i,j)) == 0 || tp->dt_left[current_flake->Cell(i,j)]) //FIXME: vdouble
    {
       i = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_i;
       j = flake_size * (((double)rand()) / ((double)RAND_MAX)) + translate_j;
@@ -2073,7 +2094,7 @@ int main(int argc, char **argv)
       tp = init_tube(size_P,N,num_bindings);   
       set_params(tp,tileb,strength,glue,stoic,0,initial_rc,updates_per_RC,
 	    anneal_h,anneal_s,startC,endC,seconds_per_C,
-	    dt_right, dt_left, hydro,ratek,
+	    dt_right, dt_left, dt_down, dt_up, hydro,ratek,
 	    Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox, seed_i, seed_j, Gfc);
 #ifdef TESTING_OK
       run_xgrow_tests(tp,Gmc,Gse,seed_i,seed_j,seed_n,size);
@@ -2087,7 +2108,7 @@ int main(int argc, char **argv)
 
    /* set initial state */
    tp = init_tube(size_P,N,num_bindings);   
-   set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,anneal_h,anneal_s,startC,endC,seconds_per_C,dt_right, dt_left, hydro,ratek,
+   set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,anneal_h,anneal_s,startC,endC,seconds_per_C,dt_right, dt_left, dt_down, dt_up, hydro,ratek,
 	 Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,Gfc);
 
    fprm=fparam;
@@ -2100,7 +2121,7 @@ int main(int argc, char **argv)
       for (fn=1; fn <= fprm->N; fn++)
       {
 	 if (tp->dt_left[fprm->seed_n]) {
-	    fprm->seed_n = tp->dt_left[fprm->seed_n];
+	    fprm->seed_n = tp->dt_left[fprm->seed_n]; // FIXME: vdouble
 	    fprm->seed_j--;
 	 }
 	 insert_flake(fp=init_flake(size_P,N,
@@ -2302,7 +2323,7 @@ int main(int argc, char **argv)
 		  tp = init_tube(size_P,N,num_bindings);   
 		  set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,
 			anneal_h, anneal_s, startC, endC, seconds_per_C,
-			dt_right, dt_left, hydro,ratek,
+			dt_right, dt_left, dt_down, dt_up, hydro,ratek,
 			Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,
 			Gfc);
 		  fprm=fparam; 
