@@ -2174,10 +2174,10 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                change_cell(fp, tp->default_seed_i+di, tp->default_seed_j+dj-1,tp->dt_left[m]);
             }
             if (tp->dt_down[m]) {
-               change_cell(fp, tp->default_seed_i+di+1, tp->default_seed_j+dj+1,tp->dt_down[m]);
+               change_cell(fp, tp->default_seed_i+di+1, tp->default_seed_j+dj,tp->dt_down[m]);
             }
             if (tp->dt_up[m]) {
-               change_cell(fp, tp->default_seed_i+di-1, tp->default_seed_j+dj-1,tp->dt_up[m]);
+               change_cell(fp, tp->default_seed_i+di-1, tp->default_seed_j+dj,tp->dt_up[m]);
             }
             assert (!tp->tinybox ||
                   ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
