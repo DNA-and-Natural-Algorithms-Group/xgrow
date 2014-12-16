@@ -1,0 +1,256 @@
+# set ft=yaml
+#
+# The counter system from Barish et al, 2009. This is the version with the
+# non-orthogonal glue strengths removed.
+bonds:
+- {name: origami, strength: 50}
+- {name: Z7Z8_db, strength: 20}
+- {name: Z5Z6_db, strength: 20}
+- {name: hp1, strength: 0}
+- {name: hp1_c, strength: 0}
+- {name: bl1, strength: 0}
+- {name: bl1_c, strength: 0}
+- {name: hp2, strength: 0}
+- {name: hp2_c, strength: 0}
+- {name: in1, strength: 0}
+- {name: in1_c, strength: 0}
+- {name: in2, strength: 0}
+- {name: in2_c, strength: 0}
+- {name: green1, strength: 0}
+- {name: green1_c, strength: 0}
+- {name: green2, strength: 0}
+- {name: green2_c, strength: 0}
+- {name: black1, strength: 0}
+- {name: black1_c, strength: 0}
+- {name: black2, strength: 0}
+- {name: black2_c, strength: 0}
+- {name: gray1, strength: 0}
+- {name: gray1_c, strength: 0}
+- {name: pink1, strength: 0}
+- {name: pink1_c, strength: 0}
+- {name: blue1, strength: 0}
+- {name: blue1_c, strength: 0}
+- {name: blue2, strength: 0}
+- {name: blue2_c, strength: 0}
+- {name: blue3, strength: 0}
+- {name: blue3_c, strength: 0}
+- {name: blue4, strength: 0}
+- {name: blue4_c, strength: 0}
+- {name: blue5, strength: 0}
+- {name: blue5_c, strength: 0}
+- {name: blue6, strength: 0}
+- {name: blue6_c, strength: 0}
+- {name: blue7, strength: 0}
+- {name: blue7_c, strength: 0}
+- {name: red1, strength: 0}
+- {name: red1_c, strength: 0}
+- {name: red2, strength: 0}
+- {name: red2_c, strength: 0}
+- {name: red3, strength: 0}
+- {name: red3_c, strength: 0}
+- {name: red4, strength: 0}
+- {name: red4_c, strength: 0}
+- {name: red5, strength: 0}
+- {name: red5_c, strength: 0}
+- {name: red6, strength: 0}
+- {name: red6_c, strength: 0}
+- {name: red7, strength: 0}
+- {name: red7_c, strength: 0}
+- {name: brown1, strength: 0}
+- {name: brown1_c, strength: 0}
+- {name: brown2, strength: 0}
+- {name: brown2_c, strength: 0}
+- {name: brown3, strength: 0}
+- {name: brown3_c, strength: 0}
+- {name: brown4, strength: 0}
+- {name: brown4_c, strength: 0}
+- {name: brown5, strength: 0}
+- {name: brown5_c, strength: 0}
+- {name: brown6, strength: 0}
+- {name: brown6_c, strength: 0}
+- {name: ogreen1, strength: 0}
+- {name: ogreen1_c, strength: 0}
+glues:
+- [green1, green1_c, 8.35]
+- [black1, black1_c, 8.35]
+- [blue3, blue3_c, 8.35]
+- [blue4, blue4_c, 8.35]
+- [blue6, blue6_c, 8.35]
+- [red3, red3_c, 8.35]
+- [red4, red4_c, 8.35]
+- [red6, red6_c, 8.35]
+- [brown3, brown3_c, 8.35]
+- [brown4, brown4_c, 8.35]
+- [brown6, brown6_c, 8.35]
+- [ogreen1, ogreen1_c, 8.35]
+- [green2, green2_c, 8.35]
+- [black2, black2_c, 8.35]
+- [gray1, gray1_c, 8.35]
+- [pink1, pink1_c, 8.35]
+- [blue1, blue1_c, 8.35]
+- [blue2, blue2_c, 8.35]
+- [blue5, blue5_c, 8.35]
+- [blue7, blue7_c, 8.35]
+- [red1, red1_c, 8.35]
+- [red2, red2_c, 8.35]
+- [red5, red5_c, 8.35]
+- [red7, red7_c, 8.35]
+- [brown1, brown1_c, 8.35]
+- [brown2, brown2_c, 8.35]
+- [brown5, brown5_c, 8.35]
+- [blue4, red5_c, 6.18]
+- [blue4_c, red5, 6.18]
+tiles:
+- color: white
+  edges: [origami, origami, origami, origami]
+  name: origami
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, in1, in1, origami]
+  name: AT-16-fake
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, in1, in1, origami]
+  name: AT-15-fake
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, gray1, ogreen1_c, origami]
+  name: AT-14
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue5, blue3_c, origami]
+  name: AT-13
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue2, green1_c, origami]
+  name: AT-12
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue5, blue3_c, origami]
+  name: AT-11
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue2, green1_c, origami]
+  name: AT-10
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue5, blue3_c, origami]
+  name: AT-9
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue2, green1_c, origami]
+  name: AT-8
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue5, blue3_c, origami]
+  name: AT-7
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue2, green1_c, origami]
+  name: AT-6
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue5, blue3_c, origami]
+  name: AT-5
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, blue2, green1_c, origami]
+  name: AT-4
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, brown5, brown3_c, origami]
+  name: AT-3
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, brown2, black1_c, origami]
+  name: AT-2
+  stoic: 1.0e-09
+- color: white
+  edges: [origami, pink1, hp2, origami]
+  name: AT-1
+  stoic: 1.0e-09
+- color: blue
+  edges: [green1, blue4, blue1_c, blue5_c]
+  name: Z9
+  stoic: 5
+- color: blue
+  edges: [blue1, blue2, green1_c, blue6_c]
+  name: Z12V
+  stoic: 5
+- color: lightblue
+  edges: [blue3, blue6, green2_c, blue2_c]
+  name: Z10V
+  stoic: 5
+- color: blue
+  edges: [green2, blue5, blue3_c, blue4_c]
+  name: Z11
+  stoic: 5
+- color: orange
+  edges: [green1, red4, red1_c, red5_c]
+  name: ZB
+  stoic: 5
+- color: orange
+  edges: [red1, red2, green1_c, red6_c]
+  name: ZDV
+  stoic: 5
+- color: orange
+  edges: [red3, red6, green2_c, red2_c]
+  name: ZCV
+  stoic: 5
+- color: orange
+  edges: [green2, red5, red3_c, red4_c]
+  name: ZA
+  stoic: 5
+- color: pink
+  edges: [ogreen1, blue4, blue7_c, red5_c]
+  name: ZG
+  stoic: 5
+- color: pink
+  edges: [blue7, blue2, ogreen1_c, red6_c]
+  name: ZE
+  stoic: 5
+- color: green
+  edges: [ogreen1, red4, red7_c, blue5_c]
+  name: ZF
+  stoic: 5
+- color: green
+  edges: [red7, red2, green1_c, blue6_c]
+  name: ZH
+  stoic: 5
+- color: red
+  edges: [hp1, Z7Z8_db, green2_c, gray1_c]
+  name: Z7Z8_left
+- color: red
+  edges: [in2, gray1, ogreen1_c, Z7Z8_db]
+  name: Z7Z8_right
+- color: brown
+  edges: [green1, brown4, brown1_c, brown5_c]
+  name: Z1
+  stoic: 2
+- color: brown
+  edges: [brown1, brown2, black1_c, brown6_c]
+  name: Z4
+  stoic: 2
+- color: brown
+  edges: [brown3, brown6, black2_c, brown2_c]
+  name: Z2
+  stoic: 2
+- color: brown
+  edges: [green2, brown5, brown3_c, brown4_c]
+  name: Z3
+  stoic: 2
+- color: red
+  edges: [black1, Z5Z6_db, bl1, pink1_c]
+  name: Z5Z6_left
+- color: red
+  edges: [black2, pink1, hp2, Z5Z6_db]
+  name: Z5Z6_right
+xgrowargs:
+  Gmc: 19.8064
+  Gse: 9.4
+  doubletiles:
+  - [Z7Z8_left, Z7Z8_right]
+  - [Z5Z6_left, Z5Z6_right]
+  fission: chunk
+  importfile: tallrect.seed
+  size: 128
