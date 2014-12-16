@@ -1,0 +1,111 @@
+#!/usr/bin/env python
+
+# xgrow-wrap is a wrapper for Xgrow that allows it to use stxg
+# (structured xgrow) yaml files for tilesets instead of the usual
+# xgrow tile files. It has essentially no other options at the moment,
+# and relies on the stxg.py library for stxg support.
+
+# Created in 2013 by Constantine Evans <cge@dna.caltech.edu>
+# This is version 0.0.1.
+
+import os
+import yaml
+import stxg
+import tempfile
+import sys
+
+def main():
+    
+    # Check whether we should print the help text.
+    if len(sys.argv) == 1:
+        # No arguments, so print help.
+        print_help()
+        return 0
+    elif sys.argv[1] == '-h' or sys.argv[1] == '--help' or sys.argv[1] == '--':
+        # help, so print help.
+        print_help()
+        return 0
+    
+    # Load the stxg file.
+    try:
+        stream = open(sys.argv[1])
+        xg = yaml.load( stream )
+    except IOError, e:
+        sys.stderr.write("Error opening stxg file '{0}': {1}\n".format(e.filename, e.strerror))
+        stream.close()
+        return 1
+    except yaml.scanner.ScannerError, e:
+        sys.stderr.write("Error loading stxg file '{0}' at line {1}: {2}\n".format(
+            argv[1], e.problem_mark.line, e.problem
+            ))
+        stream.close()
+        return 1
+    finally:
+        stream.close()
+        
+    # Look for xgrow.
+    paths = [ os.path.curdir ]
+    if 'XGROW_DIR' in os.environ:
+        paths.append( os.environ['XGROW_DIR'] )
+    paths += os.environ['PATH'].split(os.pathsep)
+    
+    xgrowpath = None
+    for path in paths:
+        testpath = os.path.join(path.strip('"'),'xgrow')
+        if os.path.isfile(testpath):
+            xgrowpath = testpath
+            break
+    if not xgrowpath:
+        sys.stderr.write("Can't find xgrow. The xgrow binary should be in the current folder\n"+
+                         ", your path, or in the directory specified by XGROW_DIR.\n")
+        return 1
+        
+    # Now convert from stxg to xgrow.
+    try:
+        tilestring = stxg.to_xgrow(xg)
+    except Exception, e:
+        sys.stderr.write("Error converting stxg file to xgrow: {0}\n".format(repr(e)))
+        return 1
+        
+    # Now create a temporary file, and run xgrow.
+    
+    temp = tempfile.NamedTemporaryFile(delete = False)
+    temp.write( tilestring )
+    temp.close()
+    
+    ret = os.system( xgrowpath + " " + temp.name + " " + " ".join(sys.argv[2:]))
+    
+    
+    if ret != 0:
+        sys.stderr.write("Xgrow failed, giving return code {0}.\n".format(ret)+
+                         "Tile file has been kept at path {0}\n".format(temp.name))
+        return 2
+    else:
+        os.remove(temp.name)
+        
+    
+
+def print_help():
+    print """
+The STXG Xgrow Wrapper
+======================
+
+Usage: xgrow-wrap [stxg-file] [xgrow-arguments]
+
+xgrow-wrap is a wrapper for xgrow that uses stxg (structured xgrow, essentially
+yaml) files instead of normal xgrow tile files. The first argument should be
+the stxg file. All arguments after this are passed directly to xgrow without
+modification, and, like xgrow files, will override arguments in the stxg file.
+
+For a description of arguments to xgrow, use xgrow --
+
+xgrow-wrap searches for xgrow in the current directory, then any directory
+specified by the XGROW_DIR environment variable, and then your PATH.
+
+Send questions or comments to Constantine Evans <cge@dna.caltech.edu>.
+
+Last updated in 2013. This is version 0.0.1.
+    """
+
+if __name__ == '__main__':
+    main()
