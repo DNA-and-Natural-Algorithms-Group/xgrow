@@ -1362,6 +1362,7 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
    current_flake->seed_n = current_flake->Cell(i,j);
 
    /*    fprintf(stderr, "Just set seed for flake %d to (%d,%d), tile type %d\n", flake_number, i, j, current_flake->Cell(i,j)); */
+   fp->events = 0;
 
    recalc_G(fp);
 }
@@ -1766,7 +1767,7 @@ void repaint()
    }
    if (fp) {
       sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",tp->t, 
-	    wander ? fp->G : (fp->G+log(tp->conc[fp->seed_n])));           
+	    ( wander || tp->conc[fp->seed_n]==0 ) ? fp->G : (fp->G+log(tp->conc[fp->seed_n])));           
    }
    XDrawImageString(display,window,gc,5,(++i)*font_height,
 	 stringbuffer,strlen(stringbuffer));

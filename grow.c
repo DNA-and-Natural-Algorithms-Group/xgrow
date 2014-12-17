@@ -396,7 +396,8 @@ void recalc_G(flake *fp)
    /* and re-evaluate all off-rate & hydrolysis rates               */
    for (i=0;i<size;i++) for(j=0;j<size;j++) {
       if ((n=fp->Cell(i,j))>0) {
-         if (tp->dt_right[n]) fp->G += -log(tp->conc[n]) - Gse_double(fp,i,j,n)/2.0 - tp->Gcb[n];
+         if (tp->conc[n]<=fp->flake_conc) { dprintf("Zero concentration in recalc_G for tile %d at %d, %d\n", n, i, j); fp->G += 0; }
+         else if (tp->dt_right[n]) fp->G += -log(tp->conc[n]) - Gse_double(fp,i,j,n)/2.0 - tp->Gcb[n];
          else if (tp->dt_down[n]) fp->G += -log(tp->conc[n]) - Gse_vdouble(fp,i,j,n)/2.0 - tp->Gcb[n];
          else if ( (!tp->dt_left[n]) && (!tp->dt_up[n]) ) fp->G += -log(tp->conc[n]) - Gse(fp,i,j,n)/2.0 - tp->Gcb[n];
 
@@ -903,15 +904,13 @@ void change_cell(flake *fp, int i, int j, Trep n)
    if (tp!=NULL) { /* flake has been added to a tube */
       if (fp->Cell(i,j)==0) {                         /* tile addition */
          if (tp->conc[n]<=fp->flake_conc) {
-            printf ("zero conc!\n");
-            return; // conc's can't go to zero!
+            dprintf ("Zero concentration in tile addition, tile %d at %d, %d.\n", n, i, j);
          }
-         if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) {
-            printf ("zero conc 2!\n");
-            return; // ditto
+         else if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) {
+            dprintf ("Zero concentration of seed (tile %d)!\n", fp->seed_n);
          }
          //      printf("Changing flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
-         if (tp->dt_right[n]) fp->G += -log(tp->conc[n]) - Gse_double_left(fp,i,j,n);
+         else if (tp->dt_right[n]) fp->G += -log(tp->conc[n]) - Gse_double_left(fp,i,j,n);
          else if (tp->dt_left[n]) fp->G += - Gse_double_right(fp,i,j,n);
          else if (tp->dt_down[n]) fp->G += -log(tp->conc[n]) - Gse_vdouble_up(fp,i,j,n);
          else if (tp->dt_up[n]) fp->G += - Gse_vdouble_down(fp,i,j,n);
@@ -2374,8 +2373,9 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
             if (tp->T>0) { /* irreversible Tile Assembly Model */
 
                /* If the tile can attach, then have it attach.
+                * FIXME: conc check here is a hack.
                */
-               if (n>0 && Gse(fp,i,j,n)>=tp->T && double_tile_allowed(tp,fp,i,j,n)) {
+               if (n>0 && Gse(fp,i,j,n)>=tp->T && double_tile_allowed(tp,fp,i,j,n) && tp->conc[n]>fp->flake_conc) {
                   change_cell(fp,i,j,n);
                   if (tp->dt_right[n])
                      change_cell(fp,i,j+1,tp->dt_right[n]);
