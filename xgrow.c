@@ -2328,20 +2328,31 @@ int main(int argc, char **argv)
 			Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,
 			Gfc);
 		  fprm=fparam; 
-		  while (fprm!=NULL) {
-		     int fn;
-		     for (fn=0; fn<fprm->N; fn++) {
-			insert_flake(fp=init_flake(size_P,N,
-				 fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp); 
-			if (tp->dt_right[fprm->seed_n]) {
-			   change_cell (fp,seed_i,seed_j+1,tp->dt_right[fprm->seed_n]);
-			}
-			if (tp->dt_left[fprm->seed_n]) {
-			   change_cell (fp,seed_i,seed_j-1,tp->dt_left[fprm->seed_n]);
-			}
-		     }
-		     fprm=fprm->next_param;
-		  } 
+           while (fprm!=NULL)
+           {
+              int fn;
+              for (fn=1; fn <= fprm->N; fn++)
+              {
+             if (tp->dt_left[fprm->seed_n]) {
+                fprm->seed_n = tp->dt_left[fprm->seed_n]; // FIXME: vdouble
+                fprm->seed_j--;
+             }
+             insert_flake(fp=init_flake(size_P,N,
+                  fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp);
+             if (tp->dt_right[fprm->seed_n]) {
+                change_cell (fp,seed_i,seed_j+1,tp->dt_right[fprm->seed_n]);
+                fp->seed_is_double_tile = 1;
+             }
+             assert (!tp->dt_left[fprm->seed_n]);
+
+             if (fprm->import_from != NULL)
+             {
+                fprintf(stderr, "WARNING: In imported flakes, the seed position is chosen randomly.\n");
+                import_flake(fp, fprm->import_from, fn);
+             }
+              }
+              fprm=fprm->next_param;
+           }
 		  repaint();
 	       } else if (report.xbutton.window==colorbutton) { // show tiles or error or hyd
 		  settilecolor(hydro ? (errorc+1)%3 : (errorc+1)%2); repaint(); 
