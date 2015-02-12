@@ -1788,14 +1788,14 @@ void repaint()
    }
 
    XDrawString(display,window,gc,WINDOWWIDTH-150,WINDOWHEIGHT-65
-	 ," left: puncture",15); 
+	 ," left: identify",15); 
    XDrawString(display,window,gc,WINDOWWIDTH-150,WINDOWHEIGHT-45
-	 ,"middle:identify",15); 
+	 ,"middle:puncture",15); 
    XDrawString(display,window,gc,WINDOWWIDTH-150,WINDOWHEIGHT-25
 	 ,"right: Gmc Gse ",15); 
 
-   XDrawString(display,window,gc,WINDOWWIDTH-120,WINDOWHEIGHT-5
-	 ,"EW '98-'04",10); 
+   XDrawString(display,window,gc,WINDOWWIDTH-190,WINDOWHEIGHT-5
+	 ,"EW, RS, CGE '98-'15",19); 
 
    if (!sampling && fp) showpic(fp,errorc); 
    else XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
@@ -2055,7 +2055,7 @@ void cleanup()
 
 
 int main(int argc, char **argv)
-{unsigned int width, height;
+{
    int x,y,b,i,j;    int clear_x=0,clear_y=0;
    int mousing=0; int stat=0;
    double new_Gse, new_Gmc;
@@ -2224,12 +2224,6 @@ int main(int argc, char **argv)
 	       repaint();  
 	       break;
 	       case ConfigureNotify:
-	       width=report.xconfigure.width;
-	       height=report.xconfigure.height;
-	       if ((width<size_hints.min_width)||(height<size_hints.min_height))
-	       {fprintf(stderr,"%s: window too small to proceed.\n",progname);
-		  cleanup();
-	       } 
 	       break; 
 	       case MotionNotify:
 	       if (report.xbutton.window==playground) {

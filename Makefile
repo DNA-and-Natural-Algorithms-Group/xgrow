@@ -1,4 +1,4 @@
-X11_FLAGS=-I/usr/X11R6/include/ -L/usr/X11R6/lib -lX11
+X11_FLAGS=-I/opt/X11/include/ -L/opt/X11/lib -lX11
 
 #if pkg-config is not in your default path, add the full path here
 PKG_CONFIG=pkg-config
@@ -25,7 +25,7 @@ xgrow-small: xgrow.c grow.c grow.h Makefile
 	gcc -Wall -g -O3 -o  xgrow-small xgrow.c grow.c -DSMALL ${X11_FLAGS} -lm 
 
 xgrow-test: xgrow.c grow.c grow.h xgrow-tests.c xgrow-tests.h Makefile
-	gcc -Wall  -O3 -g  -o  xgrow xgrow.c grow.c xgrow-tests.c -DTESTING_OK ${X11_FLAGS}  ${GLIB_CFLAGS} ${GLIB_LIBS} -lm 
+	gcc -Wall  -O3 -g  -o  xgrow-test xgrow.c grow.c xgrow-tests.c -DTESTING_OK ${X11_FLAGS}  ${GLIB_CFLAGS} ${GLIB_LIBS} -lm 
 
 clean: 
 	rm -f xgrow xgrow-small 
