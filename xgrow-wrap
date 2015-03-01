@@ -63,6 +63,16 @@ def main():
     # Now convert from stxg to xgrow.
     try:
         tilestring = stxg.to_xgrow(xg)
+    except KeyError:
+        sys.stderr.write("Assuming a YAML tileset definition file.\n")
+        if 'ends' in xg.keys() and 'fseq' in xg['ends'][0].keys():
+            sys.stderr.write("Found end sequences. Using them.\n")
+            perfect=False
+        else:
+            perfect=True
+            sys.stderr.write("Assuming perfect ends.\n")
+        xgg = stxg.from_yaml_endadj(xg,perfect=perfect)
+        tilestring = stxg.to_xgrow(xgg)
     except Exception, e:
         sys.stderr.write("Error converting stxg file to xgrow: {0}\n".format(repr(e)))
         return 1

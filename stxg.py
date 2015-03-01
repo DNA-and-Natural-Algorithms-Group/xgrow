@@ -11,6 +11,7 @@ import yaml
 import re
 from StringIO import StringIO
 import datetime
+import copy
 #import warning
 
 # Option names and their argument types.
@@ -296,7 +297,7 @@ def from_xgrow( xgst ):
 
 # Stuff originally from yamltostxg.py. This is even less polished than everything above.
 
-def from_yaml_endadj( ts ):
+def from_yaml_endadj( ts, perfect=False, rotate=False ):
     import stickydesign as sd
     import numpy as np
     
@@ -306,26 +307,80 @@ def from_yaml_endadj( ts ):
     endslist = set()
     doubleends = []
     doubles = []
+    vdoubleends = []
+    vdoubles = []
     
-    newtiles.append( { 'name': 'origami', 'edges': ['origami','origami','origami','origami'], 'stoic': 1e-9, 'color': 'white'} )
+    newtiles.append( { 'name': 'origami', 'edges': ['origami','origami','origami','origami'], 'stoic': 0, 'color': 'white'} )
     
     for tile in ts['seed']['adapters']:
         newtile = {}
         newtile['edges'] = [ 'origami' ] +  [ re.sub('/','_c',x) for x in tile['ends'] ] + [ 'origami' ]
         if 'name' in tile: newtile['name'] = tile['name']
-        newtile['stoic'] = 1e-9
+        newtile['stoic'] = 0
         newtile['color'] = 'white'
         newtiles.append(newtile)    
 
+    if rotate:
+        rotatedtiles = []
+        for tile in ts['tiles']:
+            if tile['type'] == 'tile_daoe_3up' or tile['type'] == 'tile_daoe_5up':
+                newtile = copy.copy(tile)
+                newtile['name']+='_lrflip'
+                newtile['ends']=[tile['ends'][x] for x in (1,0,3,2)]
+                rotatedtiles.append(newtile)
+                newtile = copy.copy(tile)
+                newtile['name']+='_udflip'
+                newtile['type']='tile_daoe_'+{'5up':'3up','3up':'5up'}[tile['type'][-3:]]
+                newtile['ends']=[tile['ends'][x] for x in (3,2,1,0)]
+                rotatedtiles.append(newtile)
+                newtile = copy.copy(tile)
+                newtile['name']+='_bothflip'
+                newtile['type']='tile_daoe_'+{'5up':'3up','3up':'5up'}[tile['type'][-3:]]
+                newtile['ends']=[tile['ends'][x] for x in (2,3,0,1)]
+                rotatedtiles.append(newtile)
+            elif tile['type'] == 'tile_daoe_doublehoriz_35up':
+                newtile = copy.copy(tile)
+                newtile['name']+='_lrflip'
+                newtile['type']='tile_daoe_doublevert_53up'
+                newtile['ends']=[tile['ends'][x] for x in (2,1,0,5,4,3)]
+                rotatedtiles.append(newtile)
+                newtile = copy.copy(tile)
+                newtile['name']+='_udflip'
+                newtile['type']='tile_daoe_doublevert_53up'
+                newtile['ends']=[tile['ends'][x] for x in (5,4,3,2,1,0)]
+                rotatedtiles.append(newtile)
+                newtile = copy.copy(tile)
+                newtile['name']+='_bothflip'
+                newtile['ends']=[tile['ends'][x] for x in (3,4,5,0,1,2)]
+                rotatedtiles.append(newtile)
+            elif tile['type'] == 'tile_daoe_doublevert_35up':
+                newtile = copy.copy(tile)
+                newtile['name']+='_lrflip'
+                newtile['type']='tile_daoe_doublehoriz_53up'
+                newtile['ends']=[tile['ends'][x] for x in (2,1,0,5,4,3)]
+                rotatedtiles.append(newtile)
+                newtile = copy.copy(tile)
+                newtile['name']+='_udflip'
+                newtile['type']='tile_daoe_doublehoriz_53up'
+                newtile['ends']=[tile['ends'][x] for x in (5,4,3,2,1,0)]
+                rotatedtiles.append(newtile)
+                newtile = copy.copy(tile)
+                newtile['name']+='_bothflip'
+                newtile['ends']=[tile['ends'][x] for x in (3,4,5,0,1,2)]
+                rotatedtiles.append(newtile)
+
+        ts['tiles'] += rotatedtiles
+    
     for tile in ts['tiles']:
-        if tile['type'] == '3up' or tile['type'] == '5up':
+        if tile['type'] == 'tile_daoe_3up' or tile['type'] == 'tile_daoe_5up':
             newtile = {}
             newtile['edges'] = [ re.sub('/','_c',x) for x in tile['ends'] ]
             if 'name' in tile: newtile['name'] = tile['name']
             if 'conc' in tile: newtile['stoic'] = tile['conc']
             if 'color' in tile: newtile['color'] = tile['color']
             newtiles.append(newtile)
-        if tile['type'] == '3up5up' or tile['type'] == '5up3up':
+
+        if tile['type'] == 'tile_daoe_doublehoriz_35up' or tile['type'] == 'tile_daoe_doublehoriz_53up':
             newtile1 = {}
             newtile2 = {}
             newtile1['edges'] = [ re.sub('/','_c',x) for x in tile['ends'][0:1] ] \
@@ -349,33 +404,77 @@ def from_yaml_endadj( ts ):
                 
             newtiles.append(newtile1)
             newtiles.append(newtile2)
+        if tile['type'] == 'tile_daoe_doublevert_35up' or tile['type'] == 'tile_daoe_doublevert_53up':
+            newtile1 = {}
+            newtile2 = {}
+            newtile1['edges'] = [ re.sub('/','_c',x) for x in tile['ends'][0:2] ] \
+                + [ tile['name']+'_db' ] \
+                + [ re.sub('/','_c',x) for x in tile['ends'][5:] ]
+            newtile2['edges'] = [ tile['name']+'_db' ] + [ re.sub('/','_c',x) for x in tile['ends'][2:5] ] 
+            newtile1['name'] = tile['name']+'_top'
+            newtile2['name'] = tile['name']+'_bottom'
+                        
+            vdoubleends.append( tile['name']+'_db' )
+            vdoubles.append( (newtile1['name'], newtile2['name']) )
+            
+            if 'conc' in tile: 
+                newtile1['stoic'] = tile['conc']
+                newtile2['stoic'] = tile['conc']
+                
+            if 'color' in tile: 
+                newtile1['color'] = tile['color']
+                newtile2['color'] = tile['color']
+                
+            newtiles.append(newtile1)
+            newtiles.append(newtile2)
     
     newends.append( { 'name': 'origami', 'strength': 100 } )
  
     for end in doubleends:
-        newends.append( { 'name': end, 'strength': 100 } )
-    
-    glueends = {'DT': [], 'TD': []}
-    for end in ts['ends']:
-        newends.append( { 'name': end['name'], 'strength': 0 } )
-        newends.append( { 'name': end['name']+'_c', 'strength': 0 } )
-        if (end['type'] == 'TD') or (end['type'] == 'DT'):
-            glueends[end['type']].append((end['name'],end['fseq']))
-            
+        newends.append( { 'name': end, 'strength': 10 } )
+    for end in vdoubleends:
+        newends.append( { 'name': end, 'strength': 10 } )
+
     gluelist = []
-    ef = sd.energyfuncs_santalucia(mismatchtype='max')
+    if not perfect: 
+        glueends = {'DT': [], 'TD': []}
+        for end in ts['ends']:
+            newends.append( { 'name': end['name'], 'strength': 0 } )
+            newends.append( { 'name': end['name']+'_c', 'strength': 0 } )
+            if (end['type'] == 'TD') or (end['type'] == 'DT'):
+                glueends[end['type']].append((end['name'],end['fseq']))
+                
+        ef = sd.energyfuncs_santalucia(mismatchtype='max')
+        
+        for t in ['DT','TD']:
+            names, fseqs = zip(*glueends[t])
+            allnames = names + tuple( x+'_c' for x in names )
+            ea = sd.endarray(fseqs, t)
+            ar = sd.energy_array_uniform(ea,ef)
+            for i1,n1 in enumerate(names):
+                for i2,n2 in enumerate(allnames):
+                    gluelist.append([n1,n2,float(ar[i1,i2])])
+    else:
+        if 'ends' not in ts.keys():
+            ts['ends']=[]
+        endsinlist = set( e['name'] for e in ts['ends'] )
+        endsintiles = set()
+        for tile in ts['tiles']:
+            endsintiles.update( re.sub('/','',e) for e in tile['ends'] if e != 'hp')
+        for end in ts['ends'] + list({'name': e} for e in endsintiles):
+            print end
+            newends.append( { 'name': end['name'], 'strength': 0 } )
+            newends.append( { 'name': end['name']+'_c', 'strength': 0 } )
+            gluelist.append([end['name'],end['name']+'_c',1.0]) 
+            
+
     
-    for t in ['DT','TD']:
-        names, fseqs = zip(*glueends[t])
-        allnames = names + tuple( x+'_c' for x in names )
-        ea = sd.endarray(fseqs, t)
-        ar = sd.energy_array_uniform(ea,ef)
-        for i1,n1 in enumerate(names):
-            for i2,n2 in enumerate(allnames):
-                gluelist.append([n1,n2,float(ar[i1,i2])])
-    
+    newends.append( {'name': 'hp', 'strength': 0} )
+
     xga = {}
     xga['doubletiles'] = [ list(x) for x in doubles ]
+    xga['vdoubletiles'] = [ list(x) for x in vdoubles ]
+    xga.update( ts['xgrow_options'] )
     xga.update( ts['xgrow_options'] )
      
         
