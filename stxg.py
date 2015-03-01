@@ -462,7 +462,6 @@ def from_yaml_endadj( ts, perfect=False, rotate=False ):
         for tile in ts['tiles']:
             endsintiles.update( re.sub('/','',e) for e in tile['ends'] if e != 'hp')
         for end in ts['ends'] + list({'name': e} for e in endsintiles):
-            print end
             newends.append( { 'name': end['name'], 'strength': 0 } )
             newends.append( { 'name': end['name']+'_c', 'strength': 0 } )
             gluelist.append([end['name'],end['name']+'_c',1.0]) 
