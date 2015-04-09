@@ -299,6 +299,7 @@ def from_xgrow( xgst ):
 
 def from_yaml_endadj( ts, perfect=False, rotate=False ):
     import stickydesign as sd
+    import stickydesign.energetics as en
     import numpy as np
     
     # Combine ends and tile-specified adjacents
@@ -325,47 +326,47 @@ def from_yaml_endadj( ts, perfect=False, rotate=False ):
         for tile in ts['tiles']:
             if tile['type'] == 'tile_daoe_3up' or tile['type'] == 'tile_daoe_5up':
                 newtile = copy.copy(tile)
-                newtile['name']+='_lrflip'
+                newtile['name']+='_lrf'
                 newtile['ends']=[tile['ends'][x] for x in (1,0,3,2)]
                 rotatedtiles.append(newtile)
                 newtile = copy.copy(tile)
-                newtile['name']+='_udflip'
+                newtile['name']+='_udf'
                 newtile['type']='tile_daoe_'+{'5up':'3up','3up':'5up'}[tile['type'][-3:]]
                 newtile['ends']=[tile['ends'][x] for x in (3,2,1,0)]
                 rotatedtiles.append(newtile)
                 newtile = copy.copy(tile)
-                newtile['name']+='_bothflip'
+                newtile['name']+='_bf'
                 newtile['type']='tile_daoe_'+{'5up':'3up','3up':'5up'}[tile['type'][-3:]]
                 newtile['ends']=[tile['ends'][x] for x in (2,3,0,1)]
                 rotatedtiles.append(newtile)
             elif tile['type'] == 'tile_daoe_doublehoriz_35up':
                 newtile = copy.copy(tile)
-                newtile['name']+='_lrflip'
+                newtile['name']+='_lrf'
                 newtile['type']='tile_daoe_doublevert_53up'
                 newtile['ends']=[tile['ends'][x] for x in (2,1,0,5,4,3)]
                 rotatedtiles.append(newtile)
                 newtile = copy.copy(tile)
-                newtile['name']+='_udflip'
+                newtile['name']+='_udf'
                 newtile['type']='tile_daoe_doublevert_53up'
                 newtile['ends']=[tile['ends'][x] for x in (5,4,3,2,1,0)]
                 rotatedtiles.append(newtile)
                 newtile = copy.copy(tile)
-                newtile['name']+='_bothflip'
+                newtile['name']+='_bf'
                 newtile['ends']=[tile['ends'][x] for x in (3,4,5,0,1,2)]
                 rotatedtiles.append(newtile)
             elif tile['type'] == 'tile_daoe_doublevert_35up':
                 newtile = copy.copy(tile)
-                newtile['name']+='_lrflip'
+                newtile['name']+='_lrf'
                 newtile['type']='tile_daoe_doublehoriz_53up'
                 newtile['ends']=[tile['ends'][x] for x in (2,1,0,5,4,3)]
                 rotatedtiles.append(newtile)
                 newtile = copy.copy(tile)
-                newtile['name']+='_udflip'
+                newtile['name']+='_udf'
                 newtile['type']='tile_daoe_doublehoriz_53up'
                 newtile['ends']=[tile['ends'][x] for x in (5,4,3,2,1,0)]
                 rotatedtiles.append(newtile)
                 newtile = copy.copy(tile)
-                newtile['name']+='_bothflip'
+                newtile['name']+='_bf'
                 newtile['ends']=[tile['ends'][x] for x in (3,4,5,0,1,2)]
                 rotatedtiles.append(newtile)
 
@@ -444,7 +445,7 @@ def from_yaml_endadj( ts, perfect=False, rotate=False ):
             if (end['type'] == 'TD') or (end['type'] == 'DT'):
                 glueends[end['type']].append((end['name'],end['fseq']))
                 
-        ef = sd.energyfuncs_santalucia(mismatchtype='max')
+        ef = en.energetics_santalucia(mismatchtype='max')
         
         for t in ['DT','TD']:
             names, fseqs = zip(*glueends[t])
