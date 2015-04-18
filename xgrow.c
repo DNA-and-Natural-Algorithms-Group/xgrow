@@ -968,10 +968,10 @@ void getargs(int argc, char **argv)
 
    for (size_P=5; (1<<size_P)<size; size_P++);
    size=(1<<size_P); 
-   if (XXX) {
-      if (size*block > 800) block=800/size;
-      if (block==0) { size=512; block=1; size_P=9; }
-   }
+   //if (XXX) {
+   //   if (size*block > 800) block=800/size;
+   //   if (block==0) { size=512; block=1; size_P=9; }
+   //}
 
    if (blast_rate_alpha>0) { int kb;
       printf("blast_rate: alpha = %f, beta = %f, gamma = %f\n",blast_rate_alpha,blast_rate_beta,blast_rate_gamma);
