@@ -13,29 +13,31 @@ import yaml
 import stxg
 import tempfile
 import sys
+import argparse
 
 def main():
     
-    # Check whether we should print the help text.
-    if len(sys.argv) == 1:
-        # No arguments, so print help.
-        print_help()
-        return 0
-    elif sys.argv[1] == '-h' or sys.argv[1] == '--help' or sys.argv[1] == '--':
-        # help, so print help.
-        print_help()
-        return 0
-    
+    p = argparse.ArgumentParser(description="The xgrow-wrap wrapper for xgrow, running stxg and tilesetdesigner/yaml files!")
+
+    p.add_argument("-p","--perfect", action="store_true", help="for tilesetdesigner/yaml input, use perfect sticky ends",default=None)
+    p.add_argument("-e","--energetics", action="store_false", help="for tilesetdesigner/yaml input, use sequence-dependent sticky ends", dest="perfect")
+    p.add_argument("-r","--rotate", action="store_true", help=" tilesetdesigner/yaml input, use sequence-dependent sticky ends", default=False)
+    p.add_argument("-f","--norotate", action="store_false", help=" tilesetdesigner/yaml input, use sequence-dependent sticky ends", dest="rotate")
+    p.add_argument("tileset", help="an stxg or tilesetdesigner/yaml file to run")
+    p.add_argument("xgrow_options", nargs=argparse.REMAINDER, help="options to pass to xgrow")
+
+    args = p.parse_args()
+
     # Load the stxg file.
     try:
-        stream = open(sys.argv[1])
+        stream = open(args.tileset)
         xg = yaml.load( stream )
     except IOError, e:
-        sys.stderr.write("Error opening stxg file '{0}': {1}\n".format(e.filename, e.strerror))
+        sys.stderr.write("Error opening tileset file '{0}': {1}\n".format(e.filename, e.strerror))
         stream.close()
         return 1
     except yaml.scanner.ScannerError, e:
-        sys.stderr.write("Error loading stxg file '{0}' at line {1}: {2}\n".format(
+        sys.stderr.write("Error loading tileset file '{0}' at line {1}: {2}\n".format(
             argv[1], e.problem_mark.line, e.problem
             ))
         stream.close()
@@ -65,13 +67,14 @@ def main():
         tilestring = stxg.to_xgrow(xg)
     except KeyError:
         sys.stderr.write("Assuming a YAML tileset definition file.\n")
-        if 'ends' in xg.keys() and 'fseq' in xg['ends'][0].keys():
-            sys.stderr.write("Found end sequences. Using them.\n")
-            perfect=False
-        else:
-            perfect=True
-            sys.stderr.write("Assuming perfect ends.\n")
-        xgg = stxg.from_yaml_endadj(xg,perfect=perfect)
+        if args.perfect == None: # The user didn't specify, so let's make an educated guess
+            if 'ends' in xg.keys() and 'fseq' in xg['ends'][0].keys():
+                sys.stderr.write("Found end sequences. Using them.\n")
+                args.perfect=False
+            else:
+                args.perfect=True
+                sys.stderr.write("Assuming perfect ends.\n")
+        xgg = stxg.from_yaml_endadj(xg,perfect=args.perfect,rotate=args.rotate)
         tilestring = stxg.to_xgrow(xgg)
     except Exception, e:
         sys.stderr.write("Error converting stxg file to xgrow: {0}\n".format(repr(e)))
@@ -83,7 +86,7 @@ def main():
     temp.write( tilestring )
     temp.close()
     
-    ret = os.system( xgrowpath + " " + temp.name + " " + " ".join(sys.argv[2:]))
+    ret = os.system( xgrowpath + " " + temp.name + " " + " ".join(args.xgrow_options))
     
     
     if ret != 0:

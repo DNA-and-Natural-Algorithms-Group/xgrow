@@ -9,7 +9,7 @@ version = '0.0.1'
 
 import yaml
 import re
-from StringIO import StringIO
+from io import BytesIO as StringIO # Fixme: stupid Python 2/3 hack.
 import datetime
 import copy
 #import warning
@@ -89,7 +89,7 @@ def to_xgrow( stxg, stream=None ):
     try:
         xgrowf.write("num tile types=%d\n" % len(stxg['tiles']))
         xgrowf.write("num binding types=%d\n" % len(stxg['bonds']))
-    except KeyError, e:
+    except KeyError as e:
         raise ConvertError("Missing section {0}.".format(e.message))
   
     bondhasname = [ 'name' in x.keys() for x in stxg['bonds'] ]
@@ -123,13 +123,13 @@ def to_xgrow( stxg, stream=None ):
                 try:
                     x1 = [n for n,z in enumerate(stxg['bonds']) if z['name']==x1][0]+1
                 except IndexError:
-                    print x2
+                    print(x2)
                     raise ValueError(x2)
             if type(x2) != int:
                 try:
                     x2 = [n for n,z in enumerate(stxg['bonds']) if z['name']==x2][0]+1
                 except IndexError:
-                    print x2
+                    print(x2)
                     raise ValueError(x2)
             xgrowf.write("g(%d,%d)=%g\n" % (x1,x2,float(g)))
     
@@ -150,13 +150,13 @@ def to_xgrow( stxg, stream=None ):
                         try:
                             x1 = [n for n,z in enumerate(stxg['tiles']) if z['name']==x1][0]+1
                         except IndexError:
-                            print x1
+                            print(x1)
                             raise ValueError(x1)
                     if type(x2) != int:
                         try:
                             x2 = [n for n,z in enumerate(stxg['tiles']) if z['name']==x2][0]+1
                         except IndexError:
-                            print x2
+                            print(x2)
                             raise ValueError(x2)           
                     xgrowf.write( "doubletile=%d,%d\n" % (x1,x2) )
             elif key == 'vdoubletiles':
@@ -166,13 +166,13 @@ def to_xgrow( stxg, stream=None ):
                         try:
                             x1 = [n for n,z in enumerate(stxg['tiles']) if z['name']==x1][0]+1
                         except IndexError:
-                            print x1
+                            print(x1)
                             raise ValueError(x1)
                     if type(x2) != int:
                         try:
                             x2 = [n for n,z in enumerate(stxg['tiles']) if z['name']==x2][0]+1
                         except IndexError:
-                            print x2
+                            print(x2)
                             raise ValueError(x2)           
                     xgrowf.write( "vdoubletile=%d,%d\n" % (x1,x2) )
             elif key == 'fission':
