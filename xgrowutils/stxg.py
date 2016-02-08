@@ -5,8 +5,6 @@
 #
 # If you just want to run xgrow with stxg files, consider using xgrow-wrap.
 
-version = '0.0.1'
-
 import yaml
 import re
 from io import BytesIO as StringIO # Fixme: stupid Python 2/3 hack.
@@ -297,7 +295,7 @@ def from_xgrow( xgst ):
 
 # Stuff originally from yamltostxg.py. This is even less polished than everything above.
 
-def from_yaml_endadj( ts, perfect=False, rotate=False ):
+def from_yaml_endadj( ts, perfect=False, rotate=False, energetics=None ):
     import stickydesign as sd
     import stickydesign.energetics as en
     import numpy as np
@@ -444,8 +442,11 @@ def from_yaml_endadj( ts, perfect=False, rotate=False ):
             newends.append( { 'name': end['name']+'_c', 'strength': 0 } )
             if (end['type'] == 'TD') or (end['type'] == 'DT'):
                 glueends[end['type']].append((end['name'],end['fseq']))
-                
-        ef = en.energetics_santalucia(mismatchtype='max')
+        
+        if energetics:
+            ef = energetics
+        else:
+            ef = en.energetics_santalucia(mismatchtype='max')
         
         for t in ['DT','TD']:
             names, fseqs = zip(*glueends[t])
