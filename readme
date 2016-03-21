@@ -205,4 +205,8 @@ Hydrolysis is now a generic option for any tile set.
   * read tile bond type alphanumerics
 
 
+3/20/16
 
+  Some students had problems compiling in Mac OS X El Capitan this year:
+  E.g. a student's macbook doesn't have folders /usr/X11R6/include/ or /usr/X11R6/lib, which are expected by the makefile. 
+  He does have /usr/X11/include and /usr/X11/lib; changing the X11_FLAGS flag in xgrow's makefile to these folders lets it compile just fine. 
