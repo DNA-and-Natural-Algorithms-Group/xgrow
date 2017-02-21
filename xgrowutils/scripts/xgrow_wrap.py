@@ -23,6 +23,8 @@ def main():
     p.add_argument("-r","--rotate", action="store_true", help=" tilesetdesigner/yaml input, use sequence-dependent sticky ends", default=False)
     p.add_argument("-f","--norotate", action="store_false", help=" tilesetdesigner/yaml input, use sequence-dependent sticky ends", dest="rotate")
     p.add_argument("-x","--xgrowpath", help="path to xgrow (optional, can also use XGROW_DIR env variable", dest="xgrowpath")
+    p.add_argument("-c","--daoecomb", action="store_true", help="if using energetics, use the combined daoe energetics algorithms",default=None)
+    p.add_argument("-t","--temperature", help="if using daoecomb, set the temperature for energetics calcs", default=37)
     p.add_argument("tileset", help="an stxg or tilesetdesigner/yaml file to run")
     p.add_argument("xgrow_options", nargs=argparse.REMAINDER, help="options to pass to xgrow")
 
@@ -63,7 +65,7 @@ def main():
         sys.stderr.write("Can't find xgrow. The xgrow binary should be in the current folder\n"+
                          ", your path, or in the directory specified by XGROW_DIR.\n")
         return 1
-        
+    gseavgparam = ""        
     # Now convert from stxg to xgrow.
     try:
         tilestring = stxg.to_xgrow(xg)
@@ -76,7 +78,17 @@ def main():
             else:
                 args.perfect=True
                 sys.stderr.write("Assuming perfect ends.\n")
-        xgg = stxg.from_yaml_endadj(xg,perfect=args.perfect,rotate=args.rotate)
+        enc = None
+        if args.daoecomb:
+            from stickydesign.energetics_daoe import energetics_daoe
+            enc = energetics_daoe(temperature=float(args.temperature))
+        xgg = stxg.from_yaml_endadj(xg,perfect=args.perfect,rotate=args.rotate,energetics=enc)
+
+
+        if 'gse_calc_avg' in xgg['xgrowargs'].keys():
+            gseavgparam = "Gse={}".format(xgg['xgrowargs']['gse_calc_avg'])
+            sys.stderr.write("Found gse_calc_avg of {}.\n".format(xgg['xgrowargs']['gse_calc_avg']))
+
         tilestring = stxg.to_xgrow(xgg)
     except Exception, e:
         sys.stderr.write("Error converting stxg file to xgrow: {0}\n".format(repr(e)))
@@ -88,7 +100,7 @@ def main():
     temp.write( tilestring )
     temp.close()
     
-    ret = os.system( xgrowpath + " " + temp.name + " " + " ".join(args.xgrow_options))
+    ret = os.system( xgrowpath + " " + temp.name + " " + gseavgparam + " " + " ".join(args.xgrow_options))
     
     
     if ret != 0:

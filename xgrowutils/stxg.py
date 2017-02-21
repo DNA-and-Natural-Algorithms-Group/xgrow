@@ -7,9 +7,12 @@
 
 import yaml
 import re
-from io import BytesIO as StringIO # Fixme: stupid Python 2/3 hack.
+from io import StringIO # Fixme: stupid Python 2/3 hack.
 import datetime
 import copy
+import logging
+
+version = 0.4
 #import warning
 
 # Option names and their argument types.
@@ -31,11 +34,15 @@ truefalseoptions = ['pause','wander','periodic']
 class blockseq( dict ): pass
 def blockseq_rep(dumper, data):
     return dumper.represent_mapping( u'tag:yaml.org,2002:seq', data, flow_style=False )
+class blockmap( dict ): pass
+def blockmap_rep(dumper, data):
+    return dumper.represent_mapping( u'tag:yaml.org,2002:map', data, flow_style=False )
 class flowmap( dict ): pass
 def flowmap_rep(dumper, data):
     return dumper.represent_mapping( u'tag:yaml.org,2002:map', data, flow_style=True )
 yaml.add_representer(blockseq, blockseq_rep)
 yaml.add_representer(flowmap, flowmap_rep)
+yaml.add_representer(blockmap, blockmap_rep)
 
 
 def dump( tileset, *xargs, **pargs ):
@@ -51,7 +58,7 @@ def dump( tileset, *xargs, **pargs ):
     
     # If xgrowargs is there, make it block-style
     if 'xgrowargs' in tileset.keys(): 
-        tileset['xgrowargs'] = blockseq(tileset['xgrowargs'])
+        tileset['xgrowargs'] = blockmap(tileset['xgrowargs'])
     
     return yaml.dump(tileset, *xargs, **pargs)
 
@@ -310,14 +317,25 @@ def from_yaml_endadj( ts, perfect=False, rotate=False, energetics=None ):
     vdoubles = []
     
     newtiles.append( { 'name': 'origami', 'edges': ['origami','origami','origami','origami'], 'stoic': 0, 'color': 'white'} )
-    
-    for tile in ts['seed']['adapters']:
+
+    atiles = [None]*16
+    for tilename in ts['seed']['use_adapters']:
+        try:
+            tile = [ x for x in ts['seed']['adapters'] if x['name']==tilename ][0]
+        except IndexError:
+            raise Exception("Can't find {}".format(tilename))
         newtile = {}
         newtile['edges'] = [ 'origami' ] +  [ re.sub('/','_c',x) for x in tile['ends'] ] + [ 'origami' ]
-        if 'name' in tile: newtile['name'] = tile['name']
+        newtile['name'] = tile['name']
         newtile['stoic'] = 0
         newtile['color'] = 'white'
-        newtiles.append(newtile)    
+        atiles[tile['loc']-1] = newtile
+    for tile in atiles:
+        if tile:
+            newtiles.append(tile)
+        else:
+            newtiles.append( { 'name': 'emptyadapt', 'edges': ['origami',0,0,'origami'], 'stoic': 0, 'color': 'white'} )
+
 
     if rotate:
         rotatedtiles = []
@@ -447,15 +465,24 @@ def from_yaml_endadj( ts, perfect=False, rotate=False, energetics=None ):
             ef = energetics
         else:
             ef = en.energetics_santalucia(mismatchtype='max')
+       
+        eavg = {}
+        for t in ['DT','TD']:
+            names, fseqs = zip(*glueends[t])
+            ea = sd.endarray(fseqs, t)
+            eavg[t] = np.average( ef.matching_uniform( ea ) )
+        eavg_combined = ( eavg['DT'] + eavg['TD'] ) / 2.0
         
         for t in ['DT','TD']:
             names, fseqs = zip(*glueends[t])
             allnames = names + tuple( x+'_c' for x in names )
             ea = sd.endarray(fseqs, t)
-            ar = sd.energy_array_uniform(ea,ef)
+            ar = sd.energy_array_uniform(ea,ef) / eavg_combined
             for i1,n1 in enumerate(names):
                 for i2,n2 in enumerate(allnames):
-                    gluelist.append([n1,n2,float(ar[i1,i2])])
+                    gluelist.append([n1,n2,max(float(ar[i1,i2]),0.0)])
+
+         
     else:
         if 'ends' not in ts.keys():
             ts['ends']=[]
@@ -477,6 +504,8 @@ def from_yaml_endadj( ts, perfect=False, rotate=False, energetics=None ):
     xga['vdoubletiles'] = [ list(x) for x in vdoubles ]
     xga.update( ts['xgrow_options'] )
     xga.update( ts['xgrow_options'] )
+    if not perfect:
+        xga['gse_calc_avg'] = eavg_combined
      
         
     sts = { 'tiles': newtiles, 'bonds': newends, 'xgrowargs': xga, 'glues': gluelist }

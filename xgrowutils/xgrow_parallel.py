@@ -21,7 +21,7 @@ def _run_xgrow( params ):
     os.chdir(config['xgrowpath'])
     from . import stxg
 
-    with tempfile.NamedTemporaryFile(dir=config['temppath'],delete=False) as tilefile:
+    with tempfile.NamedTemporaryFile(dir=config['temppath'],delete=False, mode='w') as tilefile:
         tilestring = stxg.to_xgrow(xg)
         tilefile.write(tilestring)
 
@@ -47,16 +47,16 @@ class XgrowResult:
         
         if self.ot == 'final':
             return pd.DataFrame(
-                np.loadtxt(StringIO(u"".join(self.res.result))),
+                np.loadtxt(StringIO(u"".join(self.res.result()))),
                 columns=['gmc','gse','k','time','tiles','mismatches','events','perimeter','g','dgbonds']
                 )
         elif self.ot == 'array':
-            return [ xgo.loadflake(x) for x in self.res.result ]
+            return [ xgo.loadflake(x) for x in self.res.result() ]
         elif self.ot == 'trace':
             dframes = [pd.DataFrame(
                 np.loadtxt(StringIO(u"".join(x))),
                 columns=['gmc','gse','k','time','tiles','mismatches','events','perimeter','g','dgbonds']
-                ) for x in self.res.result]
+                ) for x in self.res.result()]
             return dframes
             
 
