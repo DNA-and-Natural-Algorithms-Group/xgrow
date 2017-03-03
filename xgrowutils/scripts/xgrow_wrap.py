@@ -34,11 +34,11 @@ def main():
     try:
         stream = open(args.tileset)
         xg = yaml.load( stream )
-    except IOError, e:
+    except IOError as e:
         sys.stderr.write("Error opening tileset file '{0}': {1}\n".format(e.filename, e.strerror))
         stream.close()
         return 1
-    except yaml.scanner.ScannerError, e:
+    except yaml.scanner.ScannerError as e:
         sys.stderr.write("Error loading tileset file '{0}' at line {1}: {2}\n".format(
             argv[1], e.problem_mark.line, e.problem
             ))
@@ -90,7 +90,7 @@ def main():
             sys.stderr.write("Found gse_calc_avg of {}.\n".format(xgg['xgrowargs']['gse_calc_avg']))
 
         tilestring = stxg.to_xgrow(xgg)
-    except Exception, e:
+    except Exception as e:
         sys.stderr.write("Error converting stxg file to xgrow: {0}\n".format(repr(e)))
         return 1
         
@@ -113,7 +113,7 @@ def main():
     
 
 def print_help():
-    print """
+    print("""
 The STXG Xgrow Wrapper
 ======================
 
@@ -132,7 +132,7 @@ specified by the XGROW_DIR environment variable, and then your PATH.
 Send questions or comments to Constantine Evans <cge@dna.caltech.edu>.
 
 Last updated in 2013. This is version 0.0.1.
-    """
+    """)
 
 if __name__ == '__main__':
     main()
