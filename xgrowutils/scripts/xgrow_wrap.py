@@ -96,7 +96,7 @@ def main():
         
     # Now create a temporary file, and run xgrow.
     
-    temp = tempfile.NamedTemporaryFile(delete = False)
+    temp = tempfile.NamedTemporaryFile(delete = False, mode='w')
     temp.write( tilestring )
     temp.close()
     
