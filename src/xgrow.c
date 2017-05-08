@@ -280,7 +280,7 @@ the file.  (compatibility with existing xgrow tile files must be maintained.)
 # define MAXTILETYPES USHRT_MAX
 #endif
 
-#define SHORTSTRCMP(arg,s)  strncmp(arg,s,strlen(s))
+#define IS_ARG_MATCH(arg,s) (strncmp(arg,s,strlen(s))==0)
    
    long int translate[MAXTILETYPES]; /* for converting colors */
    int paused=0, errorc=0, errors=0, sampling=0;
@@ -373,26 +373,26 @@ int count_flakes(FILE *flake_file);
 
 int parse_arg_line(char *arg)
 {
-   if (strncmp(arg,"block=",6)==0) 
+   if (IS_ARG_MATCH(arg,"block=")) 
       block=MAX(1,MIN(30,atoi(&arg[6])));
-   else if (strncmp(arg,"size=",5)==0) 
+   else if (IS_ARG_MATCH(arg,"size=")) 
       size=MAX(32,MIN(4096,atoi(&arg[5])));
-   else if (strncmp(arg,"rand=",5)==0) 
+   else if (IS_ARG_MATCH(arg,"rand=")) 
    { srand48(atoi(&arg[5])); srandom(atoi(&arg[5])); }
-   else if (strncmp(arg,"k=",2)==0) ratek=atof(&arg[2]);
-   else if (strncmp(arg,"Gmc=",4)==0) Gmc=atof(&arg[4]);
-   else if (strncmp(arg,"Gse=",4)==0) Gse=atof(&arg[4]);
+   else if (IS_ARG_MATCH(arg,"k=")) ratek=atof(&arg[2]);
+   else if (IS_ARG_MATCH(arg,"Gmc=")) Gmc=atof(&arg[4]);
+   else if (IS_ARG_MATCH(arg,"Gse=")) Gse=atof(&arg[4]);
    // FIXME FIXME FIXME: HYDRO OPTIONS ARE DISABLED
-   //else if (strncmp(arg,"Gmch=",5)==0) {hydro=1; Gmch=atof(&arg[5]);}
-   //else if (strncmp(arg,"Gseh=",5)==0) {hydro=1; Gseh=atof(&arg[5]);}
-   //else if (strncmp(arg,"Ghyd=",5)==0) {hydro=1; Ghyd=atof(&arg[5]);}
-   else if (strncmp(arg,"Gas=",4)==0) {hydro=1; Gas=atof(&arg[4]);}
-   else if (strncmp(arg,"Gam=",4)==0) {hydro=1; Gam=atof(&arg[4]);}
-   else if (strncmp(arg,"Gae=",4)==0) {hydro=1; Gae=atof(&arg[4]);}
-   //else if (strncmp(arg,"Gah=",4)==0) {hydro=1; Gah=atof(&arg[4]);}
-   //else if (strncmp(arg,"Gao=",4)==0) {hydro=1; Gao=atof(&arg[4]);}
-   else if (strncmp(arg,"Gfc=",4)==0) {Gfc=atof(&arg[4]);}
-   else if (strncmp(arg,"stoic=",6)==0) {
+   //else if (IS_ARG_MATCH(arg,"Gmch=")) {hydro=1; Gmch=atof(&arg[5]);}
+   //else if (IS_ARG_MATCH(arg,"Gseh=")) {hydro=1; Gseh=atof(&arg[5]);}
+   //else if (IS_ARG_MATCH(arg,"Ghyd=")) {hydro=1; Ghyd=atof(&arg[5]);}
+   else if (IS_ARG_MATCH(arg,"Gas=")) {hydro=1; Gas=atof(&arg[4]);}
+   else if (IS_ARG_MATCH(arg,"Gam=")) {hydro=1; Gam=atof(&arg[4]);}
+   else if (IS_ARG_MATCH(arg,"Gae=")) {hydro=1; Gae=atof(&arg[4]);}
+   //else if (IS_ARG_MATCH(arg,"Gah=")) {hydro=1; Gah=atof(&arg[4]);}
+   //else if (IS_ARG_MATCH(arg,"Gao=")) {hydro=1; Gao=atof(&arg[4]);}
+   else if (IS_ARG_MATCH(arg,"Gfc=")) {Gfc=atof(&arg[4]);}
+   else if (IS_ARG_MATCH(arg,"stoic=")) {
       double sts; int stn; char *sp;
       sp=strchr(&arg[6],'[');
       if (sp!=NULL) {
@@ -410,26 +410,26 @@ int parse_arg_line(char *arg)
 	 }
       }
    }
-   else if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
-   else if (SHORTSTRCMP(arg,"pause=True")==0) paused=1;
-   else if (SHORTSTRCMP(arg,"pause=False")==0) paused=0;
-   else if (strncmp(arg,"pause",5)==0) paused=1;
-   else if (strncmp(arg,"periodic",8)==0) periodic=!periodic;
-   else if (SHORTSTRCMP(arg,"wander=True")==0) wander=1;
-   else if (SHORTSTRCMP(arg,"wander=False")==0) wander=0;
-   else if (SHORTSTRCMP(arg,"wander")==0) wander=!wander;
-   else if (SHORTSTRCMP(arg,"fission=off")==0) fission_allowed=0;
-   else if (SHORTSTRCMP(arg,"fission=on")==0) fission_allowed=1;
-   else if (SHORTSTRCMP(arg,"fission=chunk")==0) fission_allowed=2; 
-   else if (SHORTSTRCMP(arg,"no_fission")==0) fission_allowed=0;
-   else if (SHORTSTRCMP(arg,"fission")==0) fission_allowed=1;
-   else if (SHORTSTRCMP(arg,"chunk_fission")==0) fission_allowed=2;
-   else if (strncmp(arg,"blast_rate_alpha=",17)==0) blast_rate_alpha=atof(&arg[17]);
-   else if (strncmp(arg,"blast_rate_beta=",16)==0)  blast_rate_beta =atof(&arg[16]);
-   else if (strncmp(arg,"blast_rate_gamma=",17)==0) blast_rate_gamma=atof(&arg[17]);
-   else if (strncmp(arg,"zero_bonds",10)==0) zero_bonds_allowed=1;
-   else if (strncmp(arg,"no_zero_bonds",13)==0) zero_bonds_allowed=0;
-   else if (strncmp(arg,"seed=",5)==0) {
+   else if (IS_ARG_MATCH(arg,"T=")) T=atof(&arg[2]);
+   else if (IS_ARG_MATCH(arg,"pause=True")) paused=1;
+   else if (IS_ARG_MATCH(arg,"pause=False")) paused=0;
+   else if (IS_ARG_MATCH(arg,"pause")) paused=1;
+   else if (IS_ARG_MATCH(arg,"periodic")) periodic=!periodic;
+   else if (IS_ARG_MATCH(arg,"wander=True")) wander=1;
+   else if (IS_ARG_MATCH(arg,"wander=False")) wander=0;
+   else if (IS_ARG_MATCH(arg,"wander")) wander=!wander;
+   else if (IS_ARG_MATCH(arg,"fission=off")) fission_allowed=0;
+   else if (IS_ARG_MATCH(arg,"fission=on")) fission_allowed=1;
+   else if (IS_ARG_MATCH(arg,"fission=chunk")) fission_allowed=2; 
+   else if (IS_ARG_MATCH(arg,"no_fission")) fission_allowed=0;
+   else if (IS_ARG_MATCH(arg,"fission")) fission_allowed=1;
+   else if (IS_ARG_MATCH(arg,"chunk_fission")) fission_allowed=2;
+   else if (IS_ARG_MATCH(arg,"blast_rate_alpha=")) blast_rate_alpha=atof(&arg[17]);
+   else if (IS_ARG_MATCH(arg,"blast_rate_beta="))  blast_rate_beta =atof(&arg[16]);
+   else if (IS_ARG_MATCH(arg,"blast_rate_gamma=")) blast_rate_gamma=atof(&arg[17]);
+   else if (IS_ARG_MATCH(arg,"zero_bonds")) zero_bonds_allowed=1;
+   else if (IS_ARG_MATCH(arg,"no_zero_bonds")) zero_bonds_allowed=0;
+   else if (IS_ARG_MATCH(arg,"seed=")) {
       char *p=(&arg[5]);
       seed_i=atoi(p);
       if ((p=strchr(p,','))!=NULL) {
@@ -437,7 +437,7 @@ int parse_arg_line(char *arg)
 	 if ((p=strchr(p+1,','))!=NULL) seed_n=atoi(p+1);
       }
    }
-   else if (strncmp(arg,"addflakes=",10)==0) {
+   else if (IS_ARG_MATCH(arg,"addflakes=")) {
       char *p=(&arg[10]);
       fprm = (struct flake_param *)malloc(sizeof(struct flake_param)); 
       fprm->seed_i=fprm->seed_j=130; fprm->seed_n=1; fprm->N=1; fprm->Gfc=0;
@@ -458,11 +458,11 @@ int parse_arg_line(char *arg)
 	 }
       }
    }
-   else if (strncmp(arg,"tinybox=",8)==0) {
+   else if (IS_ARG_MATCH(arg,"tinybox=")) {
       char *p=(&arg[8]);
       tinybox = atof(p);
    }
-   else if (strncmp(arg,"stripe=",7)==0) 
+   else if (IS_ARG_MATCH(arg,"stripe=")) 
    { stripe_args=(&arg[7]); periodic=1; wander=1; }
    else if (strcmp(arg,"-nw")==0) XXX=0;
    else if (strcmp(arg,"-linear")==0) linear=1;
@@ -510,7 +510,7 @@ int parse_arg_line(char *arg)
 	 return -1;
       }
    }
-   else if (strncmp(arg,"doubletile=",11)==0) {
+   else if (IS_ARG_MATCH(arg,"doubletile=")) {
       char *p;
       first_tile = atoi(&arg[11]);
       p = strchr(&arg[12],',');
@@ -527,7 +527,7 @@ int parse_arg_line(char *arg)
       dt_left[second_tile] = first_tile;
       double_tiles = 1;
    }
-   else if (strncmp(arg,"vdoubletile=",12)==0) {
+   else if (IS_ARG_MATCH(arg,"vdoubletile=")) {
       char *p;
       first_tile = atoi(&arg[12]);
       p = strchr(&arg[13],',');
@@ -544,17 +544,17 @@ int parse_arg_line(char *arg)
       dt_up[second_tile] = first_tile;
       vdouble_tiles = 1;
    }
-   else if (strncmp(arg,"update_rate=",12)==0) 
+   else if (IS_ARG_MATCH(arg,"update_rate=")) 
       update_rate=MAX(1,MIN(atol(&arg[12]),10000000));
-   else if (strncmp(arg,"tracefile=",10)==0) tracefp=fopen(strtok(&arg[10],newline), "a");
-   else if (strncmp(arg,"movie",5)==0) { export_mode=2; export_movie=1; }
-   else if (strncmp(arg,"tmax=",5)==0) tmax=atof(&arg[5]);
-   else if (strncmp(arg,"emax=",5)==0) emax=atoi(&arg[5]);
-   else if (strncmp(arg,"smax=",5)==0) smax=atoi(&arg[5]);
-   else if (strncmp(arg,"mmax=",6)==0) mmax=atoi(&arg[6]);
-   else if (strncmp(arg,"smin=",5)==0) smin=atoi(&arg[5]);
-   else if (strncmp(arg,"fsmax=",6)==0) fsmax=atoi(&arg[6]);
-   else if (strncmp(arg,"untiltiles=",11)==0) {
+   else if (IS_ARG_MATCH(arg,"tracefile=")) tracefp=fopen(strtok(&arg[10],newline), "a");
+   else if (IS_ARG_MATCH(arg,"movie")) { export_mode=2; export_movie=1; }
+   else if (IS_ARG_MATCH(arg,"tmax=")) tmax=atof(&arg[5]);
+   else if (IS_ARG_MATCH(arg,"emax=")) emax=atoi(&arg[5]);
+   else if (IS_ARG_MATCH(arg,"smax=")) smax=atoi(&arg[5]);
+   else if (IS_ARG_MATCH(arg,"mmax=")) mmax=atoi(&arg[6]);
+   else if (IS_ARG_MATCH(arg,"smin=")) smin=atoi(&arg[5]);
+   else if (IS_ARG_MATCH(arg,"fsmax=")) fsmax=atoi(&arg[6]);
+   else if (IS_ARG_MATCH(arg,"untiltiles=")) {
       int i=0;
       char *pos;
       pos = arg;
@@ -570,7 +570,7 @@ int parse_arg_line(char *arg)
       }
       untiltiles = 1;
    }
-   else if (strncmp(arg,"untiltilescount=",16)==0) {
+   else if (IS_ARG_MATCH(arg,"untiltilescount=")) {
       int i=0;
       char *pos;
       untiltilescount=1;
@@ -587,35 +587,35 @@ int parse_arg_line(char *arg)
       }
       untiltilescount = 1;
    }
-   else if (strncmp(arg,"clean_cycles=",13)==0) clean_cycles=atoi(&arg[13]);
-   else if (strncmp(arg,"clean_X=",8)==0) clean_X=atof(&arg[8]);
-   else if (strncmp(arg,"fill_cycles=",12)==0) fill_cycles=atoi(&arg[12]);
-   else if (strncmp(arg,"fill_X=",7)==0) fill_X=atof(&arg[7]);
-   else if (strncmp(arg,"error_radius=",13)==0) error_radius=atof(&arg[13]);
-   else if (strncmp(arg,"repair_unique_T=",15)==0) { repair_unique_T=atof(&arg[15]); repair_unique=1; }
-   else if (strncmp(arg,"datafile=",9)==0) datafp=fopen(strtok(&arg[9],newline), "a");
-   else if (strncmp(arg,"largeflakedatafile=",19)==0) {
+   else if (IS_ARG_MATCH(arg,"clean_cycles=")) clean_cycles=atoi(&arg[13]);
+   else if (IS_ARG_MATCH(arg,"clean_X=")) clean_X=atof(&arg[8]);
+   else if (IS_ARG_MATCH(arg,"fill_cycles=")) fill_cycles=atoi(&arg[12]);
+   else if (IS_ARG_MATCH(arg,"fill_X=")) fill_X=atof(&arg[7]);
+   else if (IS_ARG_MATCH(arg,"error_radius=")) error_radius=atof(&arg[13]);
+   else if (IS_ARG_MATCH(arg,"repair_unique_T=")) { repair_unique_T=atof(&arg[15]); repair_unique=1; }
+   else if (IS_ARG_MATCH(arg,"datafile=")) datafp=fopen(strtok(&arg[9],newline), "a");
+   else if (IS_ARG_MATCH(arg,"largeflakedatafile=")) {
       char *c;
       c =strchr(arg,',') + 1;
       tthresh = atoi(&arg[19]);
       largeflakefp=fopen(c, "a");
    }
-   else if (strncmp(arg,"untiltilescountfile=",20)==0) {
+   else if (IS_ARG_MATCH(arg,"untiltilescountfile=")) {
       untiltilescountfp=fopen(&arg[20], "a");
    }
-   else if (strncmp(arg,"arrayfile=",10)==0) arrayfp=fopen(strtok(&arg[10],newline), "w");
-   else if (strncmp(arg,"exportfile=",11)==0) export_fp=fopen(strtok(&arg[11],newline), "w");
+   else if (IS_ARG_MATCH(arg,"arrayfile=")) arrayfp=fopen(strtok(&arg[10],newline), "w");
+   else if (IS_ARG_MATCH(arg,"exportfile=")) export_fp=fopen(strtok(&arg[11],newline), "w");
    else if (strncmp(arg,"testing",7) == 0) {
       testing = 1;
    }
-   else if (strncmp(arg,"import_offset=",14)==0) {
+   else if (IS_ARG_MATCH(arg,"import_offset=")) {
       char *p=(&arg[14]);
       import_offset_i=atoi(p);
       if ((p=strchr(p,','))!=NULL) {
 	 import_offset_j=atoi(p+1);
       }
    }
-   else if (strncmp(arg,"importfile",10)==0)
+   else if (IS_ARG_MATCH(arg,"importfile"))
    {
       char *p=(&arg[11]);
       FILE *import_fp;
@@ -639,7 +639,7 @@ int parse_arg_line(char *arg)
 	 habits with non-alphabetic characters */
       newline[0] = 10;
       newline[1] = 0;
-      if (strncmp(arg,"importfile=",11)==0) {
+      if (IS_ARG_MATCH(arg,"importfile=")) {
 	 char imp_fn[256], *arg_fn;
 	 import_fp = fopen(arg_fn=strtok(p,newline), "r");
 	 if (import_fp == NULL) { sprintf(&imp_fn[0],"%s",arg_fn); import_fp = fopen(&imp_fn[0],"r"); }
@@ -662,7 +662,7 @@ int parse_arg_line(char *arg)
 	 fparam->Gfc=0;
       fparam->N = count_flakes(import_fp);
    }
-   else if (strncmp(arg,"min_strength=",12)==0) {min_strength=atof(&arg[13]);}
+   else if (IS_ARG_MATCH(arg,"min_strength=")) {min_strength=atof(&arg[13]);}
    else {
       fprintf(stderr,"Could not parse argument '%s'\n",arg); 
       return -1;
