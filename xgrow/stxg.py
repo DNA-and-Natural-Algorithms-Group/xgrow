@@ -12,7 +12,7 @@ import datetime
 import copy
 import logging
 
-version = 0.4
+version = 0.5
 #import warning
 
 # Option names and their argument types.
@@ -140,15 +140,7 @@ def to_xgrow( stxg, stream=None ):
     
     if 'xgrowargs' in stxg.keys():
         for key,val in stxg['xgrowargs'].items():
-            if key in keyopts:
-                xgrowf.write("%s=%s\n" % (key, str(val)))
-            elif key in truefalseoptions:
-                if val:
-                    xgrowf.write(key+'\n')
-            elif key == 'window':
-                if not val:
-                    xgrowf.write('-nw\n')
-            elif key == 'doubletiles':
+            if key == 'doubletiles':
                 for x1,x2 in val:
                     # dereference
                     if type(x1) != int:
@@ -179,14 +171,10 @@ def to_xgrow( stxg, stream=None ):
                         except IndexError:
                             print(x2)
                             raise ValueError(x2)           
-                    xgrowf.write( "vdoubletile=%d,%d\n" % (x1,x2) )
-            elif key == 'fission':
-                if val == 'off':
-                    xgrowf.write("no_fission\n")
-                elif val == 'on':
-                    xgrowf.write("fission\n")
-                elif val == 'chunk':
-                    xgrowf.write("chunk_fission\n")
+                    xgrowf.write( "vdoubletile=%d,%d\n" % (x1,x2) ) 
+            else:
+                xgrowf.write("%s=%s\n" % (key, str(val)))
+           
     xgrowf.write("% Tileset created by stxg.py version {0} on {1}\n".format(version, str(datetime.date.today())) )
     
     if stream:

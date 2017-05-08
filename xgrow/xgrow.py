@@ -3,8 +3,21 @@ import os
 import pkg_resources
 import tempfile
 import subprocess
+import copy
+from . import stxg
+from . import parseoutput
 
-XGROW_BINARY = pkg_resources.resource_filename(__name__,'_xgrow')
+_XGROW_BINARY = pkg_resources.resource_filename(__name__,'_xgrow')
+
+def _process_outputs( outputs ):
+    for key in outputs.keys():
+        if key == 'array':
+            outputs[key] = parseoutput.load_array(outputs[key])
+        elif key == 'trace':
+            outputs[key] = parseoutput.load_trace(outputs[key])
+        elif key == 'data':
+            outputs[key] = parseoutput.load_data(outputs[key])
+            
 
 def run_raw( argstring: str, process_info=False ):
     """
@@ -24,13 +37,13 @@ def run_raw( argstring: str, process_info=False ):
     Returns a subprocess CompletedProcess.
     """
     if process_info:
-        return subprocess.run(XGROW_BINARY + " " + argstring,
+        return subprocess.run(_XGROW_BINARY + " " + argstring,
                               shell=True,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
                               encoding="utf-8")
     else:
-        return subprocess.run(XGROW_BINARY + " " + argstring,
+        return subprocess.run(_XGROW_BINARY + " " + argstring,
                               shell=True)
         
 
@@ -96,26 +109,33 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
 
     ret = run_raw( argstring, process_info=process_info )
     if ret.returncode != 0:
-        raise XgrowError(
+        raise Exception(
             "Xgrow failed with return code {}.".format(ret.returncode),
             ret,
             argstring,
             tileset_file.name,
             { t: f.name for t,f in outputstring.values() } )
 
-    output_strings = {}
+    os.unlink(tileset_file.name)
+    
+    output = {}
     for output_type, output_file in output_files.items():
         with open(output_file,'r') as output_file_reopened:
-            output_strings[output_type] = output_file_reopened.read()
+            output[output_type] = output_file_reopened.read()
+        os.unlink(output_file)
 
-    if not output_strings:
-        output_strings = None
+    _process_outputs(output)
+        
+    if process_info:
+        output['process_info'] = ret
+            
+    if not output:
+        output = None
 
-    return output_strings
+    return output
     
 
-def run( tileset: dict, extraparams: dict, outputopts=None, ui=True,
-               xgrow_path=None):
+def run( tileset: dict, extraparams: dict, outputopts=None, ui=False):
     """Given a tileset (class or dict), and a dictionary of extra parameters,
     run xgrow, potentially with particular managed output options.  This
     replaces the xgrow-running code in xgrow_wrap and in xgrow_parallel.
@@ -148,5 +168,12 @@ def run( tileset: dict, extraparams: dict, outputopts=None, ui=True,
     outputs with keys of the same name.
     """
 
-    raise NotImplementedError
-
+    tileset_copy = copy.deepcopy(tileset)
+    tileset_copy['xgrowargs'].update(extraparams)
+    if ui:
+        tileset_copy['xgrowargs']['window']=True
+    else:
+        tileset_copy['xgrowargs']['window']=False
+    tilestring = stxg.to_xgrow(tileset_copy)
+    
+    return run_old(tilestring, {}, outputopts)

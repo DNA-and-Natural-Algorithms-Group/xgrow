@@ -414,6 +414,8 @@ int parse_arg_line(char *arg)
    else if (IS_ARG_MATCH(arg,"pause=True")) paused=1;
    else if (IS_ARG_MATCH(arg,"pause=False")) paused=0;
    else if (IS_ARG_MATCH(arg,"pause")) paused=1;
+   else if (IS_ARG_MATCH(arg,"periodic=True")) periodic=1;
+   else if (IS_ARG_MATCH(arg,"periodic=False")) periodic=0;
    else if (IS_ARG_MATCH(arg,"periodic")) periodic=!periodic;
    else if (IS_ARG_MATCH(arg,"wander=True")) wander=1;
    else if (IS_ARG_MATCH(arg,"wander=False")) wander=0;
@@ -465,6 +467,8 @@ int parse_arg_line(char *arg)
    else if (IS_ARG_MATCH(arg,"stripe=")) 
    { stripe_args=(&arg[7]); periodic=1; wander=1; }
    else if (strcmp(arg,"-nw")==0) XXX=0;
+   else if (IS_ARG_MATCH(arg,"window=True")) XXX=1;
+   else if (IS_ARG_MATCH(arg,"window=False")) XXX=0;
    else if (strcmp(arg,"-linear")==0) linear=1;
    else if (strncmp(arg,"linan=",6) == 0) {
       char *c;

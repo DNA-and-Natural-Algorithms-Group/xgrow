@@ -1,8 +1,9 @@
 import os
 import sys
 import re
-from collections import namedtuple
 from xgrow import xgrow
+
+__all__ = []
 
 TF_KEYS = ['wander', 'pause', 'movie', 'zero_bonds']
 
@@ -16,6 +17,9 @@ parsed_traditional = {
 parsed_new = {
     'w': lambda x: ('window',not bool(x.group(1))),
     'nw': lambda x: ('window',bool(x.group(1))) }
+
+def print_help():
+    print("Hi")
 
 def main():
     """\
@@ -38,6 +42,9 @@ will likely be moved into Alhambra itself.
     while pos < len(raw_args):
         # First try to parse as an argument:
         m = re.match(r'-{1,2}(no[-_])?([^=\s]+)(=)?(\S+)?',raw_args[pos])
+        if m.group(2) in ['h','help']:
+            print_help()
+            sys.exit(0)
         if m and m.group(2) in parsed_new.keys():
             args.__setitem__(*parsed_new[m.group(2)](m))
             pos += 1
@@ -67,6 +74,10 @@ will likely be moved into Alhambra itself.
                 args[m.group(1)]=True
             pos += 1
 
+    if not tilepath:
+        print("No tileset file specified!\nUse -h or --help for help.")
+        sys.exit()
+            
     fd = open(tilepath,'r')
     for l in fd:
         if l[0]=="%":
@@ -84,7 +95,7 @@ will likely be moved into Alhambra itself.
         xgrow.run_old( fd.read(), args )
     else:
         import ruamel.yaml as yaml
-        xgrow.run( yaml.load(fd), args )
+        xgrow.run( yaml.safe_load(fd), args, ui=True )
     
 if __name__ == '__main__':
     main()
