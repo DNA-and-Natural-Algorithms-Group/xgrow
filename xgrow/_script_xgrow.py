@@ -133,10 +133,10 @@ def main():
     while pos < len(raw_args):
         # First try to parse as an argument:
         m = re.match(r'-{1,2}(no[-_])?([^=\s]+)(=)?(\S+)?',raw_args[pos])
-        if m.group(2) in ['h','help']:
+        if m and m.group(2) in ['h','help']:
             print_help()
             sys.exit(0)
-        if m.group(2) in ['help-options']:
+        if m and m.group(2) in ['help-options']:
             print_options()
             sys.exit(0)     
         if m and m.group(2) in parsed_new.keys():
