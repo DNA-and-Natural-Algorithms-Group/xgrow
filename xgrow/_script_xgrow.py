@@ -83,7 +83,8 @@ will likely be moved into Alhambra itself.
     if filetype=='xgrow':
         xgrow.run_old( fd.read(), args )
     else:
-        xgrow.run( yaml.load(fd), params )
+        import ruamel.yaml as yaml
+        xgrow.run( yaml.load(fd), args )
     
 if __name__ == '__main__':
     main()

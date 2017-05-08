@@ -280,6 +280,8 @@ the file.  (compatibility with existing xgrow tile files must be maintained.)
 # define MAXTILETYPES USHRT_MAX
 #endif
 
+#define SHORTSTRCMP(arg,s)  strncmp(arg,s,strlen(s))
+   
    long int translate[MAXTILETYPES]; /* for converting colors */
    int paused=0, errorc=0, errors=0, sampling=0;
    int export_mode=0, export_flake_n=1, export_movie_n=1, export_movie=0; 
@@ -409,12 +411,19 @@ int parse_arg_line(char *arg)
       }
    }
    else if (strncmp(arg,"T=",2)==0) T=atof(&arg[2]);
+   else if (SHORTSTRCMP(arg,"pause=True")==0) paused=1;
+   else if (SHORTSTRCMP(arg,"pause=False")==0) paused=0;
    else if (strncmp(arg,"pause",5)==0) paused=1;
    else if (strncmp(arg,"periodic",8)==0) periodic=!periodic;
-   else if (strncmp(arg,"wander",6)==0) wander=!wander;
-   else if (strncmp(arg,"no_fission",10)==0) fission_allowed=0;
-   else if (strncmp(arg,"fission",7)==0) fission_allowed=1;
-   else if (strncmp(arg,"chunk_fission",13)==0) fission_allowed=2;
+   else if (SHORTSTRCMP(arg,"wander=True")==0) wander=1;
+   else if (SHORTSTRCMP(arg,"wander=False")==0) wander=0;
+   else if (SHORTSTRCMP(arg,"wander")==0) wander=!wander;
+   else if (SHORTSTRCMP(arg,"fission=off")==0) fission_allowed=0;
+   else if (SHORTSTRCMP(arg,"fission=on")==0) fission_allowed=1;
+   else if (SHORTSTRCMP(arg,"fission=chunk")==0) fission_allowed=2; 
+   else if (SHORTSTRCMP(arg,"no_fission")==0) fission_allowed=0;
+   else if (SHORTSTRCMP(arg,"fission")==0) fission_allowed=1;
+   else if (SHORTSTRCMP(arg,"chunk_fission")==0) fission_allowed=2;
    else if (strncmp(arg,"blast_rate_alpha=",17)==0) blast_rate_alpha=atof(&arg[17]);
    else if (strncmp(arg,"blast_rate_beta=",16)==0)  blast_rate_beta =atof(&arg[16]);
    else if (strncmp(arg,"blast_rate_gamma=",17)==0) blast_rate_gamma=atof(&arg[17]);
