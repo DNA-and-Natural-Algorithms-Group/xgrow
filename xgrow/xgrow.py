@@ -135,7 +135,7 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
     return output
     
 
-def run( tileset: dict, extraparams: dict, outputopts=None, ui=False):
+def run( tileset: dict, extraparams: dict, outputopts=None, ui=False, process_info=False):
     """Given a tileset (class or dict), and a dictionary of extra parameters,
     run xgrow, potentially with particular managed output options.  This
     replaces the xgrow-running code in xgrow_wrap and in xgrow_parallel.
@@ -176,4 +176,4 @@ def run( tileset: dict, extraparams: dict, outputopts=None, ui=False):
         tileset_copy['xgrowargs']['window']=False
     tilestring = stxg.to_xgrow(tileset_copy)
     
-    return run_old(tilestring, {}, outputopts)
+    return run_old(tilestring, {}, outputopts, process_info=process_info)

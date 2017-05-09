@@ -186,10 +186,10 @@ def main():
     fd.seek(0)
 
     if filetype=='xgrow':
-        xgrow.run_old( fd.read(), args )
+        xgrow.run_old( fd.read(), args, process_info=False )
     else:
         import ruamel.yaml as yaml
-        xgrow.run( yaml.safe_load(fd), args, ui=True )
+        xgrow.run( yaml.safe_load(fd), args, ui=True, process_info=False )
     
 if __name__ == '__main__':
     main()
