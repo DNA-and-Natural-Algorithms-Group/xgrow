@@ -114,7 +114,7 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
             ret,
             argstring,
             tileset_file.name,
-            { t: f.name for t,f in outputstring.values() } )
+            { t: f.name for t,f in output_files.values() } )
 
     os.unlink(tileset_file.name)
     
