@@ -33,13 +33,13 @@ def load_data(s):
         index = ['gmc','gse','k','time','tiles','mismatches','events','perimeter','g','dgbonds'])
     return data
 
-def show_array(a,ts):
-    import matplotlib.pylab as pylab
+def show_array(a, ts, **kwargs):
+    import matplotlib.pyplot as plt
     import matplotlib.colors as colors
-    from alhambra.tiletypes import xcolors #FIXME:  put in here!
+    from alhambra.tiletypes import xcolors  # FIXME:  put in here!
     mcolors = { n: tuple( z/255.0 for z in eval( x[3:] ) ) for n,x in xcolors.items() }
     cmap = colors.ListedColormap(['black']+[mcolors[x['color']] for x in ts['tiles']])
-    try:
-        pylab.imshow(a['tiles'], cmap=cmap, vmin=0, vmax=len(ts['tiles']))
-    except KeyError:
-        pylab.imshow(a, cmap=cmap, vmin=0, vmax=len(ts['tiles']))
+    if 'tiles' in a.keys():
+        plt.imshow(a['tiles'], cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)
+    else:
+        plt.imshow(a, cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)

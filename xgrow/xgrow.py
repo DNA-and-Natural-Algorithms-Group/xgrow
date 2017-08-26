@@ -17,7 +17,9 @@ def _process_outputs( outputs ):
             outputs[key] = parseoutput.load_trace(outputs[key])
         elif key == 'data':
             outputs[key] = parseoutput.load_data(outputs[key])
-            
+        else:
+            raise ValueError("Output type {} is unknown.".format(key), key)
+
 
 def run_raw( argstring: str, process_info=False ):
     """
@@ -63,7 +65,7 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
     outputopts, which will handle output file creation and reading.
 
     outputopts: either a string or list, specifying output options.  If a
-    string, one of 'final', 'array', or 'trace', corresponding to 'datafile',
+    string, one of 'data', 'array', or 'trace', corresponding to 'datafile',
     'arrayfile' and 'tracefile', respectively.  If a list of multiple, then
     do those.  These will manage the output, and return the data raw from xgrow
     as strings.
@@ -133,9 +135,10 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
         output = None
 
     return output
-    
 
-def run( tileset: dict, extraparams: dict, outputopts=None, ui=False, process_info=False):
+
+def run(tileset: dict, extraparams={}, outputopts=None,
+        ui=False, process_info=False):
     """Given a tileset (class or dict), and a dictionary of extra parameters,
     run xgrow, potentially with particular managed output options.  This
     replaces the xgrow-running code in xgrow_wrap and in xgrow_parallel.
@@ -151,7 +154,8 @@ def run( tileset: dict, extraparams: dict, outputopts=None, ui=False, process_in
     outputopts: either a string or list, specifying output options.  If a
     string, one of 'final', 'array', or 'trace', corresponding to 'datafile',
     'arrayfile' and 'tracefile', respectively.  If a list of multiple, then
-    do those.  These will manage the output, and return the data in usable form.
+    do those.  These will manage the output, and return the data in usable
+    form.
 
     ui: if True, then show the xgrow ui.  If false, then suppress the ui.  If
     suppressing the ui, the tileset or extraparams should include a terminating
@@ -171,9 +175,22 @@ def run( tileset: dict, extraparams: dict, outputopts=None, ui=False, process_in
     tileset_copy = copy.deepcopy(tileset)
     tileset_copy['xgrowargs'].update(extraparams)
     if ui:
-        tileset_copy['xgrowargs']['window']=True
+        tileset_copy['xgrowargs']['window'] = True
     else:
-        tileset_copy['xgrowargs']['window']=False
+        tileset_copy['xgrowargs']['window'] = False
     tilestring = stxg.to_xgrow(tileset_copy)
-    
+
     return run_old(tilestring, {}, outputopts, process_info=process_info)
+
+
+def show_array(array, tileset=None, **kwargs):
+    from alhambra.tiletypes import xcolors  # FIXME: need to have this in xgrow
+    import matplotlib.pyplot as plt
+
+    if tileset is not None:
+        cm = colors.ListedColormap(
+            ['black'] + [mcolors[x['color']] for x in tileset['tiles']])
+        plt.imshow(array, cmap=cm, vmin=0,
+                   vmax=len(tileset['tiles']), **kwargs)
+    else:
+        plt.imshow(array, **kwargs)
