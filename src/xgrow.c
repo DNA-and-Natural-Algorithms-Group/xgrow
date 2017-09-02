@@ -956,7 +956,10 @@ void getargs(int argc, char **argv)
    for (i=2; i<argc; i++) {
       parse_arg_line(argv[i]);
    }
-   if (tmax==0 && emax==0 && smax==0 && mmax==0 && fsmax==0 && smin==-1) XXX=1;
+   if (tmax==0 && emax==0 && smax==0 && mmax==0 && fsmax==0 && smin==-1) {
+     printf("No max setting: forcing UI mode.\n");
+     XXX=1;
+   }
    if (hydro && fission_allowed==2) {
       printf("* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(0);
    }
