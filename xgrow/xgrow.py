@@ -76,7 +76,7 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
     """
 
     # Create necessary temp files:
-    tileset_file = tempfile.NamedTemporaryFile(delete = False, mode='w')
+    tileset_file = tempfile.NamedTemporaryFile(delete = False, mode='w', newline='\n')
 
     if outputopts is None:
         outputopts = []

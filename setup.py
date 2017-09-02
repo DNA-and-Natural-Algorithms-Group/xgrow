@@ -4,12 +4,12 @@ from setuptools import setup, find_packages
 from distutils.command.build import build
 from setuptools.command.develop import develop
 
-BUILD_STRING = "cc -Wall -g -O3 src/xgrow.c src/grow.c -o xgrow/_xgrow -lm {}"
+BUILD_STRING = "{} -Wall -g -O3 src/xgrow.c src/grow.c -o xgrow/_xgrow -lm {}"
 
 def find_x11():
     import os
     if 'X11_FLAGS' in os.environ:
-        return os.environ['X11_FLAGS']
+        x11s = os.environ['X11_FLAGS']
     else:
         x11f = []
         includes = ['/usr/include/X11','/opt/X11/include',None]
@@ -26,20 +26,25 @@ def find_x11():
             if os.path.exists(x):
                 x11f.append("-L{}".format(x))
                 break
-        x11f.append('-lX11')
-        return " ".join(x11f)
+        x11f.append('-lX11 -lx11')
+        x11s = " ".join(x11f)
+    if 'CC' in os.environ:
+        cc = os.environ['CC']
+    else:
+        cc = 'cc'
+    return (cc,x11s)
         
 class build_xgrow(build):
     def run(self):
         import os
-        os.system(BUILD_STRING.format(find_x11()))
+        os.system(BUILD_STRING.format(*find_x11()))
         
         build.run(self)
 
 class develop_xgrow(develop):
     def run(self):
         import os
-        os.system(BUILD_STRING.format(find_x11()))
+        os.system(BUILD_STRING.format(*find_x11()))
         
         develop.run(self)
 
