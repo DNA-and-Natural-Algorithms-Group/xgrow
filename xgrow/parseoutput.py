@@ -48,8 +48,8 @@ def show_array(a, ts, **kwargs):
                for n, x in xcolors.items()}
     cmap = colors.ListedColormap(['black'] + [mcolors[x['color']]
                                               for x in ts['tiles']])
-    if 'tiles' in a.keys():
+    try:
         plt.imshow(
             a['tiles'], cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)
-    else:
+    except:
         plt.imshow(a, cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)
