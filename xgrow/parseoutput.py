@@ -43,7 +43,7 @@ def load_data(s):
 def show_array(a, ts, **kwargs):
     import matplotlib.pyplot as plt
     import matplotlib.colors as colors
-    from alhambra.tiletypes import xcolors  # FIXME:  put in here!
+    from alhambra.tilestructures import xcolors  # FIXME:  put in here!
     mcolors = {n: tuple(z / 255.0 for z in eval(x[3:]))
                for n, x in xcolors.items()}
     cmap = colors.ListedColormap(['black'] + [mcolors[x['color']]

@@ -80,8 +80,10 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
 
     if outputopts is None:
         outputopts = []
+        onlyone=False
     elif isinstance(outputopts, str):
         outputopts = [outputopts]
+        onlyone=True
     output_files = { output_type: tempfile.NamedTemporaryFile(delete=False)
                      for output_type in outputopts }
 
@@ -128,13 +130,15 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
 
     _process_outputs(output)
         
-    if process_info:
-        output['process_info'] = ret
-            
     if not output:
         output = None
+    if onlyone:
+        output = output[outputopts[0]]
 
-    return output
+    if not process_info:
+        return output
+    else:
+        return output, ret
 
 
 def run(tileset: dict, extraparams={}, outputopts=None,
