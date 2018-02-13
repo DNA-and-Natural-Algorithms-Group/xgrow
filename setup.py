@@ -19,7 +19,7 @@ def find_x11():
             if os.path.exists(x):
                 x11f.append("-I{}".format(x))
                 break
-        libs = ['/usr/lib/X11','/opt/X11/lib',None]
+        libs = ['/usr/lib/X11','/opt/X11/lib','/usr/lib64','/usr/lib',None]
         for x in libs:
             if x is None:
                 raise Exception("Can't find an X11 lib dir.")
