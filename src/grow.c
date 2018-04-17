@@ -2476,12 +2476,12 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                      /* Check to see if tiles are doubles. There are 3 possibilities here.
                         Note that some doubles will be entirely within the 2x2 block and
                         thus aren't considered here. */
-                     if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; printf("Double in chunk detected\n");}
-                     if (tp->dt_right[fp->Cell(i+1,j+1)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+2; printf("Double in chunk detected\n");}
-                     if (tp->dt_left[fp->Cell(i+1,j)])    { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; printf("Double in chunk detected\n");}
-                     if (tp->dt_down[oldn]) { dn++; di[dn-1]=i+1; dj[dn-1]=j; printf("Double in chunk detected\n");}
-                     if (tp->dt_down[fp->Cell(i,j+1)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+1; printf("Double in chunk detected\n");}
-                     if (tp->dt_up[fp->Cell(i,j+1)]) { dn++; di[dn-1]=i-1; dj[dn-1]=j; printf("Double in chunk detected\n");}
+                     if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_right[fp->Cell(i+1,j+1)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+2; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_left[fp->Cell(i+1,j)])    { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_down[oldn]) { dn++; di[dn-1]=i+1; dj[dn-1]=j; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_down[fp->Cell(i,j+1)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+1; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_up[fp->Cell(i,j+1)]) { dn++; di[dn-1]=i-1; dj[dn-1]=j; fprintf(stderr,"Double in chunk detected\n");}
                   }
 
                   if (dn > 1) {
@@ -2495,7 +2495,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                      i=di[removals[d]]; j=dj[removals[d]]; if (periodic) { i=(i+size)%size; j=(j+size)%size; }
                      oldns[removals[d]]=fp->Cell(i,j); // must make sure oldn is correct for each tile in chunk
                      if (i==fp->seed_i && j==fp->seed_j)
-                        printf("removing seed at %d, %d! chunk=%d from %d,%d\n",i,j,chunk,di[0],dj[0]);
+                        fprintf(stderr,"removing seed at %d, %d! chunk=%d from %d,%d\n",i,j,chunk,di[0],dj[0]);
                      change_cell(fp,i,j,0);
                      if (!locally_fission_proof(fp,i,j,oldns[removals[d]])) { /* couldn't quickly confirm... */
                         if (flake_fission(fp,i,j)) {
@@ -2529,7 +2529,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                         } else if (0) { // should be fission_proof, according to local test FIXME: remove?
                            // this is time consuming!  here only for debugging!
                            if (flake_fission(fp,i,j)) {
-                              printf("Fission_proof locale fissioned at %d,%d [chunk cell %d/%d]: "
+                              fprintf(stderr,"Fission_proof locale fissioned at %d,%d [chunk cell %d/%d]: "
                                     "\n %3d %3d %3d\n %3d %3d %3d\n %3d %3d %3d\n", i,j, d, dn,
                                     fp->Cell(i-1,j-1), fp->Cell(i-1,j  ), fp->Cell(i-1,j+1), 
                                     fp->Cell(i  ,j-1),     oldn         , fp->Cell(i  ,j+1), 
@@ -2553,7 +2553,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          else {
             // Check that the flake rate is still positive
             if (fp->tree_node->rate < 0) {
-               printf("Bad news, negative rate\n");
+               fprintf(stderr,"Bad news, negative rate\n");
                assert(0);
             }
          }
