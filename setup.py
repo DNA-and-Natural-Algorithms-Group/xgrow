@@ -26,7 +26,7 @@ def find_x11():
             if os.path.exists(x):
                 x11f.append("-L{}".format(x))
                 break
-        x11f.append('-lX11 -lx11')
+        x11f.append('-lX11')
         x11s = " ".join(x11f)
     if 'CC' in os.environ:
         cc = os.environ['CC']

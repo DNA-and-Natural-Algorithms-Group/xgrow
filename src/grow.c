@@ -2453,18 +2453,18 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                      dj[0]=j; 
                      di[1]=i; 
                      dj[1]=j+1; 
-                     if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; printf("Double in chunk detected\n");}
-                     if (tp->dt_down[oldn]) { dn++; di[dn-1]=i+1; dj[dn-1]=j; printf("Double in chunk detected\n");}
-                     if (tp->dt_down[fp->Cell(i,j+1)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+1; printf("Double in chunk detected\n");}
-                     if (tp->dt_up[fp->Cell(i,j+1)]) { dn++; di[dn-1]=i-1; dj[dn-1]=j+1; printf("Double in chunk detected\n");}
+                     if (tp->dt_right[fp->Cell(i,j+1)])   { dn++; di[dn-1]=i;   dj[dn-1]=j+2; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_down[oldn]) { dn++; di[dn-1]=i+1; dj[dn-1]=j; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_down[fp->Cell(i,j+1)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+1; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_up[fp->Cell(i,j+1)]) { dn++; di[dn-1]=i-1; dj[dn-1]=j+1; fprintf(stderr,"Double in chunk detected\n");}
                   }
                   else if (chunk==2 || (chunk==0 && tp->dt_down[oldn])) { 
                      dn=2; di[0]=i; dj[0]=j; di[1]=i+1; dj[1]=j; 
                      /* Check to see if either tile is a double tile. */
-                     if (tp->dt_right[oldn]) { dn++; di[dn-1]=i; dj[dn-1]=j+1; printf("Double in chunk detected\n");}
-                     if (tp->dt_right[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+1; printf("Double in chunk detected\n");}
-                     if (tp->dt_left[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; printf("Double in chunk detected\n");}
-                     if (tp->dt_down[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+2; dj[dn-1]=j; printf("Double in chunk detected\n");}
+                     if (tp->dt_right[oldn]) { dn++; di[dn-1]=i; dj[dn-1]=j+1; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_right[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j+1; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_left[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+1; dj[dn-1]=j-1; fprintf(stderr,"Double in chunk detected\n");}
+                     if (tp->dt_down[fp->Cell(i+1,j)]) { dn++; di[dn-1]=i+2; dj[dn-1]=j; fprintf(stderr,"Double in chunk detected\n");}
                   }
                   else { 
                      dn=4;

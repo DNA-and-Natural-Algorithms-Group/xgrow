@@ -399,7 +399,7 @@ int parse_arg_line(char *arg)
 	 stn=atoi(&arg[6]); sts=atof(sp+1);
 	 if (stn<=N && stn>0 && sts>0) {
 	    stoic[stn]=sts;
-	    printf("stoic of tile %d = [%f]\n",stn,sts);
+	    fprintf(stderr,"stoic of tile %d = [%f]\n",stn,sts);
 	 } else { 
 	    if (sts==0) {
 	       fprintf(stderr,"Stoic == 0.0 is not allowed; use a small but positive value.\n"); 
@@ -1027,7 +1027,7 @@ void getargs(int argc, char **argv)
    }
 
    if (!XXX) {
-      printf(" Starting simulation (1st seed=%d,%d,%d) on %d x %d board.\n",
+     fprintf(stderr, " Starting simulation (1st seed=%d,%d,%d) on %d x %d board.\n",
 	    seed_i, seed_j, seed_n, size, size);
    }
 
@@ -1117,7 +1117,7 @@ int count_flakes(FILE *flake_file)
    fscanf(flake_file, "\nflake{%d}={ ...\n[", &n); lnum+=2;   // the line number counting is very approximate.
 
    /* For debugging */
-   printf("Reading flake number: %d\n", n);   
+   fprintf(stderr, "Reading flake number: %d\n", n);   
 
    /* Run through the parameters, waiting for ],... to appear twice. */
    for(i = 0; i < 2; i++)
