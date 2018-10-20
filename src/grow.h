@@ -70,7 +70,7 @@ double exp(); double log();
       fp->tube->Gse_EW[ n ] [ fp->Cell(i,(j)-1) ] + \
       fp->tube->Gse_EW[ fp->Cell(i,(j)+1) ] [ n ] + \
       fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] + \
-      fp->tube->Gse_NS[ fp->Cell((i)+1,j) ] [ fp->Cell((i)+2,j) ] +  \
+      fp->tube->Gse_NS[ fp->Cell((i)+1,j) ] [ fp->CellM((i)+2,j) ] +  \
       fp->tube->Gse_EW[ fp->Cell((i)+1,j) ] [ fp->Cell((i)+1,(j)-1) ]+  \
       fp->tube->Gse_EW[ fp->Cell((i)+1,(j)+1) ] [ fp->Cell((i)+1,j) ] )  
 
