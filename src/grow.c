@@ -1106,7 +1106,7 @@ void change_seed(flake *fp, int new_i, int new_j)
    fp->seed_n = fp->Cell(new_i,new_j); fp->seed_i=new_i; fp->seed_j=new_j;
    assert (!fp->tube->dt_left[fp->seed_n]);
    assert (!fp->tube->dt_up[fp->seed_n]);
-   //printf("Seed is now tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
+   d2printf("Seed is now tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
    // TODO: When double tiles are present, more rates should be updated.
    update_rates(fp, old_i, old_j);  // no longer being seed may allow dissoc => rates change
    update_rates(fp, old_i-1, old_j); 
@@ -1117,7 +1117,30 @@ void change_seed(flake *fp, int new_i, int new_j)
    update_rates(fp, new_i-1, new_j); 
    update_rates(fp, new_i+1, new_j); 
    update_rates(fp, new_i+1, new_j-1); 
-   update_rates(fp, new_i-1, new_j-1); 
+   update_rates(fp, new_i-1, new_j-1);
+   // TODO: only do this if we have doubles/seed is a double
+   if (fp->tube->dt_right[fp->seed_n] || fp->tube->dt_down[fp->seed_n]) {
+     update_rates(fp,old_i-1,old_j+1);
+     update_rates(fp,old_i+1,old_j+1);
+     update_rates(fp,old_i-1,old_j-1);
+     update_rates(fp,old_i+1,old_j-1);
+     update_rates(fp,old_i,old_j+2);
+     update_rates(fp,old_i-1,old_j+2);
+     update_rates(fp,old_i+1,old_j+2);
+     update_rates(fp,old_i,old_j-2);
+     update_rates(fp,old_i-1,old_j-2);
+     update_rates(fp,old_i+1,old_j-2);
+     update_rates(fp,new_i-1,new_j+1);
+     update_rates(fp,new_i+1,new_j+1);
+     update_rates(fp,new_i-1,new_j-1);
+     update_rates(fp,new_i+1,new_j-1);
+     update_rates(fp,new_i,new_j+2);
+     update_rates(fp,new_i-1,new_j+2);
+     update_rates(fp,new_i+1,new_j+2);
+     update_rates(fp,new_i,new_j-2);
+     update_rates(fp,new_i-1,new_j-2);
+     update_rates(fp,new_i+1,new_j-2);
+   }
    // all this updating is painfully slow, since it must be done with every seed
    // motion during WANDER.
    if (fp->seed_n==0) 
@@ -1860,6 +1883,53 @@ void get_random_wander_permutation (int di[6], int dj[6],
          }
       }
    }
+   else if (seed_is_vdouble_tile) {
+      int taken[6] = {0,0,0,0,0,0};
+      int posx;
+      perm=random()%720;
+      for (x = 0; x < 6; x++) {
+         posx = perm%(6-x);
+         perm_nums[x]=0;
+         while(taken[perm_nums[x]] || posx) {
+            if (!taken[perm_nums[x]]) {
+               posx--;
+            }
+            perm_nums[x]++;
+         }
+         taken[perm_nums[x]] = 1;
+         perm = perm/(6-x);
+      }
+      for (x = 0; x < 6; x++) {
+         switch (perm_nums[x]) {
+            case 0:
+               di[x] = -1;
+               dj[x] = 0;
+               break;
+            case 1:
+               di[x] = 0;
+               dj[x] = 1;
+               break;
+            case 2:
+               di[x] = 1;
+               dj[x] = 1;
+               break;
+            case 3:
+               di[x] = 2;
+               dj[x] = 0;
+               break;
+            case 4:
+               di[x] = 1;
+               dj[x] = -1;
+               break;
+            case 5:
+               di[x] = 0;
+               dj[x] = -1;
+               break;
+            default:
+               assert(0);
+         }
+      }
+   }
    else {
       int taken[4] = {0,0,0,0}, posx;
       perm = random()%24;
@@ -1932,8 +2002,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
     */
    while (fp!=NULL) {  
 
-      assert (!tp->tinybox ||
-            ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
+      assert (!tp->tinybox || (((!fp->seed_is_double_tile && !fp->seed_is_vdouble_tile) && fp->tiles > 1) || fp->tiles > 2));
 
       //printf("Seed is tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
       if (periodic) {
@@ -2129,17 +2198,22 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          }
          if (c || zero_bonds_allowed) {
             int s_n, s_i, s_j;
-            //printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
-            //n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
+            d2printf("Initting flake with tile %d and tile %d at %d,%d and %d,%d.\n",
+		     n,m,tp->default_seed_i,tp->default_seed_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
             if (tp->dt_left[n]) {
                s_n = tp->dt_left[n];
                s_i = tp->default_seed_i;
                s_j = tp->default_seed_j - 1;
+	       d2printf("Now doing tile %d and tile %d at %d,%d and %d,%d.\n",
+			s_n,m,s_i,s_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
             }
             else if (tp->dt_up[n]) {
                s_n = tp->dt_up[n];
                s_i = tp->default_seed_i - 1;
                s_j = tp->default_seed_j;
+	       d2printf("Now doing tile %d and tile %d at %d,%d and %d,%d.\n",
+			s_n,m,s_i,s_j,tp->default_seed_i+di,tp->default_seed_j+dj); 
+
             }
             else {
                s_n = n;
@@ -2147,13 +2221,13 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                s_j = tp->default_seed_j;
             }
 
-            if ((fp = recover_flake (tp->default_seed_i,s_j,s_n,tp->initial_Gfc)) == NULL) {
-               fp = init_flake (tp->P,tp->N,tp->default_seed_i, s_j, s_n, tp->initial_Gfc);
+            if ((fp = recover_flake (s_i,s_j,s_n,tp->initial_Gfc)) == NULL) {
+               fp = init_flake (tp->P,tp->N,s_i, s_j, s_n, tp->initial_Gfc);
             }
             //   printf("After initting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
 
             insert_flake (fp, tp);
-            //printf("New flake id is %d\n",fp->flake_ID);
+            d2printf("New flake id is %d\n",fp->flake_ID);
             //printf("After inserting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
             fp->tiles = 1;
             fp->seed_is_double_tile = tp->dt_right[fp->seed_n];
@@ -2178,8 +2252,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
             if (tp->dt_up[m]) {
                change_cell(fp, tp->default_seed_i+di-1, tp->default_seed_j+dj,tp->dt_up[m]);
             }
-            assert (!tp->tinybox ||
-                  ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
+	    assert (!tp->tinybox || (((!fp->seed_is_double_tile && !fp->seed_is_vdouble_tile) && fp->tiles > 1) || fp->tiles > 2));
          }
          else {
             tp->stat_a++; tp->stat_d++; tp->events+=2; 
@@ -2193,9 +2266,8 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          /* ensure that the seed state in our chosen flake is reasonable */
          assert (!tp->dt_left[fp->Cell(fp->seed_i,fp->seed_j)]);
          assert (!tp->dt_up[fp->Cell(fp->seed_i,fp->seed_j)]);
-         assert (!tp->tinybox ||
-               fp->tiles > 2 || (!fp->seed_is_double_tile && fp->tiles > 1));
-
+	 assert (!tp->tinybox || (((!fp->seed_is_double_tile && !fp->seed_is_vdouble_tile) && fp->tiles > 1) || fp->tiles > 2));
+	 
          /* let the designated seed site wander around */
          /* must do this very frequently, else treadmilling would get stuck FIXME: not looked at */
          if (wander) {  
@@ -2232,6 +2304,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                   change_cell(fp,fp->seed_i,fp->seed_j,0);
                   // In case the old seed was a double tile
                   change_cell(fp,fp->seed_i,fp->seed_j+1,0);
+                  change_cell(fp,fp->seed_i+1,fp->seed_j,0);		  
                   change_cell(fp,fp->seed_i,fp->seed_j,fp->seed_n); 
                   if (tp->dt_right[fp->seed_n]) {
                      change_cell(fp,fp->seed_i,fp->seed_j+1,tp->dt_right[fp->seed_n]); 
@@ -2290,28 +2363,40 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                else { limit = 4; }
                for (x = 0; x < limit; x++) { // FIXME: ADD VDOUBLE
                   if ((fp->Cell(fp->seed_i+mi[x],fp->seed_j+mj[x]) &&
-                           !tp->dt_left[fp->Cell(fp->seed_i+mi[x],fp->seed_j+mj[x])]) ||
+                           !tp->dt_left[fp->Cell(fp->seed_i+mi[x],fp->seed_j+mj[x])] &&
+		           !tp->dt_up[fp->Cell(fp->seed_i+mi[x],fp->seed_j+mj[x])]) ||
                         (periodic && fp->Cell((fp->seed_i+mi[x]+size)%size,
                                               (fp->seed_j+mj[x]+size)%size) &&
                          !tp->dt_left[fp->Cell((fp->seed_i+mi[x]+size)%size,
+                            (fp->seed_j+mj[x]+size)%size)] &&
+			 !tp->dt_up[fp->Cell((fp->seed_i+mi[x]+size)%size,
                             (fp->seed_j+mj[x]+size)%size)])) {
                      new_i = new_i + mi[x];
                      new_j = new_j + mj[x];
                      break;
                   }
                }
-               if ((!fp->seed_is_double_tile && x == 4) || x == 6) { // FIXME: ADD VDOUBLE
+               if ((!fp->seed_is_double_tile && !fp->seed_is_vdouble_tile && x == 4) || x == 6) { // FIXME: ADD VDOUBLE
                   // Only place to move to was the right side of a double tile.
                   // Repeat and go one to the left to avoid the double tile
                   for (x = 0; x < limit; x++) {
                      if (fp->Cell(fp->seed_i+mi[x],fp->seed_j+mj[x]) ||
                            (periodic && fp->Cell((fp->seed_i+mi[x]+size)%size,
                                                  (fp->seed_j+mj[x]+size)%size))) {
-                        assert (tp->dt_left[fp->Cell(fp->seed_i+mi[x],fp->seed_j+mj[x])]);
-                        new_i = new_i + mi[x];
-                        new_j = new_j + mj[x]-1;
-                        break;
-                     }
+		       if (tp->dt_left[fp->Cell(fp->seed_i+mi[x],fp->seed_j+mj[x])]) {
+			   new_i = new_i + mi[x];
+			   new_j = new_j + mj[x]-1;
+			   break;
+			 }
+		       else if (tp->dt_up[fp->Cell(fp->seed_i+mi[x],fp->seed_j+mj[x])]) {
+			   new_i = new_i + mi[x]-1;
+			   new_j = new_j + mj[x];
+			   break;
+			 }
+		       else {
+			 assert (0);
+		       }
+		     }
                   }
                }
                if (periodic) { new_i = (new_i+size)%size; new_j = (new_j+size)%size; }
@@ -2346,10 +2431,12 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                change_seed(fp,new_i,new_j);
                assert (!tp->dt_left[fp->seed_n]); // FIXME: ADD VDOUBLE
                fp->seed_is_double_tile = tp->dt_right[fp->seed_n];
+	       assert (!tp->dt_up[fp->seed_n]); // FIXME: ADD VDOUBLE
+               fp->seed_is_vdouble_tile = tp->dt_down[fp->seed_n];
             }
             else {
                assert(!seedchunk[0] ||
-                     fp->tiles==1 || (fp->seed_is_double_tile && fp->tiles==2)); //FIXME: ADD VDOUBLE
+                     fp->tiles==1 || (fp->seed_is_double_tile && fp->tiles==2) || (fp->seed_is_vdouble_tile && fp->tiles==2) ); //FIXME: ADD VDOUBLE
             }
             seedchunk[0] = ((i   == fp->seed_i && j   == fp->seed_j) ||
                   (tp->dt_right[fp->seed_n] && i == fp->seed_i && j == fp->seed_j + 1) ||
@@ -2546,9 +2633,9 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          }
          // If we are using tinybox and only a single tile is left, remove the flake
          if (tp->tinybox && 
-               (fp->tiles == 1 || (fp->tiles == 2 && fp->seed_is_double_tile))) {
+	     (fp->tiles == 1 || (fp->tiles == 2 && (fp->seed_is_double_tile || fp->seed_is_vdouble_tile)))) {
             remove_flake(fp);
-            //printf("Removed flake.  There are now %d flakes remaining.\n",tp->num_flakes);
+            d2printf("Removed flake.  There are now %d flakes remaining.\n",tp->num_flakes);
          }
          else {
             // Check that the flake rate is still positive
