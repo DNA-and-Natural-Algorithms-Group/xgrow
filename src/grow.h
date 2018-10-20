@@ -18,7 +18,7 @@
 
 #define evint unsigned long long
 
-#define DEBUG 2
+#define DEBUG 0
 #define dprintf if (DEBUG) printf
 #define d2printf if (DEBUG==2) printf
 
