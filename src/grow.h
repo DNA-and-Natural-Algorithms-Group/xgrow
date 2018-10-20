@@ -18,7 +18,7 @@
 
 #define evint unsigned long long
 
-#define DEBUG 0
+#define DEBUG 2
 #define dprintf if (DEBUG) printf
 #define d2printf if (DEBUG==2) printf
 
@@ -62,7 +62,7 @@ double exp(); double log();
       fp->tube->Gse_EW[ n ] [ fp->Cell(i,(j)-1) ] +  \
       fp->tube->Gse_NS[ n ] [ fp->Cell((i)+1,j) ] +  \
       fp->tube->Gse_NS[ fp->Cell((i)-1,j) ] [ n ] + \
-      fp->tube->Gse_EW[ fp->Cell(i,(j)+2) ] [ fp->Cell(i,(j)+1) ] +  \
+      fp->tube->Gse_EW[ fp->CellM(i,(j)+2) ] [ fp->Cell(i,(j)+1) ] +  \
       fp->tube->Gse_NS[ fp->Cell(i,(j)+1) ] [ fp->Cell((i)+1,(j)+1) ] +  \
       fp->tube->Gse_NS[ fp->Cell((i)-1,(j)+1) ] [ fp->Cell(i,(j)+1) ] ) /* FIXME: is this right!? */
 

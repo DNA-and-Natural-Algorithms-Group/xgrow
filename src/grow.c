@@ -38,13 +38,13 @@ unsigned char ring[256];
 /* This is hypothetical on i,j being tile n != 0.                       */
 /* CONNECTED is the non-hypothetical version.                           */
 #define HCONNECTED_N(fp,i,j,n) \
-   ((fp->tube->tileb)[n][0]!=0 && (fp->tube->tileb)[fp->Cell((i)-1,j)][2]!=0)
+   ((fp->tube->tileb)[n][0]!=0 && (fp->tube->tileb)[fp->CellM((i)-1,j)][2]!=0)
 #define HCONNECTED_E(fp,i,j,n) \
-   ((fp->tube->tileb)[n][1]!=0 && (fp->tube->tileb)[fp->Cell(i,(j)+1)][3]!=0)
+   ((fp->tube->tileb)[n][1]!=0 && (fp->tube->tileb)[fp->CellM(i,(j)+1)][3]!=0)
 #define HCONNECTED_S(fp,i,j,n) \
-   ((fp->tube->tileb)[n][2]!=0 && (fp->tube->tileb)[fp->Cell((i)+1,j)][0]!=0)
+   ((fp->tube->tileb)[n][2]!=0 && (fp->tube->tileb)[fp->CellM((i)+1,j)][0]!=0)
 #define HCONNECTED_W(fp,i,j,n) \
-   ((fp->tube->tileb)[n][3]!=0 && (fp->tube->tileb)[fp->Cell(i,(j)-1)][1]!=0)
+   ((fp->tube->tileb)[n][3]!=0 && (fp->tube->tileb)[fp->CellM(i,(j)-1)][1]!=0)
 #else
 /* new (post-Dec 29, 2003) definitions:                                 */
 /* A tile is defined to be HCONNECTED to a neighbor if the              */
@@ -1088,16 +1088,16 @@ void change_cell(flake *fp, int i, int j, Trep n)
    // doing these tedious updates
    // FIXME: these are disabled because tiles being added/removed singly
    // should mean they don't matter. FIXME FIXME FIXME
-   // update_rates(fp,i-1,j+1);
-   // update_rates(fp,i+1,j+1);
-   // update_rates(fp,i-1,j-1);
-   // update_rates(fp,i+1,j-1);
-   // update_rates(fp,i,j+2);
-   // update_rates(fp,i-1,j+2);
-   // update_rates(fp,i+1,j+2);
-   // update_rates(fp,i,j-2);
-   // update_rates(fp,i-1,j-2);
-   // update_rates(fp,i+1,j-2);
+   update_rates(fp,i-1,j+1);
+   update_rates(fp,i+1,j+1);
+   update_rates(fp,i-1,j-1);
+   update_rates(fp,i+1,j-1);
+   update_rates(fp,i,j+2);
+   update_rates(fp,i-1,j+2);
+   update_rates(fp,i+1,j+2);
+   update_rates(fp,i,j-2);
+   update_rates(fp,i-1,j-2);
+   update_rates(fp,i+1,j-2);
    if (tp!=NULL) update_tube_rates(fp);
 } // change_cell()
 
@@ -1677,9 +1677,9 @@ int double_tile_allowed(tube *tp, flake *fp, int i, int j, int n) {
    }
    else {
       left_side_can_attach =  tp->dt_right[n] && ((periodic || j + 1 < size) && fp->Cell(i,j_norm+1) == 0 && 
-         !HCONNECTED(fp,i,j_norm+1,tp->dt_right[n]));
+					          !HCONNECTED(fp,i,(j_norm+1)%size,tp->dt_right[n]));
       up_side_can_attach =  tp->dt_down[n] && ((periodic || i + 1 < size) && fp->Cell(i_norm+1,j) == 0 && 
-         !HCONNECTED(fp,i_norm+1,j,tp->dt_down[n]));
+					       !HCONNECTED(fp,(i_norm+1)%size,j,tp->dt_down[n]));
    }
    //if (tp->dt_right[n] && !left_side_can_attach) 
    //  printf("Rejecting %d,%d for left side tile %d.\n",i,j,n);
@@ -1757,7 +1757,7 @@ void order_removals(tube *tp, flake *fp,
             outside_neighbors = 0;
 
             // Check bottom
-            if (CONNECTED_S(fp,di[t],dj[t]) && 
+            if (CONNECTED_S(fp,(di[t]+size)%size,dj[t]) && 
                   not_in_block(di_down,dj[t],di,dj,t,n,size)) {
                outside_neighbors = 1;
             }
@@ -1772,7 +1772,7 @@ void order_removals(tube *tp, flake *fp,
                outside_neighbors = 1;
             }
             // Right
-            if (CONNECTED_E(fp,di[t],dj[t]) && 
+            if (CONNECTED_E(fp,di[t],(dj[t]+size)%size) && 
                   not_in_block(di[t],dj_right,di,dj,t,n,size)) {
                outside_neighbors = 1;
             }
