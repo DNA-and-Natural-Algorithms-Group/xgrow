@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 from distutils.command.build import build
 from setuptools.command.develop import develop
 
-BUILD_STRING = "{} -Wall -g -O3 src/xgrow.c src/grow.c -o xgrow/_xgrow -lm {}"
+BUILD_STRING = "{} -Wall -g -O2 src/xgrow.c src/grow.c -o xgrow/_xgrow -lm {}"
 
 def find_x11():
     import os

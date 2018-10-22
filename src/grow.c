@@ -1817,9 +1817,14 @@ void order_removals(tube *tp, flake *fp,
             }
          }
       }
-      if (t ==n) {
-	// Order-finding has failed: the for loop for t never broke
-         printf("arg!\n");
+      if (t == n) {
+	 // Order-finding has failed: the for loop for t never broke.
+	 // 2018-10-21: For unknown reasons, this can be reached in the following scenario:
+	 // 1. periodic is on, fission is off,
+	 // 2. double tiles span the corner of the simulation area (NW/SE; NE/SW is untested), and
+	 // 3. Xgrow was compiled with -O3 optimization in GCC (7.3.0 in this case).
+         printf("arg! No removal order could be found in order_removals, or you compiled with\n-O3 in GCC and found a bizarre bug: try compiling with -O2 or less.");
+	 abort();
       }
       assert(t < n);
    }
@@ -2417,7 +2422,6 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                else if (fp->Cell(i+1-mk,j-mj)!=0) { new_i=i+1-mk; new_j=j-mj; }
                else if (fp->CellM(i-mi+1,j)!=0)   { new_i=i-mi+1; new_j=j; }
                else if (fp->CellM(i+mi,j)!=0)     { new_i=i+mi;   new_j=j; }
-	       assert( new_i != i || new_j != j );
             } else if (chunk==3 && seedchunk[3]) {
                int mi,mj,mk; mi=((random()/17)%2)*3-1; mj=((random()/17)%2)*3-1; mk=(random()/17)%2;
                if      (fp->CellM(i-mi+1,j+mk)!=0)   { new_i=i-mi+1; new_j=j+mk; }
