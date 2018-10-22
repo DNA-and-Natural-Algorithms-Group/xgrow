@@ -100,15 +100,15 @@ flake *init_flake(Trep P, Trep N,
    for (i=0;i<2+size;i++) 
       fp->cell[i]=(Trep *)calloc_err(sizeof(Trep),2+size);
    fp->rate = (double ***)calloc_err(sizeof(Trep **),P+1);
-   fp->empty = (int ***)calloc_err(sizeof(int **),P+1);
+   // fp->empty = (int ***)calloc_err(sizeof(int **),P+1);
 
    for (p=0;p<=P;p++) {
       size = (1<<p);
       fp->rate[p]=(double **)calloc_err(sizeof(double *),size);
-      fp->empty[p]=(int **)calloc_err(sizeof(int *),size);
+      // fp->empty[p]=(int **)calloc_err(sizeof(int *),size);
       for (i=0;i<size;i++) {
          fp->rate[p][i]=(double *)calloc_err(sizeof(double),size);
-         fp->empty[p][i]=(int *)calloc_err(sizeof(int),size);
+         // fp->empty[p][i]=(int *)calloc_err(sizeof(int),size);
          for (j=0;j<size;j++) fp->rate[p][i][j]=0;
       }
    }
@@ -134,19 +134,20 @@ flake *free_flake(flake *fp)
    int i,p; flake *fpn;
    int size = (1<<fp->P);
 
-   for (i=0;i<2+size;i++) free(fp->cell[i]); free(fp->cell);
+   for (i=0;i<2+size;i++) free(fp->cell[i]);
+   free(fp->cell);
 
    for (p=0;p<=fp->P;p++) {
       size = (1<<p);
       for (i=0;i<size;i++) {
          free(fp->rate[p][i]);
-         free(fp->empty[p][i]);
+         // free(fp->empty[p][i]);
       }
       free(fp->rate[p]);
-      free(fp->empty[p]);
+      // free(fp->empty[p]);
    }
    free(fp->rate);
-   free(fp->empty);
+   // free(fp->empty);
    free(fp->is_present);
 
    fpn=fp->next_flake; free(fp); 
@@ -158,8 +159,8 @@ flake *free_flake(flake *fp)
 void print_tree(flake_tree *ftp, int L, char s)
 { int i;
    for (i=0;i<L;i++) printf(" ");
-   printf("node %d %c (%p): empty %d, rate %g: L(%p) R(%p) U(%p)\n",
-         L,s,ftp,ftp->empty,ftp->rate,
+   printf("node %d %c (%p): rate %g: L(%p) R(%p) U(%p)\n",
+         L,s,ftp,ftp->rate,
          ftp->left, ftp->right, ftp->up);
    if (ftp->left!=NULL) print_tree(ftp->left,L+1,'L');
    if (ftp->right!=NULL) print_tree(ftp->right,L+1,'R');
@@ -239,13 +240,17 @@ void free_tube(tube *tp)
 
    free(tp->conc);
    free(tp->Gcb);
-   for (n=0;n<tp->N+1;n++) free(tp->Gse_EW[n]); free(tp->Gse_EW);
-   for (n=0;n<tp->N+1;n++) free(tp->Gse_NS[n]); free(tp->Gse_NS);
+   for (n=0;n<tp->N+1;n++) free(tp->Gse_EW[n]);
+   free(tp->Gse_EW);
+   for (n=0;n<tp->N+1;n++) free(tp->Gse_NS[n]);
+   free(tp->Gse_NS);
 
    free(tp->rv); free(tp->Fgroup); free(tp->Fnext);
 
-   for (n=0;n<tp->N+1;n++) free(tp->tileb[n]); free(tp->tileb);
-   for (i=0;i<tp->num_bindings+1;i++) free(tp->glue[i]); free(tp->glue);
+   for (n=0;n<tp->N+1;n++) free(tp->tileb[n]);
+   free(tp->tileb);
+   for (i=0;i<tp->num_bindings+1;i++) free(tp->glue[i]);
+   free(tp->glue);
    free(tp->strength); 
 
    free_tree(tp->flake_tree);  
@@ -491,7 +496,7 @@ void reset_params(tube *tp, double old_Gmc, double old_Gse,
 /* hence recalc_G is used to update rates based on tube params. */
 void insert_flake(flake *fp, tube *tp)
 {
-   int empty; double rate,kc; flake_tree *ftp, *ftpL, *ftpR;
+   double rate; flake_tree *ftp, *ftpL, *ftpR;
 
    if (fp->N != tp->N || fp->P != tp->P) {
       printf("flake and tube incompatible!!\n"); exit(1);
@@ -501,7 +506,6 @@ void insert_flake(flake *fp, tube *tp)
    fp->tube=tp; recalc_G(fp); 
 
 
-   kc    = tp->k*tp->conc[0];
    rate  = fp->rate[0][0][0];
 
    /* If the flake_tree is empty, make the root. */
@@ -514,7 +518,7 @@ void insert_flake(flake *fp, tube *tp)
    } else {
       ftp = tp->flake_tree;
       while (1) {
-         if (ftp->fp!=NULL || (ftp->rate+kc*ftp->empty < rate+kc*empty)) {
+	if (ftp->fp!=NULL || (ftp->rate < rate)) {  // FIXME FIXME: removed empty
             ftpL = (flake_tree *)malloc(sizeof(flake_tree));
             ftpL->rate=ftp->rate; 
             ftpL->fp=ftp->fp; ftpL->left=ftp->left; ftpL->right=ftp->right;
@@ -559,7 +563,7 @@ void add_flake_to_reserve_list(flake *fp) {
       for (i=0;i<size;i++) {
          //memset(fp->empty[p][i],size,sizeof(int));      
          for (j=0;j<size;j++) {
-            fp->empty[p][i][j]=0;
+	   //fp->empty[p][i][j]=0;
             fp->rate[p][i][j]=0;
          }
       }
@@ -621,7 +625,7 @@ void remove_flake(flake *fp) {
          u->fp->tree_node = u;
       }
       u->rate = tmp->rate;
-      u->empty = tmp->empty;
+      //u->empty = tmp->empty;
       u->right = tmp->right;
       if (u->right) {
          u->right->up = u;
@@ -637,7 +641,7 @@ void remove_flake(flake *fp) {
          //u->rate -= ftp->rate;
          //u->empty -= ftp->empty;
          u->rate = u->left->rate + u->right->rate;
-         u->empty = u->left->empty + u->right->empty;
+	 // u->empty = u->left->empty + u->right->empty;
          u = u->up;
       }
    }
@@ -679,8 +683,6 @@ double calc_rates(flake *fp, int i, int j, double *rv)
    tube *tp=fp->tube;
    Trep nN,nE,nS,nW; int N=fp->N; int size=(1<<fp->P);
    int seedchunk[4]; 
-   double kc;
-   int newempty;
 
    
    if (rv!=NULL) for (n=0;n<=N+4;n++) rv[n]=0;
@@ -785,11 +787,13 @@ double calc_rates(flake *fp, int i, int j, double *rv)
       r = tp->k * (tp->kas + mi * tp->kam + ei * tp->kae + hi * tp->kah +
             tp->kao * (mo * tp->kam + eo * tp->kae + ho * tp->kah));
       if (n<=N/2) {
-         if (rv!=NULL) rv[n+N/2]=r; sumr += r;
+         if (rv!=NULL) rv[n+N/2]=r;
+	 sumr += r;
       } else {
          r = r * exp(-tp->Gcb[n]+tp->Gcb[n-N/2]
                -Gse(fp,i,j,n)+Gse(fp,i,j,n-N/2));
-         if (rv!=NULL) rv[n-N/2]=r; sumr += r;
+         if (rv!=NULL) rv[n-N/2]=r;
+	 sumr += r;
       }
    } 
 
@@ -814,7 +818,7 @@ double calc_rates(flake *fp, int i, int j, double *rv)
 /*   taken care of here.                                            */
 void update_rates(flake *fp, int ii, int jj)
 {
-   int n,p; int size=(1<<fp->P); tube *tp=fp->tube;
+   int p; int size=(1<<fp->P);
 
    // wrap in case ii,jj go beyond the central field of 1-cell protection zone
    if (periodic) { ii=(ii+size)%size; jj=(jj+size)%size; }
@@ -1174,7 +1178,7 @@ int choose_tile_type (tube *tp) {
 /* report choice, but don't act on it.                       */
 void choose_cell(flake *fp, int *ip, int *jp, int *np)
 {
-   double sum,cum,r,kc,k00,k01,k10,k11;
+   double sum,cum,r,k00,k01,k10,k11;
    int p,i,j,di=1,dj=1,n,oops;   tube *tp=fp->tube;
 
 
@@ -1232,10 +1236,9 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
 
 flake *choose_flake(tube *tp)
 {
-   double r,kc,kL,kR;  int oops;   
+   double r,kL,kR;  int oops;   
    flake_tree *ftp=tp->flake_tree; 
 
-   kc = tp->k*tp->conc[0];
 
    r=drand48();  // we'll re-use this random number for all levels
    while (ftp->fp==NULL) {
@@ -1475,12 +1478,11 @@ int locally_fission_proof(flake *fp, int i, int j, int oldn)
 /* repeat 'iters' times. */
 void clean_flake(flake *fp, double X, int iters)
 {
-   int i,j,n; double kc;  tube *tp=fp->tube;
+   int i,j,n;  tube *tp=fp->tube;
    int size = (1<<fp->P); int it; int *F;
 
    F = (int *)calloc(size*size, sizeof(int));  /* scratch space */
 
-   kc = tp->k*tp->conc[0]; /* on-rate */
 
    /* first memorize, then remove, to avoid changing rates during removal */
    for (it=0; it<iters; it++) {
@@ -1524,12 +1526,11 @@ void clean_flake(flake *fp, double X, int iters)
 /* repeat 'iters' times. */
 void fill_flake(flake *fp, double X, int iters)
 {
-   int i,j,n; double secure, most_secure; double kc;  tube *tp=fp->tube;
+   int i,j,n; double secure, most_secure;  tube *tp=fp->tube;
    int size = (1<<fp->P); int it; int *F;
 
    F = (int *)calloc(size*size, sizeof(int));  /* scratch space */
 
-   kc = tp->k*tp->conc[0]; /* on-rate */
 
    /* first memorize, then add, to avoid changing rates during removal */
    for (it=0; it<iters; it++) {
@@ -2153,7 +2154,9 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          tp->t += dt;
       } 
       else if (new_flake_rate && event_choice < (total_blast_rate + new_flake_rate)) { // new flake event (FIXME: not looked at)
-         int m,r,x,d,di,dj,c;
+         int m,r,x,d,c;
+	 // Make sure di, dj are set: start at -10 (impossible) and check:
+	 int di = -10; int dj = -10;
          double flake_conc;
          // Add a new flake
          // Select the seed tile for the new flake
@@ -2162,7 +2165,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          m = choose_tile_type (tp);
          // Make sure enough of each tile is available
          flake_conc = (tp->initial_Gfc>0)?exp(-tp->initial_Gfc):0;
-         //      printf("Concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
+         d2printf("New flake: concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
          if (tp->conc[n] < flake_conc || tp->conc[m] < flake_conc) {
             c = 0;
          }
@@ -2243,6 +2246,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
             if (tp->dt_down[s_n]) {
                change_cell(fp, s_i+1, s_j,tp->dt_down[s_n]);
             }
+	    assert( di != -10 && dj != -10 ); // See above: di/dj were never by above code.
             change_cell(fp,tp->default_seed_i+di,tp->default_seed_j+dj,m);
             // TODO: CAN THESE BE ELSE IF?
             if (tp->dt_right[m]) {

@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 from distutils.command.build import build
 from setuptools.command.develop import develop
 
-BUILD_STRING = "{} -Wall -g -O2 src/xgrow.c src/grow.c -o xgrow/_xgrow -lm {}"
+BUILD_STRING = "{} -Wall -Wno-unused-result -g -O2 src/xgrow.c src/grow.c -o xgrow/_xgrow -lm {}"
 
 def find_x11():
     import os
@@ -50,7 +50,7 @@ class develop_xgrow(develop):
 
 setup(
     name = "xgrow",
-    version = "20170507dev0",
+    version = "20181022.dev0",
     packages = ['xgrow'],
 
     install_requires = [],

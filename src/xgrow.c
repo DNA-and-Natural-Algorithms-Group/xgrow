@@ -1254,9 +1254,9 @@ int count_flakes(FILE *flake_file)
 void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
 {
    fpos_t flake_start;
-   int tile_type, read_flake_number, translate_i, translate_j, i, j, end, flake_size, seed_set;
+   int tile_type, read_flake_number, translate_i, translate_j, i, j, end, flake_size;
    char line[20]; int lnum=0;
-   seed_set = flake_size = 0;
+   flake_size = 0;
 
    /* Just to be sure. */
    rewind(flake_file);
@@ -1430,8 +1430,10 @@ void closeargs()
    if (export_fp!=NULL) fclose(export_fp);
 
    // free memory
-   for (i=0;i<=tp->N;i++) free(tileb[i]); free(tileb);
-   for (i=0;i<=tp->num_bindings;i++) free(glue[i]); free(glue);
+   for (i=0;i<=tp->N;i++) free(tileb[i]);
+   free(tileb);
+   for (i=0;i<=tp->num_bindings;i++) free(glue[i]);
+   free(glue);
    free(strength); free(stoic);
 
    while (fparam!=NULL) { fprm=fparam->next_param; free(fparam); fparam=fprm; }
@@ -1573,9 +1575,8 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
 
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
 void add_sample_pic(flake *fp, int err) /* add sample the field */
-{int row,col,i1,i2,di=0,ddi,j1,j2,dj=0,ddj,blocktop=block, m;
+{int row,col,i1,i2,di=0,ddi,j1,j2,dj=0,ddj,blocktop=block;
    int color, oldcolor, n_tries=10000,n, collision=0, anything=0;
-   m= 2*(err>1); // used in getcolor macro
 
    // we will try n_tries random offsets before giving up on 
    // avoiding collision.
@@ -2019,7 +2020,7 @@ void openwindow(int argc, char **argv)
    XMapWindow(display,cleanbutton);
    XMapWindow(display,colorbutton);
    if (block>4) XMapWindow(display,sidebutton);
-   if (~(fparam->N==1 && fparam->next_param==NULL))  
+   if (!(fparam->N==1 && fparam->next_param==NULL))  
       XMapWindow(display,flakebutton); 
    XMapWindow(display,seedbutton);
    XMapWindow(display,fissionbutton);
