@@ -2148,6 +2148,12 @@ int main(int argc, char **argv)
 	    fp->seed_is_double_tile = 1;
 	 }
 	 assert (!tp->dt_left[fprm->seed_n]);
+	 if (tp->dt_down[fprm->seed_n]) {
+	    change_cell (fp,seed_i+1,seed_j,tp->dt_down[fprm->seed_n]);
+	    fp->seed_is_vdouble_tile = 1;
+	 }
+	 assert (!tp->dt_up[fprm->seed_n]);
+
 
 	 if (fprm->import_from != NULL)
 	 {
