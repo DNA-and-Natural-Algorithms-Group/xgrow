@@ -881,7 +881,7 @@ void getargs(int argc, char **argv)
       printf("                        Go from C0 > Cfin changing temps 1 degree every dt secs \n");
       printf("                        (in incremenets of 0.1C).  Ignores Gse value.\n");
       printf("  seed=i,j,n            seed tile type n at position i,j\n");
-      printf("  tinybox=k             use dynamic flakes in a box containing k of each molecule on average.\n");
+      printf("  tinybox=V             use dynamic flakes in a box of volume V (in liters).\n");
       printf("  addflakes=i,j,n:N@Gfc simulate N separate flakes\n");
       printf("  stripe=o[:p,w]*       width w stripe with p errors, offset o\n");
       printf("  wander                wandering `seed' designation\n");
