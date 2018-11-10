@@ -53,7 +53,7 @@ setup(
     version = "20181022.dev0",
     packages = ['xgrow'],
 
-    install_requires = [],
+    install_requires = [ "pyyaml" ],
 
     include_package_data=True,
     package_data= {'xgrow': ['_xgrow']},

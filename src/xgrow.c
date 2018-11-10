@@ -1752,7 +1752,7 @@ void repaint()
 	    fp->seed_n, fp->seed_i, fp->seed_j);
       XDrawImageString(display,window,gc,5,(++i)*font_height,
 	    stringbuffer,strlen(stringbuffer));
-      sprintf(stringbuffer,"%lld events, %d tiles, %d mismatches",
+      sprintf(stringbuffer,"%lld events, %d tiles, %d mismatches         ",
 	    fp->events, fp->tiles, fp->mismatches);
       XDrawImageString(display,window,gc,5,(++i)*font_height,
 	    stringbuffer,strlen(stringbuffer));

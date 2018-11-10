@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import yaml
 from xgrow import xgrow
 
 __all__ = []
@@ -71,7 +72,7 @@ These options are currently taken from xgrow itself.  They need to be updated.
                         Go from C0 > Cfin changing temps 1 degree every dt secs 
                         (in incremenets of 0.1C).  Ignores Gse value.
   seed=i,j,n            seed tile type n at position i,j
-  tinybox=k             use dynamic flakes in a box containing k of each molecule on average.
+  tinybox=V             use dynamic flakes in a box of volume V (in liters).
   addflakes=i,j,n:N@Gfc simulate N separate flakes
   stripe=o[:p,w]*       width w stripe with p errors, offset o
   wander                wandering `seed' designation
@@ -188,7 +189,6 @@ def main():
     if filetype=='xgrow':
         xgrow.run_old( fd.read(), args, process_info=False )
     else:
-        import ruamel.yaml as yaml
         xgrow.run( yaml.safe_load(fd), args, ui=True, process_info=False )
     
 if __name__ == '__main__':
