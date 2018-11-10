@@ -32,23 +32,24 @@ One difference between this and Xgrow itself is with the `doubletiles` and `vdou
 
 This example is a modification of sierpinski.stxg in the examples folder in order to include more options:
 
-    bonds:
-    - { name: B, strength: 2 }
+```yaml
+bonds:
+- { name: B, strength: 2 }
 
-    tiles:
-    - { name: corner, edges: [ B, 0, 0, B ], color: red, stoic: 0  }
-    - { name: topboundary, edges: [B, 0, B, v1], color: magenta, stoic: 0.5 }
-    - { name: leftboundary, edges: [v1, B, 0, B], color: purple, stoic: 0.5 }
-    - { edges: [ v0, v0, v0, v0 ], color: blue3 }
-    - { edges: [ v0, v1, v1, v0 ], color: green }
-    - { edges: [ v1, v0, v1, v1 ], color: yellow }
-    - { edges: [ v1, v1, v0, v1 ], color: tan }
+tiles:
+- { name: corner, edges: [ B, 0, 0, B ], color: red, stoic: 0  }
+- { name: topboundary, edges: [B, 0, B, v1], color: magenta, stoic: 0.5 }
+- { name: leftboundary, edges: [v1, B, 0, B], color: purple, stoic: 0.5 }
+- { edges: [ v0, v0, v0, v0 ], color: blue3 }
+- { edges: [ v0, v1, v1, v0 ], color: green }
+- { edges: [ v1, v0, v1, v1 ], color: yellow }
+- { edges: [ v1, v1, v0, v1 ], color: tan }
 
-    xgrowargs:
-        block: 8
-        size: 64
-        Gse: 8.03
-        Gmc: 16
-        update_rate: 5000
-        pause: true
-
+xgrowargs:
+    block: 8
+    size: 64
+    Gse: 8.03
+    Gmc: 16
+    update_rate: 5000
+    pause: true
+```
