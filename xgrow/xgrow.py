@@ -4,10 +4,12 @@ import pkg_resources
 import tempfile
 import subprocess
 import copy
+import re
 from . import stxg
 from . import parseoutput
 
 _XGROW_BINARY = pkg_resources.resource_filename(__name__,'_xgrow')
+_XGROW_BINARY = re.sub(r" ", r"\ ", _XGROW_BINARY)
 
 def _process_outputs( outputs ):
     for key in outputs.keys():
