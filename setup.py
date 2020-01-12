@@ -12,17 +12,17 @@ def find_x11():
         x11s = os.environ['X11_FLAGS']
     else:
         x11f = []
-        includes = ['/usr/include/X11','/opt/X11/include',None]
+        includes = ['/usr/include/X11','/opt/X11/include']
         for x in includes:
-            if x is None:
-                raise Exception("Can't find an X11 include dir.")
+            #if x is None:
+            #    raise Exception("Can't find an X11 include dir.")
             if os.path.exists(x):
                 x11f.append("-I{}".format(x))
                 break
-        libs = ['/usr/lib/X11','/opt/X11/lib','/usr/lib64','/usr/lib',None]
+        libs = ['/usr/lib/X11','/opt/X11/lib','/usr/lib64','/usr/lib']
         for x in libs:
-            if x is None:
-                raise Exception("Can't find an X11 lib dir.")
+            #if x is None:
+            #    raise Exception("Can't find an X11 lib dir.")
             if os.path.exists(x):
                 x11f.append("-L{}".format(x))
                 break
