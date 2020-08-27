@@ -277,14 +277,15 @@ void set_Gses(tube *tp, double Gse, double Gseh) {
 
 /* set up info for tile set, in flake data struc  */
 /* fp->seed_n should have a defined value before entering set_params */
-void set_params(tube *tp, int** tileb, double* strength, double **glue, double* stoic,
-      double anneal_g, double anneal_t, int updates_per_RC,
-      double anneal_h, double anneal_s, double startC, double endC, 
-      double seconds_per_C,
-      int *dt_right, int *dt_left, int *dt_down, int *dt_up, int hydro, double k, double Gmc, double Gse,
-      double Gmch, double Gseh, double Ghyd, 
-      double Gas, double Gam, double Gae, double Gah, double Gao, double T,
-      double tinybox, int seed_i, int seed_j, double Gfc)
+void set_params(tube *tp, int **tileb, double *strength, double **glue, double *stoic,
+                double anneal_g, double anneal_t, int updates_per_RC,
+                double anneal_h, double anneal_s, double startC, double endC,
+                double seconds_per_C,
+                int *dt_right, int *dt_left, int *dt_down, int *dt_up, int hydro, 
+                double k, double Gmc, double Gse, double alpha,
+                double Gmch, double Gseh, double Ghyd,
+                double Gas, double Gam, double Gae, double Gah, double Gao, double T,
+                double tinybox, int seed_i, int seed_j, double Gfc)
 {
    int i,j,n;
    /* make our own copy of tile set and strengths, so the calling program
@@ -300,7 +301,8 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
    tp->hydro = hydro; 
    tp->T=T;
 
-   tp->k = k;
+   tp->alpha = alpha;
+   tp->k = k * exp(alpha);
    tp->kas = exp(-Gas);  tp->kao = exp(-Gao);
    tp->kam = exp(-Gam);  tp->kae = exp(-Gae); tp->kah = exp(-Gah);
 

@@ -319,7 +319,7 @@ char *tile_colors[MAXTILETYPES]={ "black",
 
 /* simulation parameters */
 tube *tp; flake *fp; 
-double Gse, Gmc, ratek, T;
+double Gse, Gmc, ratek, T, alpha;
 double Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc;
 
 double blast_rate_alpha=0;
@@ -380,6 +380,7 @@ int parse_arg_line(char *arg)
    else if (IS_ARG_MATCH(arg,"rand=")) 
    { srand48(atoi(&arg[5])); srandom(atoi(&arg[5])); }
    else if (IS_ARG_MATCH(arg,"k=")) ratek=atof(&arg[2]);
+   else if (IS_ARG_MATCH(arg,"alpha=")) alpha=atof(&arg[6]);
    else if (IS_ARG_MATCH(arg,"Gmc=")) Gmc=atof(&arg[4]);
    else if (IS_ARG_MATCH(arg,"Gse=")) Gse=atof(&arg[4]);
    // FIXME FIXME FIXME: HYDRO OPTIONS ARE DISABLED
@@ -865,6 +866,7 @@ void getargs(int argc, char **argv)
       printf("  k=      hybridization rate constant (/sec)\n");
       printf("  Gmc=    initiation free energy  (units kT)\n");
       printf("  Gse=    interaction free energy per binding\n");
+      printf("  alpha=  alpha (bond-independent energy contribution in kTAM) (units kT, default 0)");
       printf("  Gmch=   initiation free energy  for hydrolyzed units\n");
       printf("  Gseh=   interaction free energy for hydrolyzed units\n");
       printf("  Ghyd=   free energy of hydrolysis\n");
@@ -936,7 +938,7 @@ void getargs(int argc, char **argv)
    tmax=0; emax=0; smax=0; fsmax=0; smin=-1; mmax=0;
    wander=0; periodic=0; linear=0; fission_allowed=0; zero_bonds_allowed=0;
    Gfc=0; datafp=NULL; arrayfp=NULL;  largeflakefp=NULL; untiltilescountfp=NULL;
-   Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
+   Gmc=17; Gse=8.6; ratek = 1000000.0; T=0; alpha=0.0;
    Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
    seed_i=250; seed_j=250; seed_n=1; hydro=0;
 
@@ -1758,11 +1760,16 @@ void repaint()
 	    stringbuffer,strlen(stringbuffer));
    }
 
-   sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    ",
+/*    sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    ",
 	 1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15);
    XDrawImageString(display,window,gc,5,(++i)*font_height,
+	 stringbuffer,strlen(stringbuffer)); */
+   
+   sprintf(stringbuffer,"([t] = %g nM, T = %5.3f C, 5-mer s.e.)    ",
+	 1e9*exp(alpha-Gmc),  4000/(Gse/5+11)-273.15);
+   XDrawImageString(display,window,gc,5,(++i)*font_height,
 	 stringbuffer,strlen(stringbuffer));
-
+   
    if (T>0) 
       sprintf(stringbuffer,"Gmc=%4.1f  Gse=%4.1f  k=%6.0f   T=%4.1f",
 	    Gmc,tp->Gse,ratek,T/tp->Gse);
@@ -2109,11 +2116,10 @@ int main(int argc, char **argv)
    }
 
    if (testing) {
-      tp = init_tube(size_P,N,num_bindings);   
-      set_params(tp,tileb,strength,glue,stoic,0,initial_rc,updates_per_RC,
-	    anneal_h,anneal_s,startC,endC,seconds_per_C,
-	    dt_right, dt_left, dt_down, dt_up, hydro,ratek,
-	    Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox, seed_i, seed_j, Gfc);
+      tp = init_tube(size_P,N,num_bindings);
+      set_params(tp, tileb, strength, glue, stoic, 0, initial_rc, updates_per_RC,
+                 anneal_h, anneal_s, startC, endC, seconds_per_C, dt_right, dt_left, dt_down, dt_up, hydro, ratek,
+                 Gmc, Gse, alpha, Gmch, Gseh, Ghyd, Gas, Gam, Gae, Gah, Gao, T, tinybox, seed_i, seed_j, Gfc);
 #ifdef TESTING_OK
       run_xgrow_tests(tp,Gmc,Gse,seed_i,seed_j,seed_n,size);
 #endif
@@ -2125,9 +2131,10 @@ int main(int argc, char **argv)
    /* printf("xgrow: tile set read, beginning simulation\n"); */
 
    /* set initial state */
-   tp = init_tube(size_P,N,num_bindings);   
-   set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,anneal_h,anneal_s,startC,endC,seconds_per_C,dt_right, dt_left, dt_down, dt_up, hydro,ratek,
-	 Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,Gfc);
+   tp = init_tube(size_P,N,num_bindings);
+   set_params(tp, tileb, strength, glue, stoic, anneal_g, anneal_t, updates_per_RC, anneal_h, anneal_s,
+              startC, endC, seconds_per_C, dt_right, dt_left, dt_down, dt_up, hydro, ratek,
+              Gmc, Gse, alpha, Gmch, Gseh, Ghyd, Gas, Gam, Gae, Gah, Gao, T, tinybox, seed_i, seed_j, Gfc);
 
    fprm=fparam;
 
@@ -2338,13 +2345,13 @@ int main(int argc, char **argv)
 		  setpause(1-paused); repaint(); 
 	       } else if (report.xbutton.window==restartbutton) {
 		  free_tube(tp); 
-		  tp = init_tube(size_P,N,num_bindings);   
-		  set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,
-			anneal_h, anneal_s, startC, endC, seconds_per_C,
-			dt_right, dt_left, dt_down, dt_up, hydro,ratek,
-			Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,
-			Gfc);
-		  fprm=fparam; 
+		  tp = init_tube(size_P,N,num_bindings);
+        set_params(tp, tileb, strength, glue, stoic, anneal_g, anneal_t, updates_per_RC,
+                   anneal_h, anneal_s, startC, endC, seconds_per_C,
+                   dt_right, dt_left, dt_down, dt_up, hydro, ratek,
+                   Gmc, Gse, alpha, Gmch, Gseh, Ghyd, Gas, Gam, Gae, Gah, 
+                   Gao, T, tinybox, seed_i, seed_j, Gfc);
+        fprm=fparam; 
            while (fprm!=NULL)
            {
               int fn;

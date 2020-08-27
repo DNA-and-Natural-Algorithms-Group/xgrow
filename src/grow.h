@@ -259,6 +259,8 @@ typedef struct tube_struct {
    /* also, prevents incorrect association             */
    /* on-rates & off-rates are calculated as usual,    */
    /* but events violating the model are discarded     */
+   double alpha;        /* bond-number-independent attachment strength
+                           adjustment per kTAM. */
    double k;            /* forward rate constant for on-events.             */
    double kas,kao,      /* f.r.c (ratio to k) for "hydrolysis" spontaneous, */
           kam,kae,kah;  /* and when input se are mismatched, empty, or      */
@@ -325,7 +327,8 @@ void fill_flake(flake *fp, double X, int iters);
 void error_radius_flake(flake *fp, double rad);
 void repair_flake(flake *fp, double T, double Gse);
 void set_params(tube *tp, int** tileb, double* strength, double **glue, 
-      double* stoic, double anneal_g, double anneal_t, int updates_per_RC,double anneal_h,double anneal_s,double startC,double endC,double seconds_per_C,int *dt_right, int *dt_left, int *dt_down, int *dt_up, int hydro, double k, double Gmc, double Gse,
+      double* stoic, double anneal_g, double anneal_t, int updates_per_RC,double anneal_h,double anneal_s,double startC,double endC,double seconds_per_C,
+      int *dt_right, int *dt_left, int *dt_down, int *dt_up, int hydro, double k, double Gmc, double Gse, double alpha,
       double Gmch, double Gseh, double Ghyd, 
       double Gas, double Gam, double Gae, double Gah, double Gao, double T, double tinybox,
       int seed_i, int seed_j, double Gfc);
