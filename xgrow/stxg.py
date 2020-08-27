@@ -10,6 +10,7 @@ import yaml
 import re
 from io import StringIO  # Fixme: stupid Python 2/3 hack.
 import datetime
+from typing import Optional, overload, Mapping, Any, Literal, Union
 
 version = 0.5
 
@@ -93,7 +94,13 @@ def load(stream, *xargs, **pargs):
     return yaml.load(stream, *xargs, **pargs)
 
 
-def to_xgrow(stxg, stream=None):
+@overload
+def to_xgrow(stxg:Mapping[str, Any], stream:StringIO) -> None: ...
+
+@overload
+def to_xgrow(stxg:Mapping[str, Any], stream:Literal[None]) -> str: ...
+
+def to_xgrow(stxg:Mapping[str, Any], stream:Optional[StringIO]=None) -> Union[str, None]:
     """
     Given an stxg structure/dict, create an xgrow tile file, and return it
     as a string. Alternatively, if the stream= parameter is given a stream,
@@ -117,7 +124,7 @@ def to_xgrow(stxg, stream=None):
         xgrowf.write("num tile types=%d\n" % len(stxg['tiles']))
         xgrowf.write("num binding types=%d\n" % len(stxg['bonds']))
     except KeyError as e:
-        raise ValueError("Missing section {0}.".format(e.message))
+        raise ValueError("Missing section {}.".format(e))
 
     bondhasname = ['name' in x.keys() for x in stxg['bonds']]
 
@@ -248,10 +255,7 @@ def from_xgrow(xgst):
 
     bsstring = bsre.search(xgs).group(1)
     tstring = tere.search(xgs).group(1)
-    bnmatch = bnre.search(xgs)
-    if bnmatch:
-        bnstring = bnmatch.group(1)
-        bnames = bnstring.split()
+
 
     bstrengths = bsstring.split()
     tilevals = re.findall(
@@ -274,7 +278,10 @@ def from_xgrow(xgst):
             tile['color'] = tv[5]
         tiles.append(tile)
 
+    bnmatch = bnre.search(xgs)
     if bnmatch:
+        bnstring = bnmatch.group(1)
+        bnames = bnstring.split()
         assert len(bnames) == len(bstrengths)
         bonds = [{'name': name,
                   'strength': float(strength)}

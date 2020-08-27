@@ -1,7 +1,13 @@
 import re
-import numpy as np
 from io import BytesIO as StringIO
+import numpy as np
 import pandas as pd
+import pkg_resources
+
+rgbv = pkg_resources.resource_stream(__name__, 'rgb.txt')
+xcolors = {" ".join(y[3:]): "rgb({},{},{})".format(y[0], y[1], y[2])
+           for y in [x.decode().split() for x in rgbv]}
+del rgbv
 
 
 def load_array(xgrowstring, onlytiles=False):
@@ -40,16 +46,16 @@ def load_data(s):
     return data
 
 
-def show_array(a, ts, **kwargs):
+def show_array(a, ts, emptycolor='black', **kwargs):
     import matplotlib.pyplot as plt
     import matplotlib.colors as colors
-    from alhambra.tilestructures import xcolors  # FIXME:  put in here!
+    
     mcolors = {n: tuple(z / 255.0 for z in eval(x[3:]))
                for n, x in xcolors.items()}
-    cmap = colors.ListedColormap(['black'] + [mcolors[x['color']]
+    cmap = colors.ListedColormap([emptycolor] + [mcolors[x['color']]
                                               for x in ts['tiles']])
     try:
-        plt.imshow(
+        return plt.imshow(
             a['tiles'], cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)
     except:
-        plt.imshow(a, cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)
+        return (plt.imshow(a, cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs), cmap)
