@@ -203,7 +203,7 @@ def to_xgrow(stxg, stream=None):
                             print(x2)
                             raise ValueError(x2)
                     xgrowf.write("vdoubletile=%d,%d\n" % (x1, x2))
-            else:
+            elif key in keyopts:
                 xgrowf.write("%s=%s\n" % (key, str(val)))
 
     xgrowf.write("% Tileset created by stxg.py version {0} on {1}\n".format(
