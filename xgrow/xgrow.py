@@ -1,5 +1,6 @@
 import sys
 import os
+from typing import Any, Dict, Literal, Optional, Tuple, overload
 import pkg_resources
 import tempfile
 import subprocess
@@ -143,7 +144,20 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
         return output, ret
 
 
-def run(tileset: dict, extraparams={}, outputopts=None,
+@overload
+def run(tileset: dict, extraparams: dict, outputopts: Optional[str],
+        ui: bool, process_info: Literal[True]) -> Tuple[dict,
+                                                        subprocess.CompletedProcess[Any]]:
+    ...
+
+
+@overload
+def run(tileset: dict, extraparams: dict = {}, outputopts: Optional[str] = None,
+        ui: bool = False, process_info: Literal[False] = False) -> dict:
+    ...
+
+
+def run(tileset, extraparams={}, outputopts=None,
         ui=False, process_info=False):
     """Given a tileset (class or dict), and a dictionary of extra parameters,
     run xgrow, potentially with particular managed output options.  This
