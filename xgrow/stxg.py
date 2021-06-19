@@ -23,7 +23,7 @@ keyvaloptions = [
     ('tmax', float), ('emax', int), ('smax', int), ('smin', int),
     ('untiltilescount', str), ('clean_cycles', int), ('error_radius', float),
     ('datafile', str), ('arrayfile', str), ('exportfile', str),
-    ('importfile', str), ('min_strength', float)
+    ('importfile', str), ('min_strength', float), ('window', bool)
 ]
 keyopts = [x[0] for x in keyvaloptions]
 
