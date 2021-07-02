@@ -23,15 +23,13 @@ keyvaloptions = [
     ('tmax', float), ('emax', int), ('smax', int), ('smin', int),
     ('untiltilescount', str), ('clean_cycles', int), ('error_radius', float),
     ('datafile', str), ('arrayfile', str), ('exportfile', str),
-    ('importfile', str), ('min_strength', float), ('window', bool)
+    ('importfile', str), ('min_strength', float), ('window', bool),
+    ('fission', str), ('pause', bool), ('wander', bool), ('periodic', bool)
 ]
 keyopts = [x[0] for x in keyvaloptions]
 
 # Options that need special handling.
-specialoptions = ['stoic', 'nowindow', 'doubletile', 'vdoubletile', 'fission']
-
-# Options that take true/fale values.
-truefalseoptions = ['pause', 'wander', 'periodic']
+specialoptions = ['stoic']   # FIXME
 
 
 # Classes for controlling flow/block style of various yaml elements. These are
@@ -139,7 +137,7 @@ def to_xgrow(stxg, stream=None):
         xgrowf.write("   % ")
         if 'name' in tile:
             xgrowf.write(tile['name'])
-        xgrowf.write(" (tile #%d)\n" % n)
+        xgrowf.write(" (tile #%d)\n" % (n + 1))
 
     xgrowf.write("}\n")
 
@@ -218,7 +216,7 @@ def to_xgrow(stxg, stream=None):
 def from_xgrow(xgst):
     """
     Given a string of an xgrow tile file, convert it to stxg.
-    
+
     Note that the conversion may require some work afterward.
     """
 
