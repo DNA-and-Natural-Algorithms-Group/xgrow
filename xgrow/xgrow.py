@@ -1,18 +1,19 @@
-import sys
+from __future__ import annotations
 import os
-from typing import Any, Dict, Literal, Optional, Tuple, overload
-import pkg_resources
+from typing import Any, Literal, Optional, Sequence, Tuple, overload
 import tempfile
 import subprocess
-import copy
+from subprocess import CompletedProcess
 import re
-from . import stxg
-from . import parseoutput
+from .tileset import TileSet
 
-_XGROW_BINARY = pkg_resources.resource_filename(__name__,'_xgrow')
+
+_XGROW_BINARY = os.path.join(os.path.dirname(__file__), '_xgrow')
 _XGROW_BINARY = re.sub(r" ", r"\ ", _XGROW_BINARY)
 
-def _process_outputs( outputs ):
+
+def _process_outputs(outputs: dict[OutputOpts, Any]) -> None:
+    from . import parseoutput
     for key in outputs.keys():
         if key == 'array':
             outputs[key] = parseoutput.load_array(outputs[key])
@@ -24,7 +25,7 @@ def _process_outputs( outputs ):
             raise ValueError("Output type {} is unknown.".format(key), key)
 
 
-def run_raw( argstring: str, process_info=False ):
+def run_raw(args: list[str], process_info=False) -> subprocess.CompletedProcess:
     """
     Dealing with the binary path, just run xgrow, with an arbitrary `argstring`.
     This is primarily designed for situations where (a) the user wants to
@@ -42,17 +43,72 @@ def run_raw( argstring: str, process_info=False ):
     Returns a subprocess CompletedProcess.
     """
     if process_info:
-        return subprocess.run(_XGROW_BINARY + " " + argstring,
-                              shell=True,
+        return subprocess.run([_XGROW_BINARY] + args,
+                              shell=False,
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE,
                               encoding="utf-8")
     else:
-        return subprocess.run(_XGROW_BINARY + " " + argstring,
-                              shell=True)
-        
+        return subprocess.run([_XGROW_BINARY] + args,
+                              shell=False)
 
-def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=False ):
+
+OutputOpts = Literal['data', 'array', 'trace']
+
+
+@overload
+def run_old(tilestring: str, extraparams: dict = {},
+            outputopts: OutputOpts = None,
+            process_info: Literal[True] = True) -> Tuple[Any, CompletedProcess]:
+    ...
+
+
+@overload
+def run_old(tilestring: str, extraparams: dict = {},
+            outputopts: Sequence[OutputOpts] = None,
+            process_info: Literal[True] = True) -> Tuple[dict[str, Any],
+                                                         CompletedProcess]:
+    ...
+
+
+@overload
+def run_old(tilestring: str, extraparams: dict = {},
+            outputopts: None = None,
+            process_info: Literal[True] = True) -> Tuple[None, CompletedProcess]:
+    ...
+
+
+@overload
+def run_old(tilestring: str, extraparams: dict = {},
+            outputopts: OutputOpts = None,
+            process_info: Literal[False] = False) -> Any:
+    ...
+
+
+@overload
+def run_old(tilestring: str, extraparams: dict = {},
+            outputopts: Sequence[OutputOpts] = None,
+            process_info: Literal[False] = False) -> dict[str, Any]:
+    ...
+
+
+@overload
+def run_old(tilestring: str, extraparams: dict = {},
+            outputopts: None = None,
+            process_info: Literal[False] = False) -> None:
+    ...
+
+
+@overload
+def run_old(tilestring: str, extraparams: dict = {},
+            outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
+            process_info: bool = False) -> Any:
+    ...
+
+
+def run_old(tilestring: str, extraparams: dict = {},
+            outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
+            process_info: bool = False) -> Any:
     """
     Given an old xgrow tileset definition (as a string), a dict of parameters,
     and possible output options, run xgrow, handling file creation.
@@ -79,64 +135,53 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
     """
 
     # Create necessary temp files:
-    tileset_file = tempfile.NamedTemporaryFile(delete = False, mode='w', newline='\n')
+    tileset_file = tempfile.NamedTemporaryFile(
+        delete=False, mode='w', newline='\n')
 
     if outputopts is None:
         outputopts = []
-        onlyone=False
     elif isinstance(outputopts, str):
-        outputopts = [outputopts]
-        onlyone=True
-    output_files = { output_type: tempfile.NamedTemporaryFile(delete=False)
-                     for output_type in outputopts }
+        outputopts = [outputopts]  # type: ignore
+    output_files = {output_type: tempfile.mktemp(prefix=f"tmp_xgrow_{output_type}")
+                    for output_type in outputopts}  # type: ignore
 
     tileset_file.write(tilestring)
     tileset_file.close()
 
-    # Close all output files.  We'll reopen them later.  This is important,
-    # apparently, for Windows compatibility.
-    for output_type, output_file in output_files.items():
-        output_files[output_type]=output_file.name
-        output_file.close()
-    
-    paramstring = ""
+    args = [tileset_file.name]
     for param, val in extraparams.items():
         if val is True:
-            paramstring += " {}".format(param)
+            args.append("{}".format(param))
         else:
-            paramstring += " {}={}".format(param,val)
+            args.append("{}={}".format(param, val))
 
-    outputstring = " ".join( "{}file={}".format(output_type,output_file)
-                             for output_type, output_file
-                             in output_files.items() )
-            
-    argstring = tileset_file.name + " " + \
-                paramstring + " " + \
-                outputstring
+    args += ["{}file={}".format(output_type, output_file)
+             for output_type, output_file
+             in output_files.items()]
 
-    ret = run_raw( argstring, process_info=process_info )
+    ret = run_raw(args, process_info=process_info)
     if ret.returncode != 0:
         raise Exception(
             "Xgrow failed with return code {}.".format(ret.returncode),
             ret,
-            argstring,
+            args,
             tileset_file.name,
-            { t: f.name for t,f in output_files.values() } )
+            {t: f for t, f in output_files.values()})
 
     os.unlink(tileset_file.name)
-    
+
     output = {}
     for output_type, output_file in output_files.items():
-        with open(output_file,'r') as output_file_reopened:
+        with open(output_file, 'r') as output_file_reopened:
             output[output_type] = output_file_reopened.read()
         os.unlink(output_file)
 
     _process_outputs(output)
-        
+
     if not output:
         output = None
-    if onlyone:
-        output = output[outputopts[0]]
+    if len(outputopts) == 1:    # type: ignore
+        output = output[outputopts[0]]    # type: ignore
 
     if not process_info:
         return output
@@ -145,20 +190,57 @@ def run_old( tilestring: str, extraparams: dict, outputopts=None, process_info=F
 
 
 @overload
-def run(tileset: dict, extraparams: dict, outputopts: Optional[str],
-        ui: bool, process_info: Literal[True]) -> Tuple[dict,
-                                                        subprocess.CompletedProcess[Any]]:
+def run(tileset: dict | TileSet,
+        extraparams: dict,
+        outputopts: None = None,
+        ui: Optional[bool] = None,
+        process_info: Literal[True] = True) -> Tuple[None, subprocess.CompletedProcess]:
     ...
 
 
 @overload
-def run(tileset: dict, extraparams: dict = {}, outputopts: Optional[str] = None,
-        ui: bool = False, process_info: Literal[False] = False) -> dict:
+def run(tileset: dict | TileSet,
+        extraparams: dict,
+        outputopts: OutputOpts = None,
+        ui: Optional[bool] = None,
+        process_info: Literal[True] = True) -> Tuple[Any, subprocess.CompletedProcess]:
     ...
 
 
-def run(tileset, extraparams={}, outputopts=None,
-        ui=False, process_info=False):
+@overload
+def run(tileset: dict | TileSet,
+        extraparams: dict,
+        outputopts: Sequence[OutputOpts] = None,
+        ui: Optional[bool] = None,
+        process_info: Literal[True] = True) -> Tuple[dict, subprocess.CompletedProcess]:
+    ...
+
+
+@overload
+def run(tileset: dict | TileSet, extraparams: dict = {},
+        outputopts: None = None,
+        ui: Optional[bool] = None, process_info: Literal[False] = False) -> None:
+    ...
+
+
+@overload
+def run(tileset: dict | TileSet, extraparams: dict = {},
+        outputopts: OutputOpts = None,
+        ui: Optional[bool] = None, process_info: Literal[False] = False) -> Any:
+    ...
+
+
+@overload
+def run(tileset: dict | TileSet, extraparams: dict = {},
+        outputopts: Sequence[OutputOpts] = None,
+        ui: Optional[bool] = None,
+        process_info: Literal[False] = False) -> dict[str, Any]:
+    ...
+
+
+def run(tileset: dict | TileSet, extraparams: dict = {},
+        outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
+        ui: Optional[bool] = None, process_info: bool = False) -> Any:
     """Given a tileset (class or dict), and a dictionary of extra parameters,
     run xgrow, potentially with particular managed output options.  This
     replaces the xgrow-running code in xgrow_wrap and in xgrow_parallel.
@@ -192,25 +274,12 @@ def run(tileset, extraparams={}, outputopts=None,
     outputs with keys of the same name.
     """
 
-    tileset_copy = copy.deepcopy(tileset)
-    tileset_copy['xgrowargs'].update(extraparams)
-    if ui:
-        tileset_copy['xgrowargs']['window'] = True
-    else:
-        tileset_copy['xgrowargs']['window'] = False
-    tilestring = stxg.to_xgrow(tileset_copy)
+    if not isinstance(tileset, TileSet):
+        tileset = TileSet.from_dict(tileset)
 
-    return run_old(tilestring, {}, outputopts, process_info=process_info)
+    tileset.xgrowargs.merge(extraparams)
 
+    if ui is not None:
+        tileset.xgrowargs.window = ui
 
-def show_array(array, tileset=None, **kwargs):
-    from alhambra.tiletypes import xcolors  # FIXME: need to have this in xgrow
-    import matplotlib.pyplot as plt
-
-    if tileset is not None:
-        cm = colors.ListedColormap(
-            ['black'] + [mcolors[x['color']] for x in tileset['tiles']])
-        plt.imshow(array, cmap=cm, vmin=0,
-                   vmax=len(tileset['tiles']), **kwargs)
-    else:
-        plt.imshow(array, **kwargs)
+    return run_old(tileset.to_xgrow(), outputopts=outputopts, process_info=process_info)
