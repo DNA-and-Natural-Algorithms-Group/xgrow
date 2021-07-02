@@ -1,10 +1,11 @@
 import re
+from typing import Union
 import numpy as np
 from io import BytesIO as StringIO
 import pandas as pd
 
 
-def load_array(xgrowstring, onlytiles=False):
+def load_array(xgrowstring, onlytiles=False) -> dict[str, Union[np.ndarray, pd.Series]]:
     tiles = np.genfromtxt(
         StringIO(
             (re.sub(r'(\[|\])', '',   # remove [ and ]
@@ -24,7 +25,7 @@ def load_array(xgrowstring, onlytiles=False):
     return {'data': data, 'tiles': tiles}
 
 
-def load_trace(s):
+def load_trace(s) -> pd.DataFrame:
     data = pd.DataFrame(
         np.genfromtxt(StringIO(s.encode())),
         columns=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches', 'events',
@@ -32,7 +33,7 @@ def load_trace(s):
     return data
 
 
-def load_data(s):
+def load_data(s) -> pd.Series:
     data = pd.Series(
         np.genfromtxt(StringIO(s.encode())),
         index=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches', 'events',
@@ -46,10 +47,10 @@ def show_array(a, ts, **kwargs):
     from alhambra.tilestructures import xcolors  # FIXME:  put in here!
     mcolors = {n: tuple(z / 255.0 for z in eval(x[3:]))
                for n, x in xcolors.items()}
-    cmap = colors.ListedColormap(['black'] + [mcolors[x['color']]
+    cmap = colors.ListedColormap(['black'] + [mcolors[x['color']]  # type: ignore
                                               for x in ts['tiles']])
     try:
         plt.imshow(
             a['tiles'], cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)
-    except:
+    except KeyError:
         plt.imshow(a, cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)
