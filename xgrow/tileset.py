@@ -73,6 +73,12 @@ class XgrowArgs:
             + ")"
         )
 
+    def merge(self, other: dict | XgrowArgs):
+        if isinstance(other, dict):
+            self.__dict__.update(other)
+        else:
+            self.__dict__.update(other.__dict__)
+
     def __bool__(self):
         return len(self.__dict__) > 0 and all(
             not bool(v) for v in self.__dict__.values()
@@ -209,7 +215,7 @@ class TileSet:
         bondnames = dict()
         extrabonds = []
         bi = 1
-        bm = 1
+        bm = 0
         hdoubles = []
         vdoubles = []
 
