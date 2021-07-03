@@ -7,6 +7,7 @@ from subprocess import CompletedProcess
 import re
 from .tileset import TileSet
 
+_DEFAULT_SIZE = 64
 
 _XGROW_BINARY = os.path.join(os.path.dirname(__file__), '_xgrow')
 _XGROW_BINARY = re.sub(r" ", r"\ ", _XGROW_BINARY)
@@ -193,8 +194,7 @@ def run_old(tilestring: str, extraparams: dict = {},
 def run(tileset: dict | TileSet,
         extraparams: dict,
         outputopts: None = None,
-        ui: Optional[bool] = None,
-        process_info: Literal[True] = True) -> Tuple[None, subprocess.CompletedProcess]:
+        process_info: Literal[True] = True, **kwargs) -> Tuple[None, subprocess.CompletedProcess]:
     ...
 
 
@@ -202,8 +202,7 @@ def run(tileset: dict | TileSet,
 def run(tileset: dict | TileSet,
         extraparams: dict,
         outputopts: OutputOpts = None,
-        ui: Optional[bool] = None,
-        process_info: Literal[True] = True) -> Tuple[Any, subprocess.CompletedProcess]:
+        process_info: Literal[True] = True, **kwargs) -> Tuple[Any, subprocess.CompletedProcess]:
     ...
 
 
@@ -211,36 +210,34 @@ def run(tileset: dict | TileSet,
 def run(tileset: dict | TileSet,
         extraparams: dict,
         outputopts: Sequence[OutputOpts] = None,
-        ui: Optional[bool] = None,
-        process_info: Literal[True] = True) -> Tuple[dict, subprocess.CompletedProcess]:
+        process_info: Literal[True] = True, **kwargs) -> Tuple[dict, subprocess.CompletedProcess]:
     ...
 
 
 @overload
 def run(tileset: dict | TileSet, extraparams: dict = {},
         outputopts: None = None,
-        ui: Optional[bool] = None, process_info: Literal[False] = False) -> None:
+        process_info: Literal[False] = False, **kwargs) -> None:
     ...
 
 
 @overload
 def run(tileset: dict | TileSet, extraparams: dict = {},
         outputopts: OutputOpts = None,
-        ui: Optional[bool] = None, process_info: Literal[False] = False) -> Any:
+        process_info: Literal[False] = False, **kwargs) -> Any:
     ...
 
 
 @overload
 def run(tileset: dict | TileSet, extraparams: dict = {},
         outputopts: Sequence[OutputOpts] = None,
-        ui: Optional[bool] = None,
-        process_info: Literal[False] = False) -> dict[str, Any]:
+        process_info: Literal[False] = False, **kwargs) -> dict[str, Any]:
     ...
 
 
 def run(tileset: dict | TileSet, extraparams: dict = {},
         outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
-        ui: Optional[bool] = None, process_info: bool = False) -> Any:
+        process_info: bool = False, **kwargs) -> Any:
     """Given a tileset (class or dict), and a dictionary of extra parameters,
     run xgrow, potentially with particular managed output options.  This
     replaces the xgrow-running code in xgrow_wrap and in xgrow_parallel.
@@ -277,9 +274,29 @@ def run(tileset: dict | TileSet, extraparams: dict = {},
     if not isinstance(tileset, TileSet):
         tileset = TileSet.from_dict(tileset)
 
-    tileset.xgrowargs.merge(extraparams)
+    ep = dict(**extraparams, **kwargs)
 
-    if ui is not None:
-        tileset.xgrowargs.window = ui
+    xgs, tilenums = tileset.to_xgrow(extraparams=ep,
+                                     return_tilenums=True)
 
-    return run_old(tileset.to_xgrow(), outputopts=outputopts, process_info=process_info)
+    importfile = None
+
+    if tileset.initstate is not None:
+        size = ep.get('size', None) or tileset.xgrowargs.size or _DEFAULT_SIZE
+
+        assert tileset.xgrowargs.importfile is None
+
+        importfile = tempfile.NamedTemporaryFile(
+            'w', delete=False, newline="\n")
+
+        tileset.initstate.to_importfile(size, tilenums, importfile.file)
+        importfile.close()
+
+        xgs += f"\nimportfile={importfile.name}\n"
+
+        r = run_old(xgs, outputopts=outputopts, process_info=process_info)
+
+        if importfile:
+            os.unlink(importfile.name)
+
+        return r
