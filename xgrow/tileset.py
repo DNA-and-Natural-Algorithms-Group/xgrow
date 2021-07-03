@@ -1,10 +1,25 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from collections import UserList
 from io import StringIO
-from typing import Any, List, Literal, Optional, Sequence, TextIO, Tuple, cast, overload
+from typing import (
+    Any,
+    IO,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    TextIO,
+    Tuple,
+    Union,
+    cast,
+    overload,
+)
 from warnings import warn
+from copy import deepcopy
 
-__all__ = ["XgrowArgs", "Bond", "Tile", "Glue", "TileSet"]
+__all__ = ["XgrowArgs", "Bond", "Tile", "Glue", "TileSet", "InitState"]
 
 
 @dataclass(init=False)
@@ -73,11 +88,16 @@ class XgrowArgs:
             + ")"
         )
 
-    def merge(self, other: dict | XgrowArgs):
+    def update(self, other: dict | XgrowArgs):
         if isinstance(other, dict):
             self.__dict__.update(other)
         else:
             self.__dict__.update(other.__dict__)
+
+    def merge(self, other: dict | XgrowArgs) -> XgrowArgs:
+        d = deepcopy(self)
+        d.update(other)
+        return d
 
     def __bool__(self):
         return len(self.__dict__) > 0 and all(
@@ -108,7 +128,10 @@ class Tile:
         return ts
 
     def to_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in self.__dict__.items() if v}
+        d = {k: v for k, v in self.__dict__.items() if v}
+        if self.shape == "S":
+            del d["shape"]
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> Tile:
@@ -164,12 +187,47 @@ def _updatebonds(
     return bi, bm
 
 
+class InitState(UserList[Tuple[int, int, Union[str, int]]]):
+    ...
+
+    def to_importfile(
+        self, size: int, tilenums: Mapping[str, int], stream: Optional[IO[str]] = None
+    ) -> Optional[str]:
+        # fixme: check connectivity?
+        if stream is None:
+            stream = StringIO()
+
+        stream.write("flake{1}={...\n")
+        stream.write("[ 0 0 0 0 0 0 0 0 0 0 ],...\n")
+        stream.write("[ 1 1 1 ],...\n")
+
+        asnums = {(x, y): _get_or_int(tilenums, t) for x, y, t in self.data}
+
+        padlen = max(len(str(t)) for t in asnums.values())
+
+        for x in range(0, size):
+            if x == 0:
+                stream.write("[")
+            else:
+                stream.write(" ")
+            for y in range(0, size):
+                stream.write(f" " + str(asnums.get((x, y), 0)).rjust(padlen))
+            stream.write("; ...\n")
+        stream.write("] };\n")
+
+        stream.flush()
+
+        if isinstance(stream, StringIO):
+            return stream.getvalue()
+
+
 @dataclass
 class TileSet:
     tiles: List[Tile]
     bonds: List[Bond] = field(default_factory=list)
     glues: List[Glue] = field(default_factory=list)
     xgrowargs: XgrowArgs = XgrowArgs()
+    initstate: Optional[InitState] = None
 
     @classmethod
     def from_dict(cls, d: dict) -> TileSet:
@@ -182,27 +240,54 @@ class TileSet:
             bonds=[Bond.from_dict(x) for x in d.get("bonds", [])],
             glues=[Glue.from_dict(x) for x in d.get("glues", [])],
             xgrowargs=xga,
+            initstate=d.get("initstate", None),
         )
 
     def to_dict(self) -> dict[str, Any]:
         d = {}
         for k, v in self.__dict__.items():
             if v:
-                if isinstance(v, Sequence):
+                if isinstance(v, InitState):
+                    d[k] = [x for x in v]
+                elif isinstance(v, Sequence):
                     d[k] = [x.to_dict() for x in v]
                 else:
                     d[k] = v.to_dict()
         return d
 
     @overload
-    def to_xgrow(self, stream: None = None) -> str:
+    def to_xgrow(
+        self,
+        stream: None = None,
+        extraparams: dict = {},
+        return_tilenums: Literal[True] = True,
+    ) -> Tuple[str, dict[str, int]]:
         ...
 
     @overload
-    def to_xgrow(self, stream: TextIO) -> None:
+    def to_xgrow(
+        self,
+        stream: None = None,
+        extraparams: dict = {},
+        return_tilenums: Literal[False] = False,
+    ) -> str:
         ...
 
-    def to_xgrow(self, stream: Optional[TextIO] = None):
+    @overload
+    def to_xgrow(
+        self,
+        stream: TextIO,
+        extraparams: dict = {},
+        return_tilenums: Literal[False] = False,
+    ) -> None:
+        ...
+
+    def to_xgrow(
+        self,
+        stream: Optional[TextIO] = None,
+        extraparams: dict = {},
+        return_tilenums=False,
+    ):
         if stream is None:
             stream = StringIO()
             writing = False
@@ -311,8 +396,9 @@ class TileSet:
             n2 = _get_or_int(bondnames, glue.bond2)
             stream.write(f"g({n1},{n2})={glue.strength:g}\n")
 
-        for f in self.xgrowargs.__dataclass_fields__:
-            v = getattr(self.xgrowargs, f)
+        xgrowargs = self.xgrowargs.merge(extraparams)
+        for f in xgrowargs.__dataclass_fields__:
+            v = getattr(xgrowargs, f)
             if v is None:
                 continue
             if f == "doubletiles":
@@ -334,12 +420,18 @@ class TileSet:
             stream.write(f"vdoubletile={i1},{i2}\n")
 
         if writing:
-            return None
+            if return_tilenums:
+                return None, tile_to_i
+            else:
+                return None
         else:
-            return cast(StringIO, stream).getvalue()
+            if return_tilenums:
+                return cast(StringIO, stream).getvalue(), tile_to_i
+            else:
+                return cast(StringIO, stream).getvalue()
 
 
-def _get_or_int(d: dict[str, int], v: int | str):
+def _get_or_int(d: Mapping[str, int], v: int | str):
     if isinstance(v, int):
         return v
     else:
