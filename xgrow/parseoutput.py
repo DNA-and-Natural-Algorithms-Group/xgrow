@@ -5,43 +5,78 @@ from io import BytesIO
 import pandas as pd
 
 
-def load_array_file(fn: str, 
-               onlytiles: bool = False) -> dict[str, 
-               Union[np.ndarray, pd.Series[float]]]:
+def load_array_file(
+    fn: str, onlytiles: bool = False
+) -> dict[str, Union[np.ndarray, pd.Series[float]]]:
 
-    s = open(fn, 'rb').read()
-    s = re.sub(rb'(\[|\])', b'',   # remove [ and ]
-            re.sub(rb'; \.\.\.', b'',  # remove ; ... at line ends
-            s))
+    s = open(fn, "rb").read()
+    s = re.sub(
+        rb"(\[|\])",
+        b"",  # remove [ and ]
+        re.sub(rb"; \.\.\.", b"", s),  # remove ; ... at line ends
+    )
 
     tiles = np.genfromtxt(
         BytesIO(s),
-        skip_header=4,                # remove first lines
-        skip_footer=1,                # remove end junk
-        dtype='uint'
-        )
+        skip_header=4,  # remove first lines
+        skip_footer=1,  # remove end junk
+        dtype="uint",
+    )
     if onlytiles:
         return tiles
     data = pd.Series(
         np.genfromtxt(BytesIO((s.split(b"\n")[2])))[1:-1],
-        index=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches', 'events',
-               'perimeter', 'g', 'dgbonds'])
-    return {'data': data, 'tiles': tiles}
+        index=[
+            "gmc",
+            "gse",
+            "k",
+            "time",
+            "tiles",
+            "mismatches",
+            "events",
+            "perimeter",
+            "g",
+            "dgbonds",
+        ],
+    )
+    return {"data": data, "tiles": tiles}
 
 
 def load_trace_file(fn: str) -> pd.DataFrame:
     data = pd.DataFrame(
         np.genfromtxt(fn),
-        columns=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches', 'events',
-                 'perimeter', 'g', 'dgbonds'])
+        columns=[
+            "gmc",
+            "gse",
+            "k",
+            "time",
+            "tiles",
+            "mismatches",
+            "events",
+            "perimeter",
+            "g",
+            "dgbonds",
+        ],
+    )
     return data
 
 
 def load_data_file(fn: str) -> pd.Series[float]:
     data = pd.Series(
         np.genfromtxt(fn),
-        index=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches', 'events',
-               'perimeter', 'g', 'dgbonds'])
+        index=[
+            "gmc",
+            "gse",
+            "k",
+            "time",
+            "tiles",
+            "mismatches",
+            "events",
+            "perimeter",
+            "g",
+            "dgbonds",
+        ],
+    )
     return data
 
 
@@ -49,12 +84,12 @@ def show_array(a: np.ndarray, ts: dict[str, Any], **kwargs: dict[str, Any]):
     import matplotlib.pyplot as plt
     import matplotlib.colors as colors
     from .xcolors import xcolors  # FIXME:  put in here!
-    mcolors = {n: tuple(z / 255.0 for z in eval(x[3:]))
-               for n, x in xcolors.items()}
-    cmap = colors.ListedColormap(['black'] + [mcolors[x['color']]  # type: ignore
-                                              for x in ts['tiles']])
+
+    mcolors = {n: tuple(z / 255.0 for z in eval(x[3:])) for n, x in xcolors.items()}
+    cmap = colors.ListedColormap(
+        ["black"] + [mcolors[x["color"]] for x in ts["tiles"]]  # type: ignore
+    )
     try:
-        plt.imshow(
-            a['tiles'], cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)
+        plt.imshow(a["tiles"], cmap=cmap, vmin=0, vmax=len(ts["tiles"]), **kwargs)
     except KeyError:
-        plt.imshow(a, cmap=cmap, vmin=0, vmax=len(ts['tiles']), **kwargs)
+        plt.imshow(a, cmap=cmap, vmin=0, vmax=len(ts["tiles"]), **kwargs)

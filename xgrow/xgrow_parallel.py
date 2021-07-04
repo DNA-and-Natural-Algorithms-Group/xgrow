@@ -13,26 +13,29 @@ def _run_xgrow(params):
     import tempfile
     import os
     import yaml
+
     xg, paramstring, outtype = params
     # Move to correct directory on cluster. This needs to be done each time
     # because the nodes need it. In this case, there is a '.xgrowcluster' in
     # the node's user's home folder has the config for each node yaml-encoded.
-    with open(os.environ['HOME'] + '/.xgrowcluster') as configfile:
+    with open(os.environ["HOME"] + "/.xgrowcluster") as configfile:
         config = yaml.load(configfile)
-    os.chdir(config['xgrowpath'])
+    os.chdir(config["xgrowpath"])
     from . import stxg
 
     with tempfile.NamedTemporaryFile(
-            dir=config['temppath'], delete=False, mode='w') as tilefile:
+        dir=config["temppath"], delete=False, mode="w"
+    ) as tilefile:
         tilestring = stxg.to_xgrow(xg)
         tilefile.write(tilestring)
 
-    with tempfile.NamedTemporaryFile(
-            mode='r', dir=config['temppath']) as datafile:
+    with tempfile.NamedTemporaryFile(mode="r", dir=config["temppath"]) as datafile:
         z = subprocess.check_call(
-            "./xgrow {0} -nw {1}={2} {3}".format(tilefile.name, outtype,
-                                                 datafile.name, paramstring),
-            shell=True)
+            "./xgrow {0} -nw {1}={2} {3}".format(
+                tilefile.name, outtype, datafile.name, paramstring
+            ),
+            shell=True,
+        )
         data = datafile.read()
 
     os.remove(tilefile.name)
@@ -50,19 +53,43 @@ class XgrowResult:
 
     def result(self):
 
-        if self.ot == 'final':
+        if self.ot == "final":
             return pd.DataFrame(
                 np.loadtxt(StringIO(u"".join(self.res.result()))),
-                columns=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches',
-                         'events', 'perimeter', 'g', 'dgbonds'])
-        elif self.ot == 'array':
+                columns=[
+                    "gmc",
+                    "gse",
+                    "k",
+                    "time",
+                    "tiles",
+                    "mismatches",
+                    "events",
+                    "perimeter",
+                    "g",
+                    "dgbonds",
+                ],
+            )
+        elif self.ot == "array":
             return [xgo.loadflake(x) for x in self.res.result()]
-        elif self.ot == 'trace':
-            dframes = [pd.DataFrame(
-                np.loadtxt(StringIO(u"".join(x))),
-                columns=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches',
-                         'events', 'perimeter', 'g', 'dgbonds'])
-                       for x in self.res.result()]
+        elif self.ot == "trace":
+            dframes = [
+                pd.DataFrame(
+                    np.loadtxt(StringIO(u"".join(x))),
+                    columns=[
+                        "gmc",
+                        "gse",
+                        "k",
+                        "time",
+                        "tiles",
+                        "mismatches",
+                        "events",
+                        "perimeter",
+                        "g",
+                        "dgbonds",
+                    ],
+                )
+                for x in self.res.result()
+            ]
             return dframes
 
 
@@ -74,8 +101,7 @@ class XgrowCluster:
     def __init__(self, pool):
         self.pool = pool
         self.client = pool.client
-        log.debug("Connected to IPCluster with {0} nodes.".format(
-            len(self.client.ids)))
+        log.debug("Connected to IPCluster with {0} nodes.".format(len(self.client.ids)))
 
     def do_sims(self, tilestring, paramstring, outtype, num=50):
         """
@@ -87,9 +113,9 @@ class XgrowCluster:
           -nw and datafile are included by default.
         * num (=50 default): number of runs to run.
         """
-        outparam = {'final': 'datafile',
-                    'trace': 'tracefile',
-                    'array': 'arrayfile'}[outtype]
+        outparam = {"final": "datafile", "trace": "tracefile", "array": "arrayfile"}[
+            outtype
+        ]
         commands = num * [(tilestring, paramstring, outparam)]
 
         output = self.pool.map(_run_xgrow, commands)
@@ -101,12 +127,14 @@ class SimRunSingleMismatch:
     the strength of the interaction for each set.
     """
 
-    def __init__(self,
-                 xgcluster,
-                 baseset,
-                 extraparams,
-                 num=50,
-                 defvals=[0.0, 0.025, 0.05, 0.075, 0.1, 0.2, 0.4, 0.5, 0.8]):
+    def __init__(
+        self,
+        xgcluster,
+        baseset,
+        extraparams,
+        num=50,
+        defvals=[0.0, 0.025, 0.05, 0.075, 0.1, 0.2, 0.4, 0.5, 0.8],
+    ):
         """baseset is a tileset file as a string, in a way such that glue info can be
         appended to it (no params at the end).  extraparams are all the extra
         parameters
@@ -124,7 +152,8 @@ class SimRunSingleMismatch:
         return self.xgc.do_sims(
             self.baseset + "\ng({},{})={}\n".format(g1, g2, strength),
             self.extraparams,
-            num=n)
+            num=n,
+        )
 
     def add(self, name, g1, g2, vals=None):
         "Add a new simulation set, with interactions between g1 and g2"
@@ -147,10 +176,10 @@ class SimRunSingleMismatch:
             log.info("{} / {}".format(done, total))
             for y in x.values():
                 total += len(y)
-                done += len(y) - len(
-                    set(y.msg_ids).intersection(y._client.outstanding))
+                done += len(y) - len(set(y.msg_ids).intersection(y._client.outstanding))
         return (1.0 * done / total, done, total)
 
     def map(self, function):
-        return dict((n, array([[k, function(x)] for k, x in s.items()])) for n
-                    in self.res)
+        return dict(
+            (n, array([[k, function(x)] for k, x in s.items()])) for n in self.res
+        )
