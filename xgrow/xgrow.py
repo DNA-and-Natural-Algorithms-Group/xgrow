@@ -28,7 +28,9 @@ def _process_outputs(output_files: dict[OutputOpts, str]) -> dict[OutputOpts, An
     return outputs
 
 
-def run_raw(args: list[str], process_info: bool = False) -> subprocess.CompletedProcess[str]:
+def run_raw(
+    args: list[str], process_info: bool = False
+) -> subprocess.CompletedProcess[str]:
     """
     Dealing with the binary path, just run xgrow, with an arbitrary `argstring`.
     This is primarily designed for situations where (a) the user wants to
@@ -63,7 +65,8 @@ OutputOpts = Literal["data", "array", "trace"]
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {}, *,
+    extraparams: dict[str, Any] = {},
+    *,
     outputopts: OutputOpts,
     process_info: Literal[True],
 ) -> Tuple[Any, CompletedProcess[str]]:
@@ -73,7 +76,8 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {}, *,
+    extraparams: dict[str, Any] = {},
+    *,
     outputopts: Sequence[OutputOpts],
     process_info: Literal[True],
 ) -> Tuple[dict[str, Any], CompletedProcess[str]]:
@@ -83,8 +87,9 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {}, 
-    outputopts: None = None, *,
+    extraparams: dict[str, Any] = {},
+    outputopts: None = None,
+    *,
     process_info: Literal[True],
 ) -> Tuple[None, CompletedProcess[str]]:
     ...
@@ -93,7 +98,8 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {}, *,
+    extraparams: dict[str, Any] = {},
+    *,
     outputopts: OutputOpts,
     process_info: Literal[False] = False,
 ) -> Any:
@@ -103,7 +109,8 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {}, *,
+    extraparams: dict[str, Any] = {},
+    *,
     outputopts: Sequence[OutputOpts],
     process_info: Literal[False] = False,
 ) -> dict[str, Any]:
@@ -217,7 +224,8 @@ def run_old(
 def run(
     tileset: dict[str, Any] | TileSet,
     extraparams: dict[str, Any] = {},
-    outputopts: None = None, *,
+    outputopts: None = None,
+    *,
     process_info: Literal[True],
     **kwargs: dict[str, Any],
 ) -> Tuple[None, subprocess.CompletedProcess[str]]:
@@ -227,7 +235,8 @@ def run(
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] = {}, *,
+    extraparams: dict[str, Any] = {},
+    *,
     outputopts: OutputOpts,
     process_info: Literal[True],
     **kwargs: dict[str, Any],
@@ -238,7 +247,8 @@ def run(
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any], *,
+    extraparams: dict[str, Any],
+    *,
     outputopts: Sequence[OutputOpts],
     process_info: Literal[True],
     **kwargs: dict[str, Any],
@@ -260,7 +270,8 @@ def run(
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] = {}, *,
+    extraparams: dict[str, Any] = {},
+    *,
     outputopts: OutputOpts,
     process_info: Literal[False] = False,
     **kwargs: dict[str, Any],
@@ -271,7 +282,8 @@ def run(
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] = {}, *,
+    extraparams: dict[str, Any] = {},
+    *,
     outputopts: Sequence[OutputOpts],
     process_info: Literal[False] = False,
     **kwargs: dict[str, Any],
@@ -329,7 +341,11 @@ def run(
     importfile = None
 
     if tileset.initstate is not None:
-        size = int(cast(SupportsIndex, ep.get("size", None))) or tileset.xgrowargs.size or _DEFAULT_SIZE
+        size = (
+            int(cast(SupportsIndex, ep.get("size", None)))
+            or tileset.xgrowargs.size
+            or _DEFAULT_SIZE
+        )
 
         assert tileset.xgrowargs.importfile is None
 
