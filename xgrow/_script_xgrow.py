@@ -6,22 +6,27 @@ from xgrow import xgrow
 
 __all__: List[str] = []
 
-TF_KEYS = ['wander', 'pause', 'movie', 'zero_bonds', 'window']
+TF_KEYS = ["wander", "pause", "movie", "zero_bonds", "window"]
 
 parsed_traditional = {
-    'no_fission': lambda x: ('fission', 'off'),
-    'fission': lambda x: ('fission', 'on'),
-    'chunk_fission': lambda x: ('fission', 'chunk'),
-    'importfile': lambda x: ('importfile', x.group(3)
-                             if x.group(3) else 'xgrow_export_output')}
+    "no_fission": lambda x: ("fission", "off"),
+    "fission": lambda x: ("fission", "on"),
+    "chunk_fission": lambda x: ("fission", "chunk"),
+    "importfile": lambda x: (
+        "importfile",
+        x.group(3) if x.group(3) else "xgrow_export_output",
+    ),
+}
 
 parsed_new = {
-    'w': lambda x: ('window', not bool(x.group(1))),
-    'nw': lambda x: ('window', bool(x.group(1)))}
+    "w": lambda x: ("window", not bool(x.group(1))),
+    "nw": lambda x: ("window", bool(x.group(1))),
+}
 
 
 def print_help():
-    print("""
+    print(
+        """
 xgrow [NEW OPTIONS] TILESET_FILE [NEW+OLD OPTIONS]
 
 The new Python xgrow wrapper, designed to run both older xgrow tilesets with
@@ -44,11 +49,13 @@ Options to this script can be provided in two different ways:
 A full list of options can be printed with xgrow --help-options, and is also in the
 documentation.  In general, any option that can be used in an stxg or Xgrow file can
 be used here, though there are also the shorthands -w and -nw for -window and -no-window.
-    """)
+    """
+    )
 
 
 def print_options():
-    print("""
+    print(
+        """
 These options are currently taken from xgrow itself.  They need to be updated.
 
   block=  display block size, 1...10
@@ -119,7 +126,8 @@ These options are currently taken from xgrow itself.  They need to be updated.
   importfile            import all flakes from xgrow_export_output.
   pause                 start in paused state; wait for user to request simulation to start.
   testing               run automated tests instead of a simulation.
-    """)
+    """
+    )
 
 
 def main():
@@ -136,11 +144,11 @@ def main():
     tilepath = None
     while pos < len(raw_args):
         # First try to parse as an argument:
-        m = re.match(r'-{1,2}(no[-_])?([^=\s]+)(=)?(\S+)?', raw_args[pos])
-        if m and m.group(2) in ['h', 'help']:
+        m = re.match(r"-{1,2}(no[-_])?([^=\s]+)(=)?(\S+)?", raw_args[pos])
+        if m and m.group(2) in ["h", "help"]:
             print_help()
             sys.exit(0)
-        if m and m.group(2) in ['help-options']:
+        if m and m.group(2) in ["help-options"]:
             print_options()
             sys.exit(0)
         if m and m.group(2) in parsed_new.keys():
@@ -151,7 +159,7 @@ def main():
             pos += 1
         elif m:
             if m.group(2) not in TF_KEYS:
-                args[m.group(2)] = raw_args[pos+1]
+                args[m.group(2)] = raw_args[pos + 1]
                 pos += 2
             else:
                 if m.group(1):
@@ -163,7 +171,7 @@ def main():
             tilepath = raw_args[pos]
             pos += 1
         else:
-            m = re.match(r'([^=\s]+)(=)?(\S+)?', raw_args[pos])
+            m = re.match(r"([^=\s]+)(=)?(\S+)?", raw_args[pos])
             if not m:
                 print(f"Can't parse {raw_args[pos]}.")
                 sys.exit(1)
@@ -179,12 +187,12 @@ def main():
         print("No tileset file specified!\nUse -h or --help for help.")
         sys.exit(1)
 
-    fd = open(tilepath, 'r')
+    fd = open(tilepath, "r")
     for line in fd:
         if line[0] == "%":
             continue
         else:
-            if line[0:4] == 'tile' or line[0:3] == 'num':
+            if line[0:4] == "tile" or line[0:3] == "num":
                 fd.seek(0)
                 xgrow.run_old(fd.read(), args)
                 break
@@ -194,5 +202,5 @@ def main():
                 break
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
