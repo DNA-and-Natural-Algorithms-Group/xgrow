@@ -62,6 +62,7 @@ class XgrowArgs:
     wander: Optional[bool] = None
     periodic: Optional[bool] = None
     fission: Optional[Literal["off", "on", "chunk"]] = None
+    font: Optional[str] = None
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> XgrowArgs:
@@ -120,9 +121,9 @@ class Tile:
             ts += f"[{self.stoic}]"
         if self.color is not None:
             ts += f"({self.color})"
-        ts += "   % "
         if self.name is not None:
-            ts += self.name
+            ts += f"<{self.name}>"
+        ts += "   % "
         if tilenum:
             ts += f" (tile #{tilenum})\n"
         return ts
@@ -209,7 +210,7 @@ class InitState(UserList[Tuple[int, int, Union[str, int]]]):
             else:
                 stream.write(" ")
             for y in range(0, size):
-                stream.write(f" " + str(asnums.get((x, y), 0)).rjust(padlen))
+                stream.write(" " + str(asnums.get((x, y), 0)).rjust(padlen))
             stream.write("; ...\n")
         stream.write("] };\n")
 

@@ -245,6 +245,7 @@ the file.  (compatibility with existing xgrow tile files must be maintained.)
 # include <math.h>
 # include <assert.h>
 # include <limits.h>
+# include <libgen.h>
 
 # include "grow.h"
 #ifdef TESTING_OK
@@ -263,11 +264,11 @@ the file.  (compatibility with existing xgrow tile files must be maintained.)
 # define WINDOWWIDTH (block*NCOLS+PLAYLEFT+BOUNDWIDTH+20)
 # define WINDOWHEIGHT (PLAYTOP+block*NROWS+10)
 */
-# define PLAYTOP 120
+# define PLAYTOP font_height*7
 # define PLAYLEFT 10
 # define BOUNDHEIGHT 80
 # define LATTICEHEIGHT 60
-# define BOUNDWIDTH  140
+# define BOUNDWIDTH  (font_height*6 + 20)
 # define BARHEIGHT 45
 # define BARWIDTH  135
 # define BARTOP 55
@@ -281,26 +282,26 @@ the file.  (compatibility with existing xgrow tile files must be maintained.)
 #endif
 
 #define IS_ARG_MATCH(arg,s) (strncmp(arg,s,strlen(s))==0)
-   
-   long int translate[MAXTILETYPES]; /* for converting colors */
-   int paused=0, errorc=0, errors=0, sampling=0;
-   int export_mode=0, export_flake_n=1, export_movie_n=1, export_movie=0; 
-   FILE *export_fp=NULL;
-   int update_rate=10000;
-   static char *progname;
-   char stringbuffer[256];
-   char tileset_name[256];
-   int testing = 0;
-   int initial_rc = 1;
-   int *present_list=NULL;
-   int present_list_len=0;
-   int untiltiles=0,untiltilescount=0;
+
+long int translate[MAXTILETYPES]; /* for converting colors */
+int paused=0, errorc=0, errors=0, sampling=0;
+int export_mode=0, export_flake_n=1, export_movie_n=1, export_movie=0; 
+FILE *export_fp=NULL;
+int update_rate=10000;
+static char *progname;
+char stringbuffer[256];
+char tileset_name[256];
+int testing = 0;
+int initial_rc = 1;
+int *present_list=NULL;
+int present_list_len=0;
+int untiltiles=0,untiltilescount=0;
 
 
-   /* various window stuff */
-   Display *display;
-   int screen;
-   Window window,quitbutton,pausebutton,playground,
+/* various window stuff */
+Display *display;
+int screen;
+Window window,quitbutton,pausebutton,playground,
    restartbutton,colorbutton,sidebutton,flakebutton,seedbutton,tempbutton, 
    fissionbutton, samplebutton, exportbutton,cleanbutton;
 GC gc, gcr, gccolor;
@@ -315,7 +316,7 @@ int darkcolor,lightcolor,black,white,
 char *tile_colors[MAXTILETYPES]={ "black",
    "blue",      "red",      "green",      "yellow", "gold",   "purple", "white", 
    "dark blue", "dark red", "dark green", "wheat",  "orange", "cyan",   "light grey"};
-
+char *tile_names[MAXTILETYPES];
 
 /* simulation parameters */
 tube *tp; flake *fp; 
@@ -361,8 +362,9 @@ int updates_per_RC = 1000;
 int import=0; /* Are we importing flakes? */
 int import_flake_size = 0;
 int import_offset_i=0, import_offset_j=0;
+char font_selection_string[256] = "9x13";
 
-char newline[2];
+const char NEWLINE[2] = "\n\0";
 
 struct flake_param {
    int seed_i,seed_j,seed_n,N; double Gfc; FILE *import_from;  struct flake_param *next_param;
@@ -550,7 +552,8 @@ int parse_arg_line(char *arg)
    }
    else if (IS_ARG_MATCH(arg,"update_rate=")) 
       update_rate=MAX(1,MIN(atol(&arg[12]),10000000));
-   else if (IS_ARG_MATCH(arg,"tracefile=")) tracefp=fopen(strtok(&arg[10],newline), "a");
+   else if (IS_ARG_MATCH(arg, "tracefile="))
+      tracefp = fopen(strtok(&arg[10], NEWLINE), "a");
    else if (IS_ARG_MATCH(arg,"movie")) { export_mode=2; export_movie=1; }
    else if (IS_ARG_MATCH(arg,"tmax=")) tmax=atof(&arg[5]);
    else if (IS_ARG_MATCH(arg,"emax=")) emax=atoi(&arg[5]);
@@ -597,7 +600,8 @@ int parse_arg_line(char *arg)
    else if (IS_ARG_MATCH(arg,"fill_X=")) fill_X=atof(&arg[7]);
    else if (IS_ARG_MATCH(arg,"error_radius=")) error_radius=atof(&arg[13]);
    else if (IS_ARG_MATCH(arg,"repair_unique_T=")) { repair_unique_T=atof(&arg[15]); repair_unique=1; }
-   else if (IS_ARG_MATCH(arg,"datafile=")) datafp=fopen(strtok(&arg[9],newline), "a");
+   else if (IS_ARG_MATCH(arg, "datafile="))
+      datafp = fopen(strtok(&arg[9], NEWLINE), "a");
    else if (IS_ARG_MATCH(arg,"largeflakedatafile=")) {
       char *c;
       c =strchr(arg,',') + 1;
@@ -607,8 +611,10 @@ int parse_arg_line(char *arg)
    else if (IS_ARG_MATCH(arg,"untiltilescountfile=")) {
       untiltilescountfp=fopen(&arg[20], "a");
    }
-   else if (IS_ARG_MATCH(arg,"arrayfile=")) arrayfp=fopen(strtok(&arg[10],newline), "w");
-   else if (IS_ARG_MATCH(arg,"exportfile=")) export_fp=fopen(strtok(&arg[11],newline), "w");
+   else if (IS_ARG_MATCH(arg, "arrayfile="))
+      arrayfp = fopen(strtok(&arg[10], NEWLINE), "w");
+   else if (IS_ARG_MATCH(arg, "exportfile="))
+      export_fp = fopen(strtok(&arg[11], NEWLINE), "w");
    else if (strncmp(arg,"testing",7) == 0) {
       testing = 1;
    }
@@ -639,19 +645,37 @@ int parse_arg_line(char *arg)
        */
       fparam->seed_i = fparam->seed_j = size / 2;
       fparam->seed_n = 1;
-      /* It's easier to use characters here than fight cvs's varying
-	 habits with non-alphabetic characters */
-      newline[0] = 10;
-      newline[1] = 0;
-      if (IS_ARG_MATCH(arg,"importfile=")) {
-	 char imp_fn[256], *arg_fn;
-	 import_fp = fopen(arg_fn=strtok(p,newline), "r");
-	 if (import_fp == NULL) { sprintf(&imp_fn[0],"%s",arg_fn); import_fp = fopen(&imp_fn[0],"r"); }
-	 if (import_fp == NULL) { sprintf(&imp_fn[0],"%s.seed",arg_fn); import_fp = fopen(&imp_fn[0],"r"); }
-	 if (import_fp == NULL) { sprintf(&imp_fn[0],"tilesets/%s",arg_fn); import_fp = fopen(&imp_fn[0],"r"); }
-	 if (import_fp == NULL) { sprintf(&imp_fn[0],"tilesets/%s.seed",arg_fn); import_fp = fopen(&imp_fn[0],"r"); }
-      } else {
-	 import_fp = fopen("xgrow_export_output", "r");
+
+      if (IS_ARG_MATCH(arg, "importfile="))
+      {
+         char imp_fn[512], *arg_fn;
+         import_fp = fopen(arg_fn = strtok(p, NEWLINE), "r");
+         if (import_fp == NULL)
+         {
+            snprintf(&imp_fn[0], 512, "%s", arg_fn);
+            import_fp = fopen(&imp_fn[0], "r");
+         }
+         if (import_fp == NULL)
+         {
+            snprintf(&imp_fn[0], 512, "%s.seed", arg_fn);
+            import_fp = fopen(&imp_fn[0], "r");
+         }
+         char *tileset_dir;
+         tileset_dir = dirname(tileset_name);
+         if (import_fp == NULL)
+         {
+            snprintf(&imp_fn[0], 512, "%s/%s", tileset_dir, arg_fn);
+            import_fp = fopen(&imp_fn[0], "r");
+         }
+         if (import_fp == NULL)
+         {
+            snprintf(&imp_fn[0], 512, "%s/%s.seed", tileset_dir, arg_fn);
+            import_fp = fopen(&imp_fn[0], "r");
+         }
+      }
+      else
+      {
+         import_fp = fopen("xgrow_export_output", "r");
       }
       /* If the file does not exist. */
       if (import_fp == NULL) 
@@ -660,13 +684,16 @@ int parse_arg_line(char *arg)
 	 return -1;
       }
       fparam->import_from = import_fp;
-      if ((p = strtok(NULL, newline)) != NULL)
+      if ((p = strtok(NULL, NEWLINE)) != NULL)
 	 fparam->Gfc=atof(p);
       else
 	 fparam->Gfc=0;
       fparam->N = count_flakes(import_fp);
    }
    else if (IS_ARG_MATCH(arg,"min_strength=")) {min_strength=atof(&arg[13]);}
+   else if (IS_ARG_MATCH(arg,"font=")) { 
+         strcpy(font_selection_string, strtok(&arg[5], "\n\0"));
+   }
    else {
       fprintf(stderr,"Could not parse argument '%s'\n",arg); 
       return -1;
@@ -731,10 +758,9 @@ void read_tilefile(FILE *tilefp)
 	 if (s[strlen(s)-1]=='}') { ungetc('}',tilefp); s[strlen(s)-1]=0; }
 	 if (strlen(s)==0)
 	 { fprintf(stderr,"Reading tile file: expected binding type %d name.\n",i); exit(-1); }
-	 btnames[i]=malloc(strlen(s)); strcpy(btnames[i],s); rsc;
+	 btnames[i]=strdup(s); rsc;
 	 if (index("0123456789",btnames[i][0])!=NULL)
 	 { fprintf(stderr,"Reading tile file: binding type %d name ('%s') cannot begin with 0-9.\n",i,s); exit(-1); }
-	 // printf("read bond type %d name = '%s'\n",i,btnames[i]);
       } rsc;
       r=0; fscanf(tilefp,"}%n",&r); rsc;
       if (r!=1) { fprintf(stderr,"Reading tile file: expected binding type names }.\n"); exit(-1); }
@@ -779,6 +805,10 @@ void read_tilefile(FILE *tilefp)
       if (fscanf(tilefp,"(%200[^)])",&stringbuffer[0])) {
 	 tile_colors[i]=(char *)malloc(strlen(stringbuffer)+2);
 	 strcpy(tile_colors[i],stringbuffer);
+      }
+      if (fscanf(tilefp,"<%200[^>]>",&stringbuffer[0])) {
+         tile_names[i]=(char *)malloc(strlen(stringbuffer)+2);
+         strcpy(tile_names[i],stringbuffer);
       }
       fscanf(tilefp,"\n"); rsc;
    }
@@ -941,13 +971,13 @@ void getargs(int argc, char **argv)
    seed_i=250; seed_j=250; seed_n=1; hydro=0;
 
 
-   // reset tile colors that haven't been assigned
+   // reset tile colors and names that haven't been assigned
    for (i=15; i<MAXTILETYPES; i++) tile_colors[i]=NULL;
+   for (i=0; i<MAXTILETYPES; i++) tile_names[i]=NULL;
+
 
    if      ( (sprintf(&tileset_name[0],"%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
    else if ( (sprintf(&tileset_name[0],"%s.tiles",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
-   else if ( (sprintf(&tileset_name[0],"tilesets/%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
-   else if ( (sprintf(&tileset_name[0],"tilesets/%s.tiles",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
    else {
       printf("* First argument must be a tile file!\nTry 'xgrow --' for help.\n");
       exit(0);   
@@ -1000,8 +1030,6 @@ void getargs(int argc, char **argv)
    NROWS=(size+NBDY*2);
    NCOLS=(size+NBDY*2);
    VOLUME=(NROWS*NCOLS);
-   WINDOWWIDTH=(MAX(block*NCOLS,256)+PLAYLEFT+BOUNDWIDTH+30);
-   WINDOWHEIGHT=(PLAYTOP+MAX(block*NROWS,256)+100);
 
    T=T*Gse;
 
@@ -1837,7 +1865,7 @@ void openwindow(int argc, char **argv)
       0x1f, 0xf8, 0x1f, 0xf8, 0x1f, 0xf8, 0x1f, 0xf8, 0x1f, 0xf8, 0xff, 0xff,
       0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
-   window_name=(char *) malloc(256);
+   window_name=(char *) malloc(256+10);
    sprintf(window_name,"xgrow: %s",tileset_name);
 
    /* open up the display */
@@ -1846,6 +1874,31 @@ void openwindow(int argc, char **argv)
 	 progname,XDisplayName(display_name));
    exit(-1);
    }
+
+   /* In order, we try here:
+      1. Any user-specified font (set by font=), which is done via font_selection_string.
+         If the user didn't specify anything, this has a default values as well (9x15).
+      2. 6x13.
+
+      This might seem old-fashioned, but on modern systems, bitmap font availability is
+      actually getting smaller and less standardized. */
+   if ((font = XLoadQueryFont(display, font_selection_string)) == NULL)
+   {
+      fprintf(stderr, "%s: Cannot open %s font\n", progname, font_selection_string);
+      if ((font = XLoadQueryFont(display, "6x13")) == NULL)
+      {
+         fprintf(stderr, "%s: Cannot open fallback 6x13 font\n", progname);
+         exit(-1);
+      }
+   }
+   font_height=font->ascent+font->descent;
+
+#define BUTTON_SEP font_height/2
+#define BUTTON_WIDTH font_height*6
+#define BUTTON_RIGHT_MARGIN (font_height*6 + 10)
+
+   WINDOWWIDTH=(MAX(block*NCOLS,256)+PLAYLEFT+BOUNDWIDTH);
+   WINDOWHEIGHT=(PLAYTOP+MAX(block*NROWS,256)+100);
 
    screen=DefaultScreen(display);
    depth=DefaultDepth(display,screen);
@@ -1927,32 +1980,32 @@ void openwindow(int argc, char **argv)
    }
 #endif
 
-
    /* make the buttons */
+   i=0;
    quitbutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-124,120,20,2,black,darkcolor);
-   restartbutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-150,120,20,2,black,darkcolor);
-   cleanbutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-176,120,20,2,black,darkcolor);
-   seedbutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-202,120,20,2,black,darkcolor);
-   fissionbutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-228,120,20,2,black,darkcolor);
-   tempbutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-254,120,20,2,black,darkcolor);
-   flakebutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-280,120,20,2,black,darkcolor);
-   samplebutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-306,120,20,2,black,darkcolor);
-   exportbutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-332,120,20,2,black,darkcolor);
-   pausebutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-358,120,20,2,black,darkcolor);
-   colorbutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-384,120,20,2,black,darkcolor);
-   sidebutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-140,WINDOWHEIGHT-410,120,20,2,black,darkcolor);
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN,WINDOWHEIGHT-124,BUTTON_WIDTH,font_height + 4,2,black,darkcolor); i++;
+   restartbutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   cleanbutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   seedbutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   fissionbutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   tempbutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   flakebutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   samplebutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   exportbutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   pausebutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   colorbutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+   sidebutton=XCreateSimpleWindow(display, window,
+	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
    playground=XCreateSimpleWindow(display,window,
 	 PLAYLEFT,PLAYTOP,block*NCOLS,block*NROWS,2,translate[4],white);
 
@@ -1978,16 +2031,6 @@ void openwindow(int argc, char **argv)
    event_mask=ButtonReleaseMask|ButtonPressMask|PointerMotionHintMask
       |ButtonMotionMask; 
    XSelectInput(display,playground,event_mask);
-
-   /* pick font: 9x15 is supposed to almost always be there */
-   if ((font=XLoadQueryFont(display,"9x15"))==NULL) {
-      if ((font=XLoadQueryFont(display,"6x13"))==NULL)
-      {
-	 fprintf(stderr,"%s: Cannot open 9x15 or 6x13 font\n",progname);
-	 exit(-1);
-      }
-   }
-   font_height=font->ascent+font->descent;
 
    /* make graphics contexts: 
       gc for black on white (actually, lightcolor)
@@ -2069,6 +2112,22 @@ void cleanup()
    XDestroyImage(spinimage); 
    exit(1);
 } 
+
+
+
+void identify(int x, int y)
+{
+   int i, j, t;
+   i = MIN(MAX(0, y - 2), size - 1);
+   j = MIN(MAX(0, x - 2), size - 1);
+   t = fp->Cell(i, j);
+   sprintf(stringbuffer, "([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
+                         "%s #%d = {%d %d %d %d} at (%d,%d)              ",
+           1000000.0 * 20.0 * exp(-Gmc), 4000 / (Gse / 5 + 11) - 273.15,
+           (tile_names[t] != NULL) ? tile_names[t] : "tile", t, tp->tileb[t][0], tp->tileb[t][1], tp->tileb[t][2], tp->tileb[t][3], i, j);
+   XDrawImageString(display, window, gc, 5, 3 * font_height,
+                    stringbuffer, strlen(stringbuffer));
+}
 
 
 int main(int argc, char **argv)
@@ -2258,14 +2317,8 @@ int main(int argc, char **argv)
 		  x=report.xbutton.x/block;
 		  y=report.xbutton.y/block;
 		  b=report.xbutton.button;
-		  if (mousing==0) { int i,j,t;
-		     i=MIN(MAX(0,y-2),size-1); j=MIN(MAX(0,x-2),size-1); t=fp->Cell(i,j);
-		     sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
-			   "tile #%d = {%d %d %d %d} at (%d,%d)           ",
-			   1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15,
-			   t,tp->tileb[t][0],tp->tileb[t][1],tp->tileb[t][2],tp->tileb[t][3],i,j);
-		     XDrawImageString(display,window,gc,5,2*font_height,
-			   stringbuffer,strlen(stringbuffer));
+		  if (mousing==0) { /* identify while moving around */
+           identify(x, y);
 		  }
 		  if (mousing==3) {
 		     /* was sketch(x,y,b); now change Gse & Gmc */
@@ -2330,11 +2383,10 @@ int main(int argc, char **argv)
 	       mousing=0; 
 	       break;
 	       case ButtonPress:
-	       if (report.xbutton.window==quitbutton) {
-		  // force regular immediate exit by setting smax to current size
-		  smax=tp->stat_a-tp->stat_d;
-		  // (was cleanup(); but this circumvented datafile output, etc.)
-	       } else if (report.xbutton.window==pausebutton) {
+	       if (report.xbutton.window == quitbutton) {
+             closeargs();  // This cleans up and exports things if instructed.
+             exit(0);
+          } else if (report.xbutton.window==pausebutton) {
 		  setpause(1-paused); repaint(); 
 	       } else if (report.xbutton.window==restartbutton) {
 		  free_tube(tp); 
@@ -2485,17 +2537,12 @@ int main(int argc, char **argv)
 		     mousing=3; showphase();
 		  } else if (b==2) { // "puncture"
 		     mousing=1; clear_x=x; clear_y=y;  /* prepare to clear a region */
-		  } else if (b==1) { // "identify"
-		     int i,j,t;
-		     i=MIN(MAX(0,y-2),size-1); j=MIN(MAX(0,x-2),size-1); t=fp->Cell(i,j);
-		     sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
-			   "tile #%d = {%d %d %d %d} at (%d,%d)           ",
-			   1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15,
-			   t,tp->tileb[t][0],tp->tileb[t][1],tp->tileb[t][2],tp->tileb[t][3],i,j);
-		     XDrawImageString(display,window,gc,5,2*font_height,
-			   stringbuffer,strlen(stringbuffer));
 		  }
-	       }
+        else if (b == 1)
+        { // "identify"
+         identify(x, y);
+        }
+          }
 	       else {
 		  /*  what here ?  */
 	       }
@@ -2509,6 +2556,3 @@ int main(int argc, char **argv)
    closeargs();
    return 0;
 } /* end of main */
-
-
-

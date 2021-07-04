@@ -7,7 +7,7 @@ import pandas as pd
 
 def load_array_file(
     fn: str, onlytiles: bool = False
-) -> dict[str, Union[np.ndarray, pd.Series[float]]]:
+) -> dict[str, Union[np.ndarray, pd.Series]]:
 
     s = open(fn, "rb").read()
     s = re.sub(
@@ -61,7 +61,7 @@ def load_trace_file(fn: str) -> pd.DataFrame:
     return data
 
 
-def load_data_file(fn: str) -> pd.Series[float]:
+def load_data_file(fn: str) -> pd.Series:
     data = pd.Series(
         np.genfromtxt(fn),
         index=[

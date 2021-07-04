@@ -13,6 +13,9 @@ _XGROW_BINARY = re.sub(r" ", r"\ ", os.path.join(os.path.dirname(__file__), "_xg
 
 
 def _process_outputs(output_files: dict[OutputOpts, str]) -> dict[OutputOpts, Any]:
+    if not output_files:
+        return {}
+
     from . import parseoutput
 
     outputs: dict[OutputOpts, Any] = {}
@@ -356,9 +359,9 @@ def run(
 
         xgs += f"\nimportfile={importfile.name}\n"
 
-        r = run_old(xgs, outputopts=outputopts, process_info=process_info)
+    r = run_old(xgs, outputopts=outputopts, process_info=process_info)
 
-        if importfile:
-            os.unlink(importfile.name)
+    if importfile:
+        os.unlink(importfile.name)
 
-        return r
+    return r
