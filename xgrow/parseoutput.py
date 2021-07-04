@@ -1,17 +1,21 @@
 import re
-from typing import Union
+from typing import Any, Union
 import numpy as np
-from io import BytesIO as StringIO
+from io import BytesIO
 import pandas as pd
 
 
-def load_array(xgrowstring, onlytiles=False) -> dict[str, Union[np.ndarray, pd.Series]]:
+def load_array_file(fn: str, 
+               onlytiles: bool = False) -> dict[str, 
+               Union[np.ndarray, pd.Series[float]]]:
+
+    s = open(fn, 'rb').read()
+    s = re.sub(rb'(\[|\])', b'',   # remove [ and ]
+            re.sub(rb'; \.\.\.', b'',  # remove ; ... at line ends
+            s))
+
     tiles = np.genfromtxt(
-        StringIO(
-            (re.sub(r'(\[|\])', '',   # remove [ and ]
-             re.sub(r'; \.\.\.', '',  # remove ; ... at line ends
-                    xgrowstring))
-             ).encode()),
+        BytesIO(s),
         skip_header=4,                # remove first lines
         skip_footer=1,                # remove end junk
         dtype='uint'
@@ -19,32 +23,32 @@ def load_array(xgrowstring, onlytiles=False) -> dict[str, Union[np.ndarray, pd.S
     if onlytiles:
         return tiles
     data = pd.Series(
-        np.genfromtxt(StringIO((xgrowstring.split('\n')[2]).encode()))[1:-1],
+        np.genfromtxt(BytesIO((s.split(b"\n")[2])))[1:-1],
         index=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches', 'events',
                'perimeter', 'g', 'dgbonds'])
     return {'data': data, 'tiles': tiles}
 
 
-def load_trace(s) -> pd.DataFrame:
+def load_trace_file(fn: str) -> pd.DataFrame:
     data = pd.DataFrame(
-        np.genfromtxt(StringIO(s.encode())),
+        np.genfromtxt(fn),
         columns=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches', 'events',
                  'perimeter', 'g', 'dgbonds'])
     return data
 
 
-def load_data(s) -> pd.Series:
+def load_data_file(fn: str) -> pd.Series[float]:
     data = pd.Series(
-        np.genfromtxt(StringIO(s.encode())),
+        np.genfromtxt(fn),
         index=['gmc', 'gse', 'k', 'time', 'tiles', 'mismatches', 'events',
                'perimeter', 'g', 'dgbonds'])
     return data
 
 
-def show_array(a, ts, **kwargs):
+def show_array(a: np.ndarray, ts: dict[str, Any], **kwargs: dict[str, Any]):
     import matplotlib.pyplot as plt
     import matplotlib.colors as colors
-    from alhambra.tilestructures import xcolors  # FIXME:  put in here!
+    from .xcolors import xcolors  # FIXME:  put in here!
     mcolors = {n: tuple(z / 255.0 for z in eval(x[3:]))
                for n, x in xcolors.items()}
     cmap = colors.ListedColormap(['black'] + [mcolors[x['color']]  # type: ignore
