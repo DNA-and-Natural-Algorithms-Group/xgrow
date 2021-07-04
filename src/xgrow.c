@@ -256,25 +256,14 @@ the file.  (compatibility with existing xgrow tile files must be maintained.)
    /* NCOLS should be a multiple of bytes per long word (BPW) */
    /* THIS is for X bitmap stuff, so add total 4 for boundary */
 # define NBDY 2
-   /* THESE BECOME VARIABLES, NOW THAT FIELD SIZE IS VARIABLE 
-# define NROWS (256+NBDY*2)
-# define NCOLS (256+NBDY*2)
-# define VOLUME (NROWS*NCOLS)
 
-# define WINDOWWIDTH (block*NCOLS+PLAYLEFT+BOUNDWIDTH+20)
-# define WINDOWHEIGHT (PLAYTOP+block*NROWS+10)
-*/
-# define PLAYTOP font_height*7
-# define PLAYLEFT 10
-# define BOUNDHEIGHT 80
-# define LATTICEHEIGHT 60
-# define BOUNDWIDTH  (font_height*6 + 20)
-# define BARHEIGHT 45
-# define BARWIDTH  135
-# define BARTOP 55
-# define BARLEFT 4
-# define XHEIGHT 40
-# define NSIZE 42
+/* The max number of info lines printed at the top of the window,
+   for spacing purposes (will be multiplied by font_height). */
+# define NUM_INFO_LINES 6
+
+/* Aesthetic margin of image area. */
+# define PLAY_MARGIN 10
+
 #ifdef SMALL
 # define MAXTILETYPES 256
 #else
@@ -1832,15 +1821,8 @@ void repaint()
 	    stringbuffer,strlen(stringbuffer));
    }
 
-   XDrawString(display,window,gc,WINDOWWIDTH-150,WINDOWHEIGHT-65
-	 ," left: identify",15); 
-   XDrawString(display,window,gc,WINDOWWIDTH-150,WINDOWHEIGHT-45
-	 ,"middle:puncture",15); 
-   XDrawString(display,window,gc,WINDOWWIDTH-150,WINDOWHEIGHT-25
-	 ,"right: Gmc Gse ",15); 
-
-   XDrawString(display,window,gc,WINDOWWIDTH-190,WINDOWHEIGHT-5
-	 ,"EW, RS, CGE '98-'15",19); 
+   XDrawString(display, window, gc, PLAY_MARGIN, WINDOWHEIGHT - 2 - font->descent,
+               "left: identify, middle: puncture, right: Gmc/Gse | EW, RS, CGE '98-'21", 70);
 
    if (!sampling && fp) showpic(fp,errorc); 
    else XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
@@ -1891,14 +1873,24 @@ void openwindow(int argc, char **argv)
          exit(-1);
       }
    }
+
+   int throwaway;
+
+   XCharStruct maxchar;
+   XTextExtents(font, "EXPORT[MOVIE]", 13, &throwaway, &throwaway, &throwaway, &maxchar);
+
    font_height=font->ascent+font->descent;
 
-#define BUTTON_SEP font_height/2
-#define BUTTON_WIDTH font_height*6
-#define BUTTON_RIGHT_MARGIN (font_height*6 + 10)
 
-   WINDOWWIDTH=(MAX(block*NCOLS,256)+PLAYLEFT+BOUNDWIDTH);
-   WINDOWHEIGHT=(PLAYTOP+MAX(block*NROWS,256)+100);
+   // 4 is 2*BUTTON_BORDER
+   #define BUTTON_SEP (4 + (font_height / 3))
+   #define BUTTON_WIDTH (maxchar.width + 2)
+   #define BUTTON_HEIGHT (font_height + 4)
+   #define BOTTOM_MARGIN (font_height + 4)
+   #define BUTTON_BORDER 2
+
+   WINDOWWIDTH = (MAX(block * NCOLS, 256) + 3*PLAY_MARGIN + BUTTON_WIDTH);
+   WINDOWHEIGHT = (3 * PLAY_MARGIN + font_height * NUM_INFO_LINES + BOTTOM_MARGIN + MAX(MAX(block * NROWS, 256), 12*BUTTON_HEIGHT + 11*BUTTON_SEP));
 
    screen=DefaultScreen(display);
    depth=DefaultDepth(display,screen);
@@ -1980,34 +1972,34 @@ void openwindow(int argc, char **argv)
    }
 #endif
 
+
    /* make the buttons */
-   i=0;
+   i=1;
    quitbutton=XCreateSimpleWindow(display,window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN,WINDOWHEIGHT-124,BUTTON_WIDTH,font_height + 4,2,black,darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN,WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    restartbutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    cleanbutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    seedbutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    fissionbutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    tempbutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    flakebutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    samplebutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    exportbutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    pausebutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    colorbutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
    sidebutton=XCreateSimpleWindow(display, window,
-	 WINDOWWIDTH-BUTTON_RIGHT_MARGIN, WINDOWHEIGHT-124-i*(font_height + BUTTON_SEP), BUTTON_WIDTH, font_height + 4, 2, black, darkcolor); i++;
-   playground=XCreateSimpleWindow(display,window,
-	 PLAYLEFT,PLAYTOP,block*NCOLS,block*NROWS,2,translate[4],white);
+	 WINDOWWIDTH-BUTTON_WIDTH-PLAY_MARGIN, WINDOWHEIGHT-PLAY_MARGIN - BOTTOM_MARGIN - i*BUTTON_HEIGHT - (i-1)*BUTTON_SEP, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER, black, darkcolor); i++;
+   playground = XCreateSimpleWindow(display, window, PLAY_MARGIN, 2 * PLAY_MARGIN + NUM_INFO_LINES * font_height, block * NCOLS, block * NROWS, 2, translate[4], white);
 
    /* pick the events to look for */
    event_mask=ExposureMask|ButtonPressMask|StructureNotifyMask;
