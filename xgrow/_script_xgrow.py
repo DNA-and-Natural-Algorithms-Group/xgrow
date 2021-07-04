@@ -1,9 +1,10 @@
 import sys
 import re
+from typing import List
 import yaml
 from xgrow import xgrow
 
-__all__ = []
+__all__: List[str] = []
 
 TF_KEYS = ['wander', 'pause', 'movie', 'zero_bonds', 'window']
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import os
-from typing import Any, Literal, Optional, Sequence, Tuple, overload
+from typing import Any, Literal, Sequence, SupportsIndex, Tuple, cast, overload
 import tempfile
 import subprocess
 from subprocess import CompletedProcess
@@ -9,25 +9,26 @@ from .tileset import TileSet
 
 _DEFAULT_SIZE = 64
 
-_XGROW_BINARY = os.path.join(os.path.dirname(__file__), "_xgrow")
-_XGROW_BINARY = re.sub(r" ", r"\ ", _XGROW_BINARY)
+_XGROW_BINARY = re.sub(r" ", r"\ ", os.path.join(os.path.dirname(__file__), "_xgrow"))
 
 
-def _process_outputs(outputs: dict[OutputOpts, Any]) -> None:
+def _process_outputs(output_files: dict[OutputOpts, str]) -> dict[OutputOpts, Any]:
     from . import parseoutput
 
-    for key in outputs.keys():
+    outputs: dict[OutputOpts, Any] = {}
+    for key in output_files.keys():
         if key == "array":
-            outputs[key] = parseoutput.load_array(outputs[key])
+            outputs[key] = parseoutput.load_array_file(output_files[key])
         elif key == "trace":
-            outputs[key] = parseoutput.load_trace(outputs[key])
+            outputs[key] = parseoutput.load_trace_file(output_files[key])
         elif key == "data":
-            outputs[key] = parseoutput.load_data(outputs[key])
+            outputs[key] = parseoutput.load_data_file(output_files[key])
         else:
             raise ValueError("Output type {} is unknown.".format(key), key)
+    return outputs
 
 
-def run_raw(args: list[str], process_info=False) -> subprocess.CompletedProcess:
+def run_raw(args: list[str], process_info: bool = False) -> subprocess.CompletedProcess[str]:
     """
     Dealing with the binary path, just run xgrow, with an arbitrary `argstring`.
     This is primarily designed for situations where (a) the user wants to
@@ -53,7 +54,7 @@ def run_raw(args: list[str], process_info=False) -> subprocess.CompletedProcess:
             encoding="utf-8",
         )
     else:
-        return subprocess.run([_XGROW_BINARY] + args, shell=False)
+        return subprocess.run([_XGROW_BINARY] + args, shell=False, encoding="utf-8")
 
 
 OutputOpts = Literal["data", "array", "trace"]
@@ -62,38 +63,38 @@ OutputOpts = Literal["data", "array", "trace"]
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict = {},
-    outputopts: OutputOpts = None,
-    process_info: Literal[True] = True,
-) -> Tuple[Any, CompletedProcess]:
+    extraparams: dict[str, Any] = {}, *,
+    outputopts: OutputOpts,
+    process_info: Literal[True],
+) -> Tuple[Any, CompletedProcess[str]]:
     ...
 
 
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict = {},
-    outputopts: Sequence[OutputOpts] = None,
-    process_info: Literal[True] = True,
-) -> Tuple[dict[str, Any], CompletedProcess]:
+    extraparams: dict[str, Any] = {}, *,
+    outputopts: Sequence[OutputOpts],
+    process_info: Literal[True],
+) -> Tuple[dict[str, Any], CompletedProcess[str]]:
     ...
 
 
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict = {},
-    outputopts: None = None,
-    process_info: Literal[True] = True,
-) -> Tuple[None, CompletedProcess]:
+    extraparams: dict[str, Any] = {}, 
+    outputopts: None = None, *,
+    process_info: Literal[True],
+) -> Tuple[None, CompletedProcess[str]]:
     ...
 
 
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict = {},
-    outputopts: OutputOpts = None,
+    extraparams: dict[str, Any] = {}, *,
+    outputopts: OutputOpts,
     process_info: Literal[False] = False,
 ) -> Any:
     ...
@@ -102,8 +103,8 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict = {},
-    outputopts: Sequence[OutputOpts] = None,
+    extraparams: dict[str, Any] = {}, *,
+    outputopts: Sequence[OutputOpts],
     process_info: Literal[False] = False,
 ) -> dict[str, Any]:
     ...
@@ -112,7 +113,7 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict = {},
+    extraparams: dict[str, Any] = {},
     outputopts: None = None,
     process_info: Literal[False] = False,
 ) -> None:
@@ -122,7 +123,7 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict = {},
+    extraparams: dict[str, Any] = {},
     outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
     process_info: bool = False,
 ) -> Any:
@@ -131,7 +132,7 @@ def run_old(
 
 def run_old(
     tilestring: str,
-    extraparams: dict = {},
+    extraparams: dict[str, Any] = {},
     outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
     process_info: bool = False,
 ) -> Any:
@@ -163,11 +164,11 @@ def run_old(
     # Create necessary temp files:
     tileset_file = tempfile.NamedTemporaryFile(delete=False, mode="w", newline="\n")
 
+    if isinstance(outputopts, str):
+        outputopts = [outputopts]  # type: ignore
     if outputopts is None:
         outputopts = []
-    elif isinstance(outputopts, str):
-        outputopts = [outputopts]  # type: ignore
-    output_files = {
+    output_files: dict[OutputOpts, str] = {
         output_type: tempfile.mktemp(prefix=f"tmp_xgrow_{output_type}")
         for output_type in outputopts
     }  # type: ignore
@@ -194,102 +195,96 @@ def run_old(
             ret,
             args,
             tileset_file.name,
-            {t: f for t, f in output_files.values()},
+            list(output_files.values()),
         )
 
     os.unlink(tileset_file.name)
 
-    output = {}
-    for output_type, output_file in output_files.items():
-        with open(output_file, "r") as output_file_reopened:
-            output[output_type] = output_file_reopened.read()
+    output = _process_outputs(output_files)
+    for output_file in output_files.values():
         os.unlink(output_file)
 
-    _process_outputs(output)
-
-    if not output:
-        output = None
     if len(outputopts) == 1:  # type: ignore
         output = output[outputopts[0]]  # type: ignore
 
     if not process_info:
-        return output
+        return output if output else None
     else:
-        return output, ret
+        return (output if output else None), ret
 
 
 @overload
 def run(
-    tileset: dict | TileSet,
-    extraparams: dict,
-    outputopts: None = None,
-    process_info: Literal[True] = True,
-    **kwargs,
-) -> Tuple[None, subprocess.CompletedProcess]:
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any] = {},
+    outputopts: None = None, *,
+    process_info: Literal[True],
+    **kwargs: dict[str, Any],
+) -> Tuple[None, subprocess.CompletedProcess[str]]:
     ...
 
 
 @overload
 def run(
-    tileset: dict | TileSet,
-    extraparams: dict,
-    outputopts: OutputOpts = None,
-    process_info: Literal[True] = True,
-    **kwargs,
-) -> Tuple[Any, subprocess.CompletedProcess]:
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any] = {}, *,
+    outputopts: OutputOpts,
+    process_info: Literal[True],
+    **kwargs: dict[str, Any],
+) -> Tuple[Any, subprocess.CompletedProcess[str]]:
     ...
 
 
 @overload
 def run(
-    tileset: dict | TileSet,
-    extraparams: dict,
-    outputopts: Sequence[OutputOpts] = None,
-    process_info: Literal[True] = True,
-    **kwargs,
-) -> Tuple[dict, subprocess.CompletedProcess]:
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any], *,
+    outputopts: Sequence[OutputOpts],
+    process_info: Literal[True],
+    **kwargs: dict[str, Any],
+) -> Tuple[dict[str, Any], subprocess.CompletedProcess[str]]:
     ...
 
 
 @overload
 def run(
-    tileset: dict | TileSet,
-    extraparams: dict = {},
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any] = {},
     outputopts: None = None,
     process_info: Literal[False] = False,
-    **kwargs,
+    **kwargs: dict[str, Any],
 ) -> None:
     ...
 
 
 @overload
 def run(
-    tileset: dict | TileSet,
-    extraparams: dict = {},
-    outputopts: OutputOpts = None,
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any] = {}, *,
+    outputopts: OutputOpts,
     process_info: Literal[False] = False,
-    **kwargs,
+    **kwargs: dict[str, Any],
 ) -> Any:
     ...
 
 
 @overload
 def run(
-    tileset: dict | TileSet,
-    extraparams: dict = {},
-    outputopts: Sequence[OutputOpts] = None,
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any] = {}, *,
+    outputopts: Sequence[OutputOpts],
     process_info: Literal[False] = False,
-    **kwargs,
+    **kwargs: dict[str, Any],
 ) -> dict[str, Any]:
     ...
 
 
 def run(
-    tileset: dict | TileSet,
-    extraparams: dict = {},
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any] = {},
     outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
     process_info: bool = False,
-    **kwargs,
+    **kwargs: dict[str, Any],
 ) -> Any:
     """Given a tileset (class or dict), and a dictionary of extra parameters,
     run xgrow, potentially with particular managed output options.  This
@@ -327,20 +322,20 @@ def run(
     if not isinstance(tileset, TileSet):
         tileset = TileSet.from_dict(tileset)
 
-    ep = dict(**extraparams, **kwargs)
+    ep: dict[str, Any] = dict(**extraparams, **kwargs)
 
     xgs, tilenums = tileset.to_xgrow(extraparams=ep, return_tilenums=True)
 
     importfile = None
 
     if tileset.initstate is not None:
-        size = ep.get("size", None) or tileset.xgrowargs.size or _DEFAULT_SIZE
+        size = int(cast(SupportsIndex, ep.get("size", None))) or tileset.xgrowargs.size or _DEFAULT_SIZE
 
         assert tileset.xgrowargs.importfile is None
 
         importfile = tempfile.NamedTemporaryFile("w", delete=False, newline="\n")
 
-        tileset.initstate.to_importfile(size, tilenums, importfile.file)
+        tileset.initstate.to_importfile(size, tilenums, importfile.file)  # type: ignore
         importfile.close()
 
         xgs += f"\nimportfile={importfile.name}\n"
