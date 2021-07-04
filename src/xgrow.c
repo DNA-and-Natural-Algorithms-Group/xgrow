@@ -755,7 +755,7 @@ void read_tilefile(FILE *tilefp)
       if (r!=1) { fprintf(stderr,"Reading tile file: expected binding type names }.\n"); exit(-1); }
    }
 
-   r=0; fscanf(tilefp,"tile edges=%n",&r); rsc; //printf("r=%d\n",r);
+   r=0; fscanf(tilefp,"tile edges=%n",&r); rsc; //fprintf(stderr, "r=%d\n",r);
    if (r!=11) { fprintf(stderr,"Reading tile file: expected `tile edges=' declaration.\n"); exit(-1); }
    tileb_length = N+1;
    tileb = (int**) calloc(sizeof(int*),tileb_length);
@@ -803,9 +803,9 @@ void read_tilefile(FILE *tilefp)
    }
    r=0; fscanf(tilefp,"}%n",&r); rsc; 
    if (r!=1) { fprintf(stderr,"Reading tile file: expected tile set end }.\n"); exit(-1); }
-   // printf("Tile set loaded (%d tiles)\n",N);
+   // fprintf(stderr, "Tile set loaded (%d tiles)\n",N);
    // for (i=1;i<tileb_length;i++) {
-   //   for (j=0;j<4;j++) printf("%d ",tileb[i][j]); printf("\n");
+   //   for (j=0;j<4;j++) fprintf(stderr, "%d ",tileb[i][j]); fprintf(stderr, "\n");
    // }
 
 
@@ -831,7 +831,7 @@ void read_tilefile(FILE *tilefp)
 	 if (1!=fscanf(tilefp,"%g",&strength_float))
 	 { fprintf(stderr,"Reading tile file: expected binding strength %d value.\n",i); exit(-1); }
 	 strength[i]=(double)strength_float;
-	 // printf("strength for se #%d = %g\n",i,strength[i]);
+	 // fprintf(stderr, "strength for se #%d = %g\n",i,strength[i]);
       } rsc;
       r=0; fscanf(tilefp,"}%n",&r); rsc;
       if (r!=1) { fprintf(stderr,"Reading tile file: expected binding strength defs }.\n"); exit(-1); }
@@ -844,8 +844,8 @@ void read_tilefile(FILE *tilefp)
       glue[n][m] = (double) glue_float;
       glue[m][n] = (double) glue_float;
    } ungetc(temp_char, tilefp); rsc;
-   // printf("Bond strengths loaded (%d bond types)\n",num_bindings);
-   // for (i=1;i<=num_bindings;i++) printf("%f ",strength[i]); printf("\n");
+   // fprintf(stderr, "Bond strengths loaded (%d bond types)\n",num_bindings);
+   // for (i=1;i<=num_bindings;i++) fprintf(stderr, "%f ",strength[i]); fprintf(stderr, "\n");
 
    rsc;
    while(fgets(&stringbuffer[0],256,tilefp)!=NULL) {
@@ -869,7 +869,7 @@ void getargs(int argc, char **argv)
    gettimeofday(&tv, NULL); srand48(tv.tv_usec); srandom(tv.tv_usec);
    /* NOTE: Disabled to allow compilation on 64-bit systems; doesn't seem to cause problems. (cge, 091028)
       if (sizeof(long) != 4) {
-      printf("Error: sizeof long (%d) should be 4\n", (int)sizeof(long int));
+      fprintf(stderr, "Error: sizeof long (%d) should be 4\n", (int)sizeof(long int));
       exit(-1);
       }
       */
@@ -948,7 +948,7 @@ void getargs(int argc, char **argv)
       exit (0);
    }
    if (argc == 1) {
-      printf("* First argument must be a tile file!\nTry 'xgrow --' for help.\n");
+      fprintf(stderr, "* First argument must be a tile file!\nTry 'xgrow --' for help.\n");
       exit(1);
    }
 
@@ -968,36 +968,36 @@ void getargs(int argc, char **argv)
    if      ( (sprintf(&tileset_name[0],"%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
    else if ( (sprintf(&tileset_name[0],"%s.tiles",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
    else {
-      printf("* First argument must be a tile file!\nTry 'xgrow --' for help.\n");
-      exit(0);   
+      fprintf(stderr, "* First argument must be a tile file!\nTry 'xgrow --' for help.\n");
+      exit(1);   
    }
 
    for (i=2; i<argc; i++) {
       parse_arg_line(argv[i]);
    }
    if (tmax==0 && emax==0 && smax==0 && mmax==0 && fsmax==0 && smin==-1) {
-     printf("No max setting: forcing UI mode.\n");
+     fprintf(stderr, "No max setting: forcing UI mode.\n");
      XXX=1;
    }
    if (hydro && fission_allowed==2) {
-      printf("* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(0);
+      fprintf(stderr, "* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(1);
    }
    if (double_tiles || vdouble_tiles) {
       //if (fission_allowed != 0) {
-      //printf("Double tiles cannot be used with fission or chunk_fission currently.\n");
+      //fprintf(stderr, "Double tiles cannot be used with fission or chunk_fission currently.\n");
       //exit(0);
       //}
       if (hydro) {
-	 printf("Double tiles cannot be used with hydrolysis currently.\n");
-	 exit(0);
+	 fprintf(stderr, "Double tiles cannot be used with hydrolysis currently.\n");
+	 exit(1);
       }
       if (fill_cycles || repair_unique) {
-	 printf("Double tiles cannot be used with repair or fill cycles currently.\n");
-	 exit(0);
+	 fprintf(stderr, "Double tiles cannot be used with repair or fill cycles currently.\n");
+	 exit(1);
       }
       if (blast_rate > 0) {
-	 printf("Blasting cannot be used with double tiles currently.\n");
-	 exit(0);
+	 fprintf(stderr, "Blasting cannot be used with double tiles currently.\n");
+	 exit(1);
       }
    }
 
@@ -1009,10 +1009,10 @@ void getargs(int argc, char **argv)
    //}
 
    if (blast_rate_alpha>0) { int kb;
-      printf("blast_rate: alpha = %f, beta = %f, gamma = %f\n",blast_rate_alpha,blast_rate_beta,blast_rate_gamma);
+      fprintf(stderr, "blast_rate: alpha = %f, beta = %f, gamma = %f\n",blast_rate_alpha,blast_rate_beta,blast_rate_gamma);
       for (kb=1; kb<size; kb++)  
 	 blast_rate += blast_rate_alpha * exp(-blast_rate_gamma*(kb-1)) / pow(kb*1.0,blast_rate_beta) ;
-      printf("total blast_rate per site = %f\n",blast_rate);
+      fprintf(stderr, "total blast_rate per site = %f\n",blast_rate);
    }
 
 
@@ -1108,7 +1108,7 @@ void write_flake(FILE *filep, char *mode, flake *fp)
 void export_flake(char *mode, flake *fp)
 {
    if (export_fp==NULL) export_fp=fopen("xgrow_export_output","a+");
-   printf("Writing flake #%d...\n",export_flake_n);
+   fprintf(stderr, "Writing flake #%d...\n",export_flake_n);
    write_flake(export_fp, mode, fp);
    fflush(export_fp);
 }
@@ -1157,7 +1157,7 @@ int count_flakes(FILE *flake_file)
    while (1)
    {
       fscanf(flake_file, "%s", line);  
-      // printf("Just read in loop near line %d: %s\n", lnum, line); //****
+      // fprintf(stderr, "Just read in loop near line %d: %s\n", lnum, line); //****
       if (strcmp(line, "...")==0) /* then we've reached the end of the line */
       {
 	 break; lnum++;
@@ -1217,7 +1217,7 @@ int count_flakes(FILE *flake_file)
    while (end==1)
    {
       /* For debugging */
-      printf("Reading flake number: %d\n", n); //****
+      fprintf(stderr, "Reading flake number: %d\n", n); //****
 
       /* Run through the parameters, waiting for ],... to appear twice. */
       for(i = 0; i < 2; i++)
@@ -1234,7 +1234,7 @@ int count_flakes(FILE *flake_file)
 	 exit(-1);      
       }
 
-      printf(" skipped param lines\n"); 
+      fprintf(stderr, " skipped param lines\n"); 
       fscanf(flake_file, "%s", line);  lnum+=3;
       assert(strcmp(line, "[")==0);
       for(row = 1; row <= flake_size; row++)
@@ -1604,7 +1604,7 @@ void add_sample_pic(flake *fp, int err) /* add sample the field */
    for (n=1; n<n_tries && (collision==1 || anything==0); n++) {
       di= random()%(2*size-1) - size;
       dj= random()%(2*size-1) - size;
-      //   printf("trying to place flake %d at %d %d\n", fp, di, dj);
+      //   fprintf(stderr, "trying to place flake %d at %d %d\n", fp, di, dj);
       collision=0; anything=0;
       for (row=0;row<size;row++)
 	 for (col=0;col<size;col++) { 
@@ -1617,7 +1617,7 @@ void add_sample_pic(flake *fp, int err) /* add sample the field */
 	 }
       anything = anything && (anything==fp->tiles);
    }
-   // if (n==n_tries)  printf("---GAVE UP---\n"); else printf("!!!SUCCESS!!!\n");
+   // if (n==n_tries)  fprintf(stderr, "---GAVE UP---\n"); else fprintf(stderr, "!!!SUCCESS!!!\n");
 
    if ( collision==0 ) {
       if (block>4) blocktop=block-1;  
@@ -2173,7 +2173,7 @@ int main(int argc, char **argv)
 
    if (XXX) openwindow(argc,argv);
 
-   /* printf("xgrow: tile set read, beginning simulation\n"); */
+   /* fprintf(stderr, "xgrow: tile set read, beginning simulation\n"); */
 
    /* set initial state */
    tp = init_tube(size_P,N,num_bindings);   
@@ -2252,13 +2252,13 @@ int main(int argc, char **argv)
    }
 
 
-   // printf("flake initialized, size_P=%d, size=%d\n",size_P,size);
+   // fprintf(stderr, "flake initialized, size_P=%d, size=%d\n",size_P,size);
 
    new_Gse=Gse; new_Gmc=Gmc;
    if (tracefp!=NULL) write_datalines(tracefp,"\n");
 
 
-   // printf("tmax=%f  emax=%d  smax=%d\n",tmax,emax,smax);
+   // fprintf(stderr, "tmax=%f  emax=%d  smax=%d\n",tmax,emax,smax);
 
    if (XXX) repaint();
 
@@ -2326,12 +2326,12 @@ int main(int argc, char **argv)
 		  if (!XQueryPointer(display,playground,
 			   &root,&child,&window_x,&window_y,
 			   &newx,&newy,&keys_buttons))
-		  {mousing=0; printf("Weird X feature\n"); }
+		  {mousing=0; fprintf(stderr, "Weird X feature\n"); }
 	       }
 	       break;
 	       case ButtonRelease:
 	       if (mousing==3) { // change Gmc, Gse w/ visual GUI
-		  printf("Changing Gmc -> %f, Gse -> %f \n", new_Gmc, new_Gse);
+		  fprintf(stderr, "Changing Gmc -> %f, Gse -> %f \n", new_Gmc, new_Gse);
 		  reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);
 		  if (Gfc>0) Gfc+=(new_Gmc-Gmc); 
 		  fprm=fparam;
@@ -2431,13 +2431,13 @@ int main(int argc, char **argv)
 		  y=report.xbutton.y;
 		  b=report.xbutton.button;
 		  if (x<50) {  // do a clean_flake cycle
-		     printf("Cleaning 1 cycle, clean_X=%f\n",clean_X);
+		     fprintf(stderr, "Cleaning 1 cycle, clean_X=%f\n",clean_X);
 		     clean_flake(fp,clean_X,1); 
 		  } else if (x<90) { // do a fill_flake cycle
-		     printf("Filling 1 cycle, fill_X=%f\n",fill_X);
+		     fprintf(stderr, "Filling 1 cycle, fill_X=%f\n",fill_X);
 		     fill_flake(fp,fill_X,1); 
 		  } else {
-		     printf("Repairing, uniqueness for T=%f\n",repair_unique_T);
+		     fprintf(stderr, "Repairing, uniqueness for T=%f\n",repair_unique_T);
 		     repair_flake(fp,repair_unique_T,Gse); 
 		  }
 		  repaint();           

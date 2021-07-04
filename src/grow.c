@@ -93,7 +93,7 @@ flake *init_flake(Trep P, Trep N,
 
    fp->P = P; fp->N = N; 
 
-   //  printf("Making flake %d x %d, %d tiles, seed=%d,%d,%d @ %6.2f\n",
+   //  fprintf(stderr, "Making flake %d x %d, %d tiles, seed=%d,%d,%d @ %6.2f\n",
    //         size,size,N,seed_i,seed_j,seed_n,Gfc);
 
    fp->cell = (Trep **)calloc_err(sizeof(Trep *),2+size);
@@ -158,15 +158,15 @@ flake *free_flake(flake *fp)
 /* for debugging purposes */
 void print_tree(flake_tree *ftp, int L, char s)
 { int i;
-   for (i=0;i<L;i++) printf(" ");
-   printf("node %d %c (%p): rate %g: L(%p) R(%p) U(%p)\n",
+   for (i=0;i<L;i++) fprintf(stderr, " ");
+   fprintf(stderr, "node %d %c (%p): rate %g: L(%p) R(%p) U(%p)\n",
          L,s,ftp,ftp->rate,
          ftp->left, ftp->right, ftp->up);
    if (ftp->left!=NULL) print_tree(ftp->left,L+1,'L');
    if (ftp->right!=NULL) print_tree(ftp->right,L+1,'R');
    if (ftp->left==NULL) { 
-      for (i=0;i<=L;i++) printf(" ");
-      printf("flake %d: %d tiles: tree_node(%p)\n",
+      for (i=0;i<=L;i++) fprintf(stderr, " ");
+      fprintf(stderr, "flake %d: %d tiles: tree_node(%p)\n",
             ftp->fp->flake_ID, ftp->fp->tiles, ftp->fp->tree_node);
    }
 }
@@ -331,7 +331,7 @@ void set_params(tube *tp, int** tileb, double* strength, double **glue, double* 
       tp->Gse = anneal_g;
    } else if (tp->seconds_per_C) {
       tp->Gse = (anneal_h - (tp->startC + 273) * anneal_s) / (k_b*(tp->startC + 273));
-      printf("Gse is %f\n",tp->Gse);
+      fprintf(stderr, "Gse is %f\n",tp->Gse);
    } else {
       tp->Gse = Gse;
    }
@@ -479,10 +479,10 @@ void reset_params(tube *tp, double old_Gmc, double old_Gse,
 
       for (fp=tp->flake_list; fp!=NULL; fp=fp->next_flake) {
          fp->flake_conc*=exp(-(new_Gmc-old_Gmc));
-         //    printf("\nPrior Params recalc_G(#%d)\n",fp->flake_ID);
+         //    fprintf(stderr, "\nPrior Params recalc_G(#%d)\n",fp->flake_ID);
          //             print_tree(tp->flake_tree,0,'*');  
          recalc_G(fp);
-         //    printf("\nReset Params recalc_G(#%d)\n",fp->flake_ID);
+         //    fprintf(stderr, "\nReset Params recalc_G(#%d)\n",fp->flake_ID);
          //             print_tree(tp->flake_tree,0,'*');  
 
       }
@@ -499,7 +499,7 @@ void insert_flake(flake *fp, tube *tp)
    double rate; flake_tree *ftp, *ftpL, *ftpR;
 
    if (fp->N != tp->N || fp->P != tp->P) {
-      printf("flake and tube incompatible!!\n"); exit(1);
+      fprintf(stderr, "flake and tube incompatible!!\n"); exit(1);
    }
 
 
@@ -833,7 +833,7 @@ void update_rates(flake *fp, int ii, int jj)
             fp->rate[p+1][(ii<<1)+1][(jj<<1)+1];
       }
    }
-   if (fp->rate[0][0][0] < 0) printf("ERROR: fp->rate[0][0][0] < 0 in update_rates.\n");
+   if (fp->rate[0][0][0] < 0) fprintf(stderr, "ERROR: fp->rate[0][0][0] < 0 in update_rates.\n");
 } // update_rates()
 
 void update_tube_rates(flake *fp)
@@ -846,7 +846,7 @@ void update_tube_rates(flake *fp)
    oldrate = ftp->rate; 
    newrate = fp->rate[0][0][0]; 
 
-   //if (newrate <= 0) printf("ERROR: newrate <= 0 in update_tube_rates.\n");
+   //if (newrate <= 0) fprintf(stderr, "ERROR: newrate <= 0 in update_tube_rates.\n");
 
    while (ftp!=NULL) {
       ftp->rate+=newrate-oldrate;
@@ -912,7 +912,7 @@ void change_cell(flake *fp, int i, int j, Trep n)
          else if (fp->tiles==1 && tp->conc[fp->seed_n]<=fp->flake_conc) {
             dprintf ("Zero concentration of seed (tile %d)!\n", fp->seed_n);
          }
-         //      printf("Changing flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
+         //      fprintf(stderr, "Changing flake %d, cell %d,%d from %d to %d.\n",fp->flake_ID,i,j,fp->Cell(i,j),n);
          else if (tp->dt_right[n]) fp->G += -log(tp->conc[n]) - Gse_double_left(fp,i,j,n);
          else if (tp->dt_left[n]) fp->G += - Gse_double_right(fp,i,j,n);
          else if (tp->dt_down[n]) fp->G += -log(tp->conc[n]) - Gse_vdouble_up(fp,i,j,n);
@@ -1147,7 +1147,7 @@ void change_seed(flake *fp, int new_i, int new_j)
    // all this updating is painfully slow, since it must be done with every seed
    // motion during WANDER.
    if (fp->seed_n==0) 
-      printf("seed wandered to empty site %d,%d!\n",new_i,new_j);
+      fprintf(stderr, "seed wandered to empty site %d,%d!\n",new_i,new_j);
    if (fp->tube != NULL) 
       update_tube_rates(fp);
 } // change_seed()
@@ -1165,7 +1165,7 @@ int choose_tile_type (tube *tp) {
       r = r * tp->conc[0];  cum = 0;  oops=0;
       for (n=1; n<=tp->N; n++) if (r < (cum += tp->conc[n])) break; 
       if (n>tp->N) { // apparently conc[0] is not the sum of conc[n], oops
-         printf("Concentration sum error!!! %f =!= %f\n",tp->conc[0],cum); 
+         fprintf(stderr, "Concentration sum error!!! %f =!= %f\n",tp->conc[0],cum); 
          r=drand48(); oops=1; 
          tp->conc[0]=0; for (n=1; n <= tp->N; n++) tp->conc[0]+=tp->conc[n];
       }
@@ -1199,7 +1199,7 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
             if ( (r-=k10) < 0) { di=1; dj=0; r=(r+k10)/k10; } else
                if ( (r-=k01) < 0) { di=0; dj=1; r=(r+k01)/k01; } else
                   if ( (r-=k11) < 0) { di=1; dj=1; r=(r+k11)/k11; } else 
-                  { printf("Cell choice rand error!\n"); r=drand48(); oops=1; }
+                  { fprintf(stderr, "Cell choice rand error!\n"); r=drand48(); oops=1; }
       } while (oops); 
       i=2*i+di; j=2*j+dj;
    }
@@ -1215,7 +1215,7 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
             if (r < (cum += tp->k*tp->conc[n])) break;
          }
          if (n>fp->N) { // apparently conc[0] is not the sum of conc[n], oops
-            printf("Concentration sum error!!! %f =!= %f\n",tp->conc[0],cum); 
+            fprintf(stderr, "Concentration sum error!!! %f =!= %f\n",tp->conc[0],cum); 
             r=drand48(); oops=1; 
             tp->conc[0]=0; for (n=1; n <= tp->N; n++) tp->conc[0]+=tp->conc[n];
          }
@@ -1223,10 +1223,10 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np)
    } else {                    /* choose off-event 0 or conversion to 1...N */
       if (tp->hydro) {
          sum = calc_rates(fp,i,j,tp->rv);
-         if (sum==0) printf("Zero-sum hydro rate was chosen!!!\n");
+         if (sum==0) fprintf(stderr, "Zero-sum hydro rate was chosen!!!\n");
          r = r * sum;  cum = 0;
          for (n=0; n<=fp->N; n++) if (r < (cum += tp->rv[n])) break; 
-         if (n>fp->N) { printf("Hydro failed to choose anyone!!!\n"); n=0; }
+         if (n>fp->N) { fprintf(stderr, "Hydro failed to choose anyone!!!\n"); n=0; }
       } else {
          n=0;  // always an off-event, unless hydrolysis rules are used.
       }
@@ -1318,7 +1318,7 @@ int flake_fission(flake *fp, int ii, int jj)
    if (DEBUG==2) { int n; 
       for (i=j=n=0;n<size*size;n++) 
       { i+=(tp->Fgroup[n] != 0); j+=(tp->Fnext[n] != -1); }
-      if (i>0 || j>0) printf("FILL: %d groupies and %d wannabies on entry\n",i,j);
+      if (i>0 || j>0) fprintf(stderr, "FILL: %d groupies and %d wannabies on entry\n",i,j);
    }
 
    /* start filling the neighbors until they all connect, or until       */
@@ -1705,11 +1705,11 @@ int double_tile_allowed(tube *tp, flake *fp, int i, int j, int n) {
 					       !HCONNECTED(fp,(i_norm+1)%size,j,tp->dt_down[n]));
    }
    //if (tp->dt_right[n] && !left_side_can_attach) 
-   //  printf("Rejecting %d,%d for left side tile %d.\n",i,j,n);
+   //  fprintf(stderr, "Rejecting %d,%d for left side tile %d.\n",i,j,n);
    right_side_can_attach =  tp->dt_left[n] && ((periodic || j - 1 >= 0) && fp->Cell(i,j_norm-1) == 0);
    down_side_can_attach =  tp->dt_up[n] && ((periodic || i - 1 >= 0) && fp->Cell(i_norm-1,j) == 0);
    //if (tp->dt_left[n] && !right_side_can_attach) 
-   //  printf("Rejecting %d,%d for right side tile %d.\n",i,j,n);
+   //  fprintf(stderr, "Rejecting %d,%d for right side tile %d.\n",i,j,n);
    return (left_side_can_attach || right_side_can_attach || up_side_can_attach || down_side_can_attach);
 
 } // FIXME: FINISH THIS
@@ -1824,7 +1824,7 @@ void order_removals(tube *tp, flake *fp,
 	 // 1. periodic is on, fission is off,
 	 // 2. double tiles span the corner of the simulation area (NW/SE; NE/SW is untested), and
 	 // 3. Xgrow was compiled with -O3 optimization in GCC (7.3.0 in this case).
-         printf("arg! No removal order could be found in order_removals, or you compiled with\n-O3 in GCC and found a bizarre bug: try compiling with -O2 or less.");
+         fprintf(stderr, "arg! No removal order could be found in order_removals, or you compiled with\n-O3 in GCC and found a bizarre bug: try compiling with -O2 or less.");
 	 abort();
       }
       assert(t < n);
@@ -2010,7 +2010,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
 
       assert (!tp->tinybox || (((!fp->seed_is_double_tile && !fp->seed_is_vdouble_tile) && fp->tiles > 1) || fp->tiles > 2));
 
-      //printf("Seed is tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
+      //fprintf(stderr, "Seed is tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
       if (periodic) {
          assert(fp->Cell((fp->seed_i+size)%size,(fp->seed_j+size)%size) == fp->seed_n);
       } else {
@@ -2072,7 +2072,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          tp->currentC -= 0.01;
          tp->Gse = (tp->anneal_h - (tp->currentC + 273) * tp->anneal_s) / (k_b*(tp->currentC + 273));
          set_Gses(tp,tp->Gse,0);  // NOT SAFE FOR HYDROLYSIS
-         printf("currentC is %f, Gse is %f\n",tp->currentC, tp->Gse);
+         fprintf(stderr, "currentC is %f, Gse is %f\n",tp->currentC, tp->Gse);
          tp->next_update_t += tp->seconds_per_C / 100;
          update_all_rates (tp);
       }
@@ -2084,13 +2084,13 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
       for (i = 0; i < N; i++) {
          if (tp->dt_right[i]) {
             if (tp->conc[i] != tp->conc[tp->dt_right[i]]) {
-               printf("Concentrations are off!\n");
+               fprintf(stderr, "Concentrations are off!\n");
             }
             assert (tp->conc[i] == tp->conc[tp->dt_right[i]]);
          }
          if (tp->dt_down[i]) {
             if (tp->conc[i] != tp->conc[tp->dt_down[i]]) {
-               printf("Concentrations are off!\n");
+               fprintf(stderr, "Concentrations are off!\n");
             }
             assert (tp->conc[i] == tp->conc[tp->dt_down[i]]);
          }
@@ -2100,7 +2100,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          total_rate = tp->flake_tree->rate;
       else
          total_rate = 0;
-      if (total_rate < 0) printf("ERROR: Total Rate: %f (< 0) in simulate.\n",total_rate);
+      if (total_rate < 0) fprintf(stderr, "ERROR: Total Rate: %f (< 0) in simulate.\n",total_rate);
 
       new_flake_rate = tp->k*2*pow(tp->conc[0],2)*tp->tinybox*AVOGADROS_NUMBER ;
       total_blast_rate = tp->k*tp->conc[0]*blast_rate*size*size*tp->num_flakes;
@@ -2124,7 +2124,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                if ( ( dr -= blast_rate_alpha * exp(-blast_rate_gamma*(kb-1)) / pow(kb*1.0,blast_rate_beta) ) < 0 )
                   break; 
          }
-         // printf("zap! %d x %d\n",kb,kb);
+         // fprintf(stderr, "zap! %d x %d\n",kb,kb);
 
          // choose a flake
          flake_n = random()%(tp->num_flakes); fp=tp->flake_list;  for (i=0; i<flake_n; i++) fp=fp->next_flake;
@@ -2232,11 +2232,11 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
             if ((fp = recover_flake (s_i,s_j,s_n,tp->initial_Gfc)) == NULL) {
                fp = init_flake (tp->P,tp->N,s_i, s_j, s_n, tp->initial_Gfc);
             }
-            //   printf("After initting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
+            //   fprintf(stderr, "After initting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
 
             insert_flake (fp, tp);
             d2printf("New flake id is %d\n",fp->flake_ID);
-            //printf("After inserting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
+            //fprintf(stderr, "After inserting, concentration of tile %d is %e and tile %d is %e and flake conc is %e\n",n,tp->conc[n],m,tp->conc[m],flake_conc);
             fp->tiles = 1;
             fp->seed_is_double_tile = tp->dt_right[fp->seed_n];
             fp->seed_is_vdouble_tile = tp->dt_down[fp->seed_n];
@@ -2285,9 +2285,9 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
             new_i = fp->seed_i-1+random()%3;
             new_j = fp->seed_j-1+random()%3;
             if (periodic  || (new_i>=0 && new_i<size && new_j>=0 && new_j<size)) {
-               //printf("Size is %d, new_i is %d, new_j is %d.\n",size,new_i,new_j);
+               //fprintf(stderr, "Size is %d, new_i is %d, new_j is %d.\n",size,new_i,new_j);
                if (periodic) { new_i=(new_i+size)%size; new_j=(new_j+size)%size; }
-               //printf("After renormalize, size is %d, new_i is %d, new_j is %d.\n",size,new_i,new_j);
+               //fprintf(stderr, "After renormalize, size is %d, new_i is %d, new_j is %d.\n",size,new_i,new_j);
                if (fp->Cell(new_i,new_j) != 0 && (new_i != fp->seed_i || new_j != fp->seed_j) && 
                      !tp->dt_left[fp->Cell(new_i,new_j)] && !tp->dt_up[fp->Cell(new_i,new_j)]) { 
                   change_seed(fp,new_i,new_j);
@@ -2343,7 +2343,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                for (chunk=0; chunk<4; chunk++) 
                   if (rsum<tp->rv[1+N+chunk]) break; else rsum-=tp->rv[1+N+chunk];
             }
-            if (chunk<0 || chunk>3) printf("impossible chunk chosen!!!\n");
+            if (chunk<0 || chunk>3) fprintf(stderr, "impossible chunk chosen!!!\n");
          }
 
          /* FIXME: much of this matters only if chunk_fission is on. In general, can we only calculate the one to match chunk? */
@@ -2465,7 +2465,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          tp->t += dt;  // increment time whether or not seed tile event is effective FIXME: why?
 
          //     if (seedchunk[chunk]) 
-         //       printf("seedchunk triggered by %d,%d chunk %d !\n",i,j,chunk);
+         //       fprintf(stderr, "seedchunk triggered by %d,%d chunk %d !\n",i,j,chunk);
 
          if (!seedchunk[chunk]) { /* only make a change if we aren't changing a seed tile */
 
