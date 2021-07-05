@@ -9,6 +9,11 @@
 #ifndef __GROW_H__
 #define __GROW_H__
 
+#ifdef SMALL
+# define MAXTILETYPES 256
+#else
+# define MAXTILETYPES USHRT_MAX
+#endif
 
 #ifndef SMALL
 #define Trep unsigned int
@@ -359,8 +364,12 @@ typedef struct tube_params_struct {
     int seed_j;
     int seed_n;
     double Gfc;
+    char *tile_names[MAXTILETYPES];
+    int size;
+    int size_P; 
 } tube_params;
 
+void set_default_params(tube_params* params);
 tube *init_tube(Trep P, Trep N, int num_bindings);
 flake *init_flake(Trep P, Trep N,
       int seed_i, int seed_j, int seed_n, double Gfc, int present_list_len, int periodic);

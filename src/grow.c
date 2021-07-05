@@ -183,6 +183,46 @@ void free_tree(flake_tree *ftp)
    }
 }
 
+
+void set_default_params(tube_params* params) {
+    params->blast_rate_alpha = 0;
+    params->blast_rate_beta = 4; // k>3 required for finite rate of blasting a given tile in
+                                 // infinite size flakes (gamma=0)
+    params->blast_rate_gamma = 0;
+    params->blast_rate = 0;
+    params->min_strength = 1;
+    params->wander = 0;
+    params->periodic = 0;
+    params->linear = 0;
+    params->fission_allowed = 0;
+    params->zero_bonds_allowed = 0;
+    params->present_list = NULL;
+    params->present_list_len = 0;
+    params->untiltiles = 0;
+    params->untiltilescount = 0;
+    params->Gmc = 17;
+    params->Gse = 8.6;
+    params->k = 1000000.0;
+    params->T = 0;
+    params->Gmch = 30;
+    params->Gseh = 0;
+    params->Ghyd = 30;
+    params->Gas = 30;
+    params->Gam = 15;
+    params->Gae = 30;
+    params->Gah = 30;
+    params->Gao = 10;
+    params->seed_i = 250;
+    params->seed_j = 250;
+    params->seed_n = 1;
+    params->hydro = 0;
+    params->Gfc=0; 
+    params->size=256;
+    params->size_P=8;
+}
+
+
+
 /* sets up data structures for tube -- tile set, params, scratch, stats  */
 tube *init_tube(Trep P, Trep N, int num_bindings)
 {
@@ -190,14 +230,68 @@ tube *init_tube(Trep P, Trep N, int num_bindings)
    int size = (1<<P);
    tube *tp = (tube *)malloc(sizeof(tube));
 
+   // Required to even start settingn things up.
    tp->P = P; tp->N = N; tp->num_bindings = num_bindings;
-   tp->hydro=0;  tp->num_flakes=0; tp->total_flakes = 0;
+
+   // Reasonably sensible default values, taken from Xgrow
+   tp->blast_rate_alpha = 0;
+   tp->blast_rate_beta = 4; // k>3 required for finite rate of blasting a given tile tp                     // infinite size flakes (gamma=0)
+   tp->blast_rate_gamma = 0;
+   tp->blast_rate = 0;
+   tp->min_strength = 1;
+   tp->wander = 0;
+   tp->periodic = 0;
+   tp->fission_allowed = 0;
+   tp->zero_bonds_allowed = 0;
+   tp->present_list = NULL;
+   tp->present_list_len = 0;
+   tp->untiltiles = 0;
+   tp->untiltilescount = 0;
+   tp->Gmc = 17;
+   tp->Gse = 8.6;
+   tp->k = 1000000.0;
+   tp->T = 0;
+   tp->hydro=0;  
+   
+   tp->kas = exp(-30);  tp->kao = exp(-10);
+   tp->kam = exp(-15);  tp->kae = exp(-30); tp->kah = exp(-30);
+
+   tp->anneal_g = 0;
+   tp->anneal_t = 0;
+   tp->anneal_h = 0;
+   tp->anneal_s = 0;
+
+   tp->startC = 0;
+   tp->currentC = 0;
+   tp->endC = 0;
+   tp->seconds_per_C = 0;
+
+   tp->Gse_final = tp->Gse;
+
+   tp->updates = 1;
+   tp->update_freq = 0.;
+   tp->next_update_t = 0;
+   tp->tinybox = 0;
+
+   tp->default_seed_i = 2;
+   tp->default_seed_j = 2;
+
+   tp->initial_Gfc = 0;
+   
+   tp->watching_states  = 0;
+   tp->tracking_seen_states = 0;
+
+   // Start with zero flakes
+   tp->num_flakes=0; 
+   tp->total_flakes = 0;
    tp->largest_flake_size = 0;
    tp->all_present=0;
-   tp->tileb = (int**) calloc(sizeof(int*),N+1);
-   for (i=0;i<=N;i++) {
-      tp->tileb[i] = (int*) calloc(sizeof(int),4);
-      for (j=0;j<4;j++) tp->tileb[i][j]=0;
+
+   tp->tileb = (int**)calloc(sizeof(int*), N + 1);
+   for (i = 0; i <= N; i++) {
+       tp->tileb[i] = (int*)calloc(sizeof(int), 4);
+       for (j = 0; j < 4; j++)
+           tp->tileb[i][j] = 0;
    }
    tp->strength = (double*) calloc(sizeof(double),num_bindings+1);
    tp->glue = (double **) calloc(sizeof(double*),num_bindings+1);
@@ -208,6 +302,23 @@ tube *init_tube(Trep P, Trep N, int num_bindings)
 
    tp->conc = (double *)calloc(sizeof(double),N+1);
    for (n=0;n<N+1;n++) tp->conc[n]=0;
+
+   tp->dt_right = (int*)calloc(sizeof(int), N + 1);
+   for (n = 0; n < N + 1; n++)
+       tp->dt_right[n] = 0;
+
+   tp->dt_down = (int*)calloc(sizeof(int), N + 1);
+   for (n = 0; n < N + 1; n++)
+       tp->dt_down[n] = 0;
+
+   tp->dt_up = (int*)calloc(sizeof(int), N + 1);
+   for (n = 0; n < N + 1; n++)
+       tp->dt_up[n] = 0;
+
+   tp->dt_left = (int*)calloc(sizeof(int), N + 1);
+   for (n = 0; n < N + 1; n++)
+       tp->dt_left[n] = 0;
+
    tp->Gcb  = (double *)calloc(sizeof(double),N+1);
    for (n=0;n<N+1;n++) tp->Gcb[n]=0;
    tp->Gse_EW = (double **)calloc(sizeof(double *),N+1);
@@ -229,6 +340,23 @@ tube *init_tube(Trep P, Trep N, int num_bindings)
    tp->flake_list=NULL;
    tp->flake_tree=NULL;
 
+   set_Gses(tp,tp->Gse, 0.0);
+
+   tp->watching_states  = 0;
+   tp->tracking_seen_states = 0;
+
+   /* make sure ring[] has entries */
+   ring[0]=1; ring[255]=1;
+   for (i=1; i<255; i++) {
+      n=i;
+      while ((n&1)==1) n=ROTATE(n);
+      while ((n&1)==0) n=ROTATE(n);  
+      /* now we have the beginning of a block of 1s */
+      while ((n&1)==1) n=ROTATE_CLEAR(n);
+      /* if there was only one block of 1s, 
+         then they've all been erased now */
+      ring[i] = (n==0);
+   }
 
    /* set_params() will have to put reasonable values in place */
    /* NOTE this routine is not "proper" -- assumes all allocs are OK */
@@ -380,18 +508,7 @@ void set_params(tube *tp, tube_params *params)
    set_Gses(tp,params->Gse,params->Gseh);
    tp->watching_states  = 0;
    tp->tracking_seen_states = 0;
-   /* make sure ring[] has entries */
-   ring[0]=1; ring[255]=1;
-   for (i=1; i<255; i++) {
-      n=i;
-      while ((n&1)==1) n=ROTATE(n);
-      while ((n&1)==0) n=ROTATE(n);  
-      /* now we have the beginning of a block of 1s */
-      while ((n&1)==1) n=ROTATE_CLEAR(n);
-      /* if there was only one block of 1s, 
-         then they've all been erased now */
-      ring[i] = (n==0);
-   }
+
 } // set_params()
 
 /* recalculate flake energy & rates from scratch                    */
@@ -2025,7 +2142,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
 
       assert (!tp->tinybox || (((!fp->seed_is_double_tile && !fp->seed_is_vdouble_tile) && fp->tiles > 1) || fp->tiles > 2));
 
-      //fprintf(stderr, "Seed is tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
+      fprintf(stderr, "Seed is tile %d at %d,%d.\n",fp->seed_n,fp->seed_i,fp->seed_j);
       if (tp->periodic) {
          assert(fp->Cell((fp->seed_i+size)%size,(fp->seed_j+size)%size) == fp->seed_n);
       } else {
