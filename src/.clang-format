@@ -1,0 +1,7 @@
+﻿---
+BasedOnStyle: LLVM
+ColumnLimit: '90'
+IndentWidth: '3'
+TabWidth: '3'
+
+...
