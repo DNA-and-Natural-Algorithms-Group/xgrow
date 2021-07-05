@@ -46,7 +46,7 @@ double exp(); double log();
    */
 
 /* for times when it's inconvenience to know if i,j are within bounds */
-#define CellM(i,j) cell[periodic?((i+size)%size):MAX(0,MIN((i)+1,size+1))][periodic?((j+size)%size):MAX(0,MIN((j)+1,size+1))]
+#define CellM(i,j) cell[fp->periodic?((i+size)%size):MAX(0,MIN((i)+1,size+1))][fp->periodic?((j+size)%size):MAX(0,MIN((j)+1,size+1))]
 
 /* macro definition of summed sticky end bond energy                    */
 /* computes energy IF Cell(i,j) were n, given its current neighbors     */
@@ -133,16 +133,16 @@ double exp(); double log();
 #define Mism(fp,i,j,n) (                                                   \
       ((fp->tube->tileb)[n][1] != (fp->tube->tileb)[fp->Cell(i,(j)+1)][3] &&    \
        (fp->tube->tileb)[n][1]*(fp->tube->tileb)[fp->Cell(i,(j)+1)][3] > 0 &&   \
-       (fp->tube->glue)[(fp->tube->tileb)[n][1]][(fp->tube->tileb)[fp->Cell(i,(j)+1)][3]] < min_strength) +   \
+       (fp->tube->glue)[(fp->tube->tileb)[n][1]][(fp->tube->tileb)[fp->Cell(i,(j)+1)][3]] < tp->min_strength) +   \
       ((fp->tube->tileb)[n][3] != (fp->tube->tileb)[fp->Cell(i,(j)-1)][1] &&    \
        (fp->tube->tileb)[n][3]*(fp->tube->tileb)[fp->Cell(i,(j)-1)][1] > 0 &&   \
-       (fp->tube->glue)[(fp->tube->tileb)[n][3]][(fp->tube->tileb)[fp->Cell(i,(j)-1)][1]] < min_strength) +   \
+       (fp->tube->glue)[(fp->tube->tileb)[n][3]][(fp->tube->tileb)[fp->Cell(i,(j)-1)][1]] < tp->min_strength) +   \
       ((fp->tube->tileb)[n][2] != (fp->tube->tileb)[fp->Cell((i)+1,j)][0] &&    \
        (fp->tube->tileb)[n][2]*(fp->tube->tileb)[fp->Cell((i)+1,j)][0] > 0 &&   \
-       (fp->tube->glue)[(fp->tube->tileb)[n][2]][(fp->tube->tileb)[fp->Cell((i)+1,j)][0]] < min_strength) +   \
+       (fp->tube->glue)[(fp->tube->tileb)[n][2]][(fp->tube->tileb)[fp->Cell((i)+1,j)][0]] < tp->min_strength) +   \
       ((fp->tube->tileb)[n][0] != (fp->tube->tileb)[fp->Cell((i)-1,j)][2] &&    \
        (fp->tube->tileb)[n][0]*(fp->tube->tileb)[fp->Cell((i)-1,j)][2] > 0 && \
-       (fp->tube->glue)[(fp->tube->tileb)[n][0]][(fp->tube->tileb)[fp->Cell((i)-1,j)][2]] < min_strength) )   
+       (fp->tube->glue)[(fp->tube->tileb)[n][0]][(fp->tube->tileb)[fp->Cell((i)-1,j)][2]] < tp->min_strength) )   
 
 
 
@@ -185,7 +185,7 @@ typedef struct flake_struct {
    /* used for testing purposes                        */
    unsigned char *chain_state;     /* If we're currently at a configuration that has an*/
    /* indicator variable, the hash code for that state */
-
+   int periodic;     /* whether canvasa is periodic: don't want to refer to tube */
 
 } flake;          
 
@@ -295,26 +295,75 @@ typedef struct tube_struct {
    void  *states_seen_hash;   /* hash that records which states we have been to. */
    unsigned int ***start_states;
    double *start_state_Gs;
+   // Below was previously an extern to xgrow.c
+   int periodic;    /* simulation on torus */
+   int wander;      /* of seed tile designation */
+   int fission_allowed; /* allow dissociation that breaks flake in two? */
+   int zero_bonds_allowed; /* allow association of tiles that make only 0 strength bonds to flake? */
+   double blast_rate_alpha;
+   double blast_rate_beta;
+   double blast_rate_gamma;
+   double blast_rate;
+   double min_strength;
+   int *present_list;
+   int present_list_len;
+   int untiltiles;
+   // End of former externs
+} tube;
 
-
-} tube;          
-
-extern int periodic;    /* simulation on torus */
-extern int wander;      /* of seed tile designation */
-extern int fission_allowed; /* allow dissociation that breaks flake in two? */
-extern int zero_bonds_allowed; /* allow association of tiles that make only 0 strength bonds to flake? */
-extern double blast_rate_alpha;
-extern double blast_rate_beta;
-extern double blast_rate_gamma;
-extern double blast_rate;
-extern double min_strength;
-extern int *present_list;
-extern int present_list_len;
-extern int untiltiles,untiltilescount;
+typedef struct tube_params_struct {
+    // formerly shared with grow
+    double blast_rate_alpha; //  =0;
+    double blast_rate_beta; //  =4;  // k>3 required for finite rate of blasting a given tile in
+                            //  infinite size flakes (gamma=0)
+    double blast_rate_gamma; //  =0;
+    double blast_rate; //  =0;
+    double min_strength; //  =1;
+    int wander; //  ,
+    int periodic, linear, fission_allowed, zero_bonds_allowed;
+    int* present_list; //  =NULL;
+    int present_list_len; //  =0;
+    int untiltiles; //  =0,
+    int untiltilescount; //=0;
+    int **tileb;
+    double *strength;
+    double **glue;
+    double *stoic;
+    double anneal_g;
+    double anneal_t;
+    int updates_per_RC;
+    double anneal_h;
+    double anneal_s;
+    double startC;
+    double endC;
+    double seconds_per_C;
+    int* dt_right;
+    int* dt_left;
+    int* dt_down;
+    int* dt_up;
+    int hydro;
+    double k;
+    double Gmc;
+    double Gse;
+    double Gmch;
+    double Gseh;
+    double Ghyd;
+    double Gas;
+    double Gam;
+    double Gae;
+    double Gah;
+    double Gao;
+    double T;
+    double tinybox;
+    int seed_i;
+    int seed_j;
+    int seed_n;
+    double Gfc;
+} tube_params;
 
 tube *init_tube(Trep P, Trep N, int num_bindings);
 flake *init_flake(Trep P, Trep N,
-      int seed_i, int seed_j, int seed_n, double Gfc);
+      int seed_i, int seed_j, int seed_n, double Gfc, int present_list_len, int periodic);
 flake *free_flake(flake *fp);
 void free_tube(tube *tp);
 void set_Gses(tube *tp, double Gse, double Gseh);
@@ -324,11 +373,7 @@ void clean_flake(flake *fp, double X, int iters);
 void fill_flake(flake *fp, double X, int iters);
 void error_radius_flake(flake *fp, double rad);
 void repair_flake(flake *fp, double T, double Gse);
-void set_params(tube *tp, int** tileb, double* strength, double **glue, 
-      double* stoic, double anneal_g, double anneal_t, int updates_per_RC,double anneal_h,double anneal_s,double startC,double endC,double seconds_per_C,int *dt_right, int *dt_left, int *dt_down, int *dt_up, int hydro, double k, double Gmc, double Gse,
-      double Gmch, double Gseh, double Ghyd, 
-      double Gas, double Gam, double Gae, double Gah, double Gao, double T, double tinybox,
-      int seed_i, int seed_j, double Gfc);
+void set_params(tube *tp, tube_params *params);
 void reset_params(tube *tp, double old_Gmc, double old_Gse,
       double new_Gmc, double new_Gse, double Gseh);
 void recalc_G(flake *fp);
