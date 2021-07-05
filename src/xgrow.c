@@ -282,9 +282,7 @@ char stringbuffer[256];
 char tileset_name[256];
 int testing = 0;
 int initial_rc = 1;
-int *present_list=NULL;
-int present_list_len=0;
-int untiltiles=0,untiltilescount=0;
+
 
 
 /* various window stuff */
@@ -308,45 +306,27 @@ char *tile_colors[MAXTILETYPES]={ "black",
 char *tile_names[MAXTILETYPES];
 
 /* simulation parameters */
-tube *tp; flake *fp; 
-double Gse, Gmc, ratek, T;
-double Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc;
+//tube *tp; flake *fp; 
 
-double blast_rate_alpha=0;
-double blast_rate_beta=4;  // k>3 required for finite rate of blasting a given tile in infinite size flakes (gamma=0)
-double blast_rate_gamma=0;
-double blast_rate=0;
 int first_tile, second_tile;
 int double_tiles=0;
 int vdouble_tiles=0;
-double min_strength=1;
 
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
 int size=256, size_P=8; 
 int block=1; /* default to small blocks; calling with argument changes this */
-int wander, periodic, linear, fission_allowed, zero_bonds_allowed; 
+int linear;
 FILE *tracefp, *datafp, *arrayfp, *tilefp, *largeflakefp;
 FILE *untiltilescountfp;
 int tthresh=0;
-double *strength;
-double **glue;
-int *dt_right, *dt_left;
-int *dt_down, *dt_up;
 int N, num_bindings, tileb_length;
-int **tileb; double *stoic;
-int hydro; 
 int clean_cycles=0; double clean_X=1.0; int fill_cycles=0; double fill_X=1.0; 
 double error_radius=0.0; double repair_unique_T=2.0; int repair_unique=0;
 double tmax; int emax, smax, fsmax, smin, mmax;
-int seed_i,seed_j,seed_n;
-double tinybox = 0;
-double anneal_h, anneal_s, startC, endC, seconds_per_C = 0;
-double anneal_g, anneal_t = 0;
 char *stripe_args=NULL;
 int XXX=1;  /* If 1, draw the simulation, otherwise don't.  (as inferred from the effect of -nw)*/
 /* This has been adjusted so that updating the temperature and thus
    the required rates takes about 1% of the simulation time */
-int updates_per_RC = 1000;
 
 int import=0; /* Are we importing flakes? */
 int import_flake_size = 0;
@@ -356,13 +336,52 @@ char font_selection_string[256] = "9x13";
 const char NEWLINE[2] = "\n\0";
 
 struct flake_param {
-   int seed_i,seed_j,seed_n,N; double Gfc; FILE *import_from;  struct flake_param *next_param;
+    int seed_i, seed_j, seed_n, N;
+    double Gfc;
+    FILE* import_from;
+    struct flake_param* next_param;
 };
 struct flake_param *fparam=NULL, *fprm; 
 
+
+void set_default_params(tube_params* params) {
+    params->blast_rate_alpha = 0;
+    params->blast_rate_beta = 4; // k>3 required for finite rate of blasting a given tile in
+                                 // infinite size flakes (gamma=0)
+    params->blast_rate_gamma = 0;
+    params->blast_rate = 0;
+    params->min_strength = 1;
+    params->wander = 0;
+    params->periodic = 0;
+    params->linear = 0;
+    params->fission_allowed = 0;
+    params->zero_bonds_allowed = 0;
+    params->present_list = NULL;
+    params->present_list_len = 0;
+    params->untiltiles = 0;
+    params->untiltilescount = 0;
+    params->Gmc = 17;
+    params->Gse = 8.6;
+    params->k = 1000000.0;
+    params->T = 0;
+    params->Gmch = 30;
+    params->Gseh = 0;
+    params->Ghyd = 30;
+    params->Gas = 30;
+    params->Gam = 15;
+    params->Gae = 30;
+    params->Gah = 30;
+    params->Gao = 10;
+    params->seed_i = 250;
+    params->seed_j = 250;
+    params->seed_n = 1;
+    params->hydro = 0;
+    params->Gfc=0; 
+}
+
 int count_flakes(FILE *flake_file);
 
-int parse_arg_line(char *arg)
+int parse_arg_line(char *arg, tube_params *params)
 {
    if (IS_ARG_MATCH(arg,"block=")) 
       block=MAX(1,MIN(30,atoi(&arg[6])));
@@ -370,26 +389,26 @@ int parse_arg_line(char *arg)
       size=MAX(32,MIN(4096,atoi(&arg[5])));
    else if (IS_ARG_MATCH(arg,"rand=")) 
    { srand48(atoi(&arg[5])); srandom(atoi(&arg[5])); }
-   else if (IS_ARG_MATCH(arg,"k=")) ratek=atof(&arg[2]);
-   else if (IS_ARG_MATCH(arg,"Gmc=")) Gmc=atof(&arg[4]);
-   else if (IS_ARG_MATCH(arg,"Gse=")) Gse=atof(&arg[4]);
+   else if (IS_ARG_MATCH(arg,"k=")) params->k=atof(&arg[2]);
+   else if (IS_ARG_MATCH(arg,"Gmc=")) params->Gmc=atof(&arg[4]);
+   else if (IS_ARG_MATCH(arg,"Gse=")) params->Gse=atof(&arg[4]);
    // FIXME FIXME FIXME: HYDRO OPTIONS ARE DISABLED
    //else if (IS_ARG_MATCH(arg,"Gmch=")) {hydro=1; Gmch=atof(&arg[5]);}
    //else if (IS_ARG_MATCH(arg,"Gseh=")) {hydro=1; Gseh=atof(&arg[5]);}
    //else if (IS_ARG_MATCH(arg,"Ghyd=")) {hydro=1; Ghyd=atof(&arg[5]);}
-   else if (IS_ARG_MATCH(arg,"Gas=")) {hydro=1; Gas=atof(&arg[4]);}
-   else if (IS_ARG_MATCH(arg,"Gam=")) {hydro=1; Gam=atof(&arg[4]);}
-   else if (IS_ARG_MATCH(arg,"Gae=")) {hydro=1; Gae=atof(&arg[4]);}
+   else if (IS_ARG_MATCH(arg,"Gas=")) {params->hydro=1; params->Gas=atof(&arg[4]);}
+   else if (IS_ARG_MATCH(arg,"Gam=")) {params->hydro=1; params->Gam=atof(&arg[4]);}
+   else if (IS_ARG_MATCH(arg,"Gae=")) {params->hydro=1; params->Gae=atof(&arg[4]);}
    //else if (IS_ARG_MATCH(arg,"Gah=")) {hydro=1; Gah=atof(&arg[4]);}
    //else if (IS_ARG_MATCH(arg,"Gao=")) {hydro=1; Gao=atof(&arg[4]);}
-   else if (IS_ARG_MATCH(arg,"Gfc=")) {Gfc=atof(&arg[4]);}
+   else if (IS_ARG_MATCH(arg,"Gfc=")) {params->Gfc=atof(&arg[4]);}
    else if (IS_ARG_MATCH(arg,"stoic=")) {
       double sts; int stn; char *sp;
       sp=strchr(&arg[6],'[');
       if (sp!=NULL) {
 	 stn=atoi(&arg[6]); sts=atof(sp+1);
 	 if (stn<=N && stn>0 && sts>0) {
-	    stoic[stn]=sts;
+	    params->stoic[stn]=sts;
 	    fprintf(stderr,"stoic of tile %d = [%f]\n",stn,sts);
 	 } else { 
 	    if (sts==0) {
@@ -401,33 +420,33 @@ int parse_arg_line(char *arg)
 	 }
       }
    }
-   else if (IS_ARG_MATCH(arg,"T=")) T=atof(&arg[2]);
+   else if (IS_ARG_MATCH(arg,"T=")) params->T=atof(&arg[2]);
    else if (IS_ARG_MATCH(arg,"pause=True")) paused=1;
    else if (IS_ARG_MATCH(arg,"pause=False")) paused=0;
    else if (IS_ARG_MATCH(arg,"pause")) paused=1;
-   else if (IS_ARG_MATCH(arg,"periodic=True")) periodic=1;
-   else if (IS_ARG_MATCH(arg,"periodic=False")) periodic=0;
-   else if (IS_ARG_MATCH(arg,"periodic")) periodic=!periodic;
-   else if (IS_ARG_MATCH(arg,"wander=True")) wander=1;
-   else if (IS_ARG_MATCH(arg,"wander=False")) wander=0;
-   else if (IS_ARG_MATCH(arg,"wander")) wander=!wander;
-   else if (IS_ARG_MATCH(arg,"fission=off")) fission_allowed=0;
-   else if (IS_ARG_MATCH(arg,"fission=on")) fission_allowed=1;
-   else if (IS_ARG_MATCH(arg,"fission=chunk")) fission_allowed=2; 
-   else if (IS_ARG_MATCH(arg,"no_fission")) fission_allowed=0;
-   else if (IS_ARG_MATCH(arg,"fission")) fission_allowed=1;
-   else if (IS_ARG_MATCH(arg,"chunk_fission")) fission_allowed=2;
-   else if (IS_ARG_MATCH(arg,"blast_rate_alpha=")) blast_rate_alpha=atof(&arg[17]);
-   else if (IS_ARG_MATCH(arg,"blast_rate_beta="))  blast_rate_beta =atof(&arg[16]);
-   else if (IS_ARG_MATCH(arg,"blast_rate_gamma=")) blast_rate_gamma=atof(&arg[17]);
-   else if (IS_ARG_MATCH(arg,"zero_bonds")) zero_bonds_allowed=1;
-   else if (IS_ARG_MATCH(arg,"no_zero_bonds")) zero_bonds_allowed=0;
+   else if (IS_ARG_MATCH(arg,"periodic=True")) params->periodic=1;
+   else if (IS_ARG_MATCH(arg,"periodic=False")) params->periodic=0;
+   else if (IS_ARG_MATCH(arg,"periodic")) params->periodic=!params->periodic;
+   else if (IS_ARG_MATCH(arg,"wander=True")) params->wander=1;
+   else if (IS_ARG_MATCH(arg,"wander=False")) params->wander=0;
+   else if (IS_ARG_MATCH(arg,"wander")) params->wander=!params->wander;
+   else if (IS_ARG_MATCH(arg,"fission=off")) params->fission_allowed=0;
+   else if (IS_ARG_MATCH(arg,"fission=on")) params->fission_allowed=1;
+   else if (IS_ARG_MATCH(arg,"fission=chunk")) params->fission_allowed=2; 
+   else if (IS_ARG_MATCH(arg,"no_fission")) params->fission_allowed=0;
+   else if (IS_ARG_MATCH(arg,"fission")) params->fission_allowed=1;
+   else if (IS_ARG_MATCH(arg,"chunk_fission")) params->fission_allowed=2;
+   else if (IS_ARG_MATCH(arg,"blast_rate_alpha=")) params->blast_rate_alpha=atof(&arg[17]);
+   else if (IS_ARG_MATCH(arg,"blast_rate_beta="))  params->blast_rate_beta =atof(&arg[16]);
+   else if (IS_ARG_MATCH(arg,"blast_rate_gamma=")) params->blast_rate_gamma=atof(&arg[17]);
+   else if (IS_ARG_MATCH(arg,"zero_bonds")) params->zero_bonds_allowed=1;
+   else if (IS_ARG_MATCH(arg,"no_zero_bonds")) params->zero_bonds_allowed=0;
    else if (IS_ARG_MATCH(arg,"seed=")) {
       char *p=(&arg[5]);
-      seed_i=atoi(p);
+      params->seed_i=atoi(p);
       if ((p=strchr(p,','))!=NULL) {
-	 seed_j=atoi(p+1);
-	 if ((p=strchr(p+1,','))!=NULL) seed_n=atoi(p+1);
+	 params->seed_j=atoi(p+1);
+	 if ((p=strchr(p+1,','))!=NULL) params->seed_n=atoi(p+1);
       }
    }
    else if (IS_ARG_MATCH(arg,"addflakes=")) {
@@ -453,10 +472,10 @@ int parse_arg_line(char *arg)
    }
    else if (IS_ARG_MATCH(arg,"tinybox=")) {
       char *p=(&arg[8]);
-      tinybox = atof(p);
+      params->tinybox = atof(p);
    }
    else if (IS_ARG_MATCH(arg,"stripe=")) 
-   { stripe_args=(&arg[7]); periodic=1; wander=1; }
+   { stripe_args=(&arg[7]); params->periodic=1; params->wander=1; }
    else if (strcmp(arg,"-nw")==0) XXX=0;
    else if (IS_ARG_MATCH(arg,"window=True")) XXX=1;
    else if (IS_ARG_MATCH(arg,"window=False")) XXX=0;
@@ -464,43 +483,43 @@ int parse_arg_line(char *arg)
    else if (strncmp(arg,"linan=",6) == 0) {
       char *c;
       c = &arg[6];
-      anneal_h = atof(c);
+      params->anneal_h = atof(c);
       c = strchr(c,',') + 1;
       if (c == NULL) {
 	 fprintf(stderr,"Usage : linan=h,s,C0,Cfin,dt ");
 	 return -1;
       }
-      anneal_s = atof(c);
+      params->anneal_s = atof(c);
       c = strchr(c,',') + 1;
       if (c == NULL) {
 	 fprintf(stderr,"Usage : linan=h,s,C0,Cfin,dt ");
 	 return -1;
       }
-      startC = atof(c);
+      params->startC = atof(c);
       c = strchr(c,',') + 1;
       if (c == NULL) {
 	 fprintf(stderr,"Usage : linan=h,s,C0,Cfin,dt ");
 	 return -1;
       }
-      endC = atof(c);
+      params->endC = atof(c);
       c = strchr(c,',') + 1;
       if (c == NULL) {
 	 fprintf(stderr,"Usage : linan=h,s,C0,Cfin,dt ");
 	 return -1;
       }
-      seconds_per_C = atof(c);
+      params->seconds_per_C = atof(c);
    }
    else if (strncmp(arg,"anneal=",7) == 0) {
       char *c;
       c = &arg[7];
-      anneal_g = atof(c);
+      params->anneal_g = atof(c);
       c = strchr(c,',');
       if (c == NULL) {
 	 fprintf(stderr,"Anneal option requires both an initial Gse and a time constant of annealing.\n");
 	 return -1;
       }
-      anneal_t = atof(c+1);
-      if (anneal_t <= 0) {
+      params->anneal_t = atof(c+1);
+      if (params->anneal_t <= 0) {
 	 fprintf(stderr,"Time constant for annealing must be positive.\n");
 	 return -1;
       }
@@ -514,12 +533,12 @@ int parse_arg_line(char *arg)
 	 return -1;
       }
       second_tile = atoi(p + 1);
-      if (tileb[first_tile][1] != tileb[second_tile][3]) {
+      if (params->tileb[first_tile][1] != params->tileb[second_tile][3]) {
 	 fprintf(stderr,"Pieces of a double tile must have a matching bond in between them.\n");
 	 return -1;
       }
-      dt_right[first_tile] = second_tile;
-      dt_left[second_tile] = first_tile;
+      params->dt_right[first_tile] = second_tile;
+      params->dt_left[second_tile] = first_tile;
       double_tiles = 1;
    }
    else if (IS_ARG_MATCH(arg,"vdoubletile=")) {
@@ -531,12 +550,12 @@ int parse_arg_line(char *arg)
 	 return -1;
       }
       second_tile = atoi(p + 1);
-      if (tileb[first_tile][2] != tileb[second_tile][0]) {
+      if (params->tileb[first_tile][2] != params->tileb[second_tile][0]) {
 	 fprintf(stderr,"Pieces of a vdouble tile must have a matching bond in between them.\n");
 	 return -1;
       }
-      dt_down[first_tile] = second_tile;
-      dt_up[second_tile] = first_tile;
+      params->dt_down[first_tile] = second_tile;
+      params->dt_up[second_tile] = first_tile;
       vdouble_tiles = 1;
    }
    else if (IS_ARG_MATCH(arg,"update_rate=")) 
@@ -556,32 +575,32 @@ int parse_arg_line(char *arg)
       pos = arg;
       while (pos != NULL) {
 	 pos = strchr (pos+1,',');
-	 present_list_len++;
+	 params->present_list_len++;
       }
-      present_list = (int *) malloc(present_list_len*sizeof(int));
+      params->present_list = (int *) malloc(params->present_list_len*sizeof(int));
       pos = &arg[11];
       while ((pos-1) != NULL) {
-	 present_list[i++] = atoi(pos);
+	 params->present_list[i++] = atoi(pos);
 	 pos = strchr (pos,',') + 1;
       }
-      untiltiles = 1;
+      params->untiltiles = 1;
    }
    else if (IS_ARG_MATCH(arg,"untiltilescount=")) {
       int i=0;
       char *pos;
-      untiltilescount=1;
+      params->untiltilescount=1;
       pos = arg;
       while (pos != NULL) {
 	 pos = strchr (pos+1,',');
-	 present_list_len++;
+	 params->present_list_len++;
       }
-      present_list = (int *) malloc(present_list_len*sizeof(int));
+      params->present_list = (int *) malloc(params->present_list_len*sizeof(int));
       pos = &arg[16];
       while ((pos-1) != NULL) {
-	 present_list[i++] = atoi(pos);
+	 params->present_list[i++] = atoi(pos);
 	 pos = strchr (pos,',') + 1;
       }
-      untiltilescount = 1;
+      params->untiltilescount = 1;
    }
    else if (IS_ARG_MATCH(arg,"clean_cycles=")) clean_cycles=atoi(&arg[13]);
    else if (IS_ARG_MATCH(arg,"clean_X=")) clean_X=atof(&arg[8]);
@@ -679,7 +698,7 @@ int parse_arg_line(char *arg)
 	 fparam->Gfc=0;
       fparam->N = count_flakes(import_fp);
    }
-   else if (IS_ARG_MATCH(arg,"min_strength=")) {min_strength=atof(&arg[13]);}
+   else if (IS_ARG_MATCH(arg,"min_strength=")) {params->min_strength=atof(&arg[13]);}
    else if (IS_ARG_MATCH(arg,"font=")) { 
          strcpy(font_selection_string, strtok(&arg[5], "\n\0"));
    }
@@ -703,7 +722,7 @@ void read_skip_comment(FILE *fp)
    ungetc(c,fp); 
 }
 
-void read_tilefile(FILE *tilefp) 
+void read_tilefile(FILE *tilefp, tube_params *params) 
 { 
    float strength_float, glue_float, stoic_float; int i,j,k;
    int temp_char; char s[255], **btnames;
@@ -758,31 +777,31 @@ void read_tilefile(FILE *tilefp)
    r=0; fscanf(tilefp,"tile edges=%n",&r); rsc; //fprintf(stderr, "r=%d\n",r);
    if (r!=11) { fprintf(stderr,"Reading tile file: expected `tile edges=' declaration.\n"); exit(-1); }
    tileb_length = N+1;
-   tileb = (int**) calloc(sizeof(int*),tileb_length);
-   stoic = (double*) calloc(sizeof(double),tileb_length);
+   params->tileb = (int**) calloc(sizeof(int*),tileb_length);
+   params->stoic = (double*) calloc(sizeof(double),tileb_length);
    r=0; fscanf(tilefp,"{%n",&r); rsc;
    if (r!=1) { fprintf(stderr,"Reading tile file: expected tile set start {.\n"); exit(-1); }
-   tileb[0] = (int*) calloc(sizeof(int),4);
+   params->tileb[0] = (int*) calloc(sizeof(int),4);
    for (j=0;j<4;j++) {
-      tileb[0][j] = 0;
+      params->tileb[0][j] = 0;
    }
-   stoic[0]=0;
+   params->stoic[0]=0;
    for (i=1;i<tileb_length;i++) {
-      tileb[i] = (int*) calloc(sizeof(int),4);
+      params->tileb[i] = (int*) calloc(sizeof(int),4);
       r=0; fscanf(tilefp,"{%n",&r); rsc; 
       if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d start def {. \n",i); exit(-1); }
       /* read in the four binding types {N E S W} */
       for (j=0;j<4;j++) { rsc;
 	 temp_char = getc (tilefp); ungetc(temp_char, tilefp);
 	 if (index("0123456789",temp_char)!=NULL) {
-	    if (1!=fscanf(tilefp,"%d",&tileb[i][j]))
+	    if (1!=fscanf(tilefp,"%d",&params->tileb[i][j]))
 	    { fprintf(stderr,"Reading tile file: expected tile %d bond %d value.\n",i,j); exit(-1); } 
 	 } else {
 	    if (1!=fscanf(tilefp,"%[^} \t]",&s[0]))
 	    { fprintf(stderr,"Reading tile file: expected tile %d bond %d's name.\n",i,j); exit(-1); } 
 	    for (k=0;k<=num_bindings;k++) if (strcmp(s,btnames[k])==0) break;
 	    if (k<=num_bindings)
-	    { tileb[i][j]=k; }
+	    { params->tileb[i][j]=k; }
 	    else
 	    { fprintf(stderr,"Reading tile file: expected tile %d bond %d's name '%s' unknown.\n",i,j,s); exit(-1); } 
 	 }
@@ -790,7 +809,7 @@ void read_tilefile(FILE *tilefp)
       r=0; fscanf(tilefp,"}%n",&r); rsc; 
       if (r!=1) { fprintf(stderr,"Reading tile file: expected tile %d end def }. \n",i); exit(-1); }
       if (fscanf(tilefp,"[%g]",&stoic_float)) 
-	 stoic[i]=stoic_float; else stoic[i]=1.0; rsc;
+	 params->stoic[i]=stoic_float; else params->stoic[i]=1.0; rsc;
       if (fscanf(tilefp,"(%200[^)])",&stringbuffer[0])) {
 	 tile_colors[i]=(char *)malloc(strlen(stringbuffer)+2);
 	 strcpy(tile_colors[i],stringbuffer);
@@ -809,16 +828,16 @@ void read_tilefile(FILE *tilefp)
    // }
 
 
-   glue = (double **) calloc(sizeof (double *),num_bindings + 1);
+   params->glue = (double **) calloc(sizeof (double *),num_bindings + 1);
    for (i=0;i<=num_bindings;i++) { int j;
-      glue[i] = (double *) calloc(sizeof (double),num_bindings + 1);
-      for (j=0;j<=num_bindings;j++) { glue[i][j]=0; }  // necessary??  -- EW
+      params->glue[i] = (double *) calloc(sizeof (double),num_bindings + 1);
+      for (j=0;j<=num_bindings;j++) { params->glue[i][j]=0; }  // necessary??  -- EW
    }
-   strength = (double*) calloc(sizeof(double),num_bindings+1); 
-   dt_left = (int *) calloc(sizeof(int),N+1);
-   dt_right = (int *) calloc(sizeof(int),N+1);
-   dt_up = (int *) calloc(sizeof(int),N+1);
-   dt_down = (int *) calloc(sizeof(int),N+1);
+   params->strength = (double*) calloc(sizeof(double),num_bindings+1); 
+   params->dt_left = (int *) calloc(sizeof(int),N+1);
+   params->dt_right = (int *) calloc(sizeof(int),N+1);
+   params->dt_up = (int *) calloc(sizeof(int),N+1);
+   params->dt_down = (int *) calloc(sizeof(int),N+1);
 
    temp_char = getc (tilefp);  ungetc(temp_char, tilefp);
    if (temp_char == 'b') {
@@ -826,11 +845,11 @@ void read_tilefile(FILE *tilefp)
       if (r!=18) { fprintf(stderr,"Reading tile file: expected binding strength defs.\n"); exit(-1); }
       r=0; fscanf(tilefp,"{%n",&r); rsc;
       if (r!=1) { fprintf(stderr,"Reading tile file: expected binding strength defs {.\n"); exit(-1); }
-      strength[0]=0; /* bond type 0 ("null") always has strength 0 */
+      params->strength[0]=0; /* bond type 0 ("null") always has strength 0 */
       for (i=1;i<=num_bindings;i++) {
 	 if (1!=fscanf(tilefp,"%g",&strength_float))
 	 { fprintf(stderr,"Reading tile file: expected binding strength %d value.\n",i); exit(-1); }
-	 strength[i]=(double)strength_float;
+	 params->strength[i]=(double)strength_float;
 	 // fprintf(stderr, "strength for se #%d = %g\n",i,strength[i]);
       } rsc;
       r=0; fscanf(tilefp,"}%n",&r); rsc;
@@ -841,15 +860,15 @@ void read_tilefile(FILE *tilefp)
       { fprintf(stderr,"Reading tile file: expected glue def.\n"); exit(-1); } 
       rsc;
       // printf ("Glue float is g(%d,%d)=%g\n",n,m,glue_float);
-      glue[n][m] = (double) glue_float;
-      glue[m][n] = (double) glue_float;
+      params->glue[n][m] = (double) glue_float;
+      params->glue[m][n] = (double) glue_float;
    } ungetc(temp_char, tilefp); rsc;
    // fprintf(stderr, "Bond strengths loaded (%d bond types)\n",num_bindings);
    // for (i=1;i<=num_bindings;i++) fprintf(stderr, "%f ",strength[i]); fprintf(stderr, "\n");
 
    rsc;
    while(fgets(&stringbuffer[0],256,tilefp)!=NULL) {
-      return_code = parse_arg_line(&stringbuffer[0]); 
+      return_code = parse_arg_line(&stringbuffer[0], params); 
       if (return_code) {
 	 exit(-1);
       }
@@ -862,7 +881,7 @@ void read_tilefile(FILE *tilefp)
    // for (i=1; i<=num_bindings;i++) free(btnames[i]); free(btnames);
 }
 
-void getargs(int argc, char **argv)
+void getargs(int argc, char **argv, tube_params *params)
 {
    int i; struct flake_param *fprm;
    struct timeval tv; 
@@ -953,11 +972,9 @@ void getargs(int argc, char **argv)
    }
 
    tmax=0; emax=0; smax=0; fsmax=0; smin=-1; mmax=0;
-   wander=0; periodic=0; linear=0; fission_allowed=0; zero_bonds_allowed=0;
-   Gfc=0; datafp=NULL; arrayfp=NULL;  largeflakefp=NULL; untiltilescountfp=NULL;
-   Gmc=17; Gse=8.6; ratek = 1000000.0;  T=0;
-   Gmch=30; Gseh=0; Ghyd=30; Gas=30; Gam=15; Gae=30; Gah=30; Gao=10;
-   seed_i=250; seed_j=250; seed_n=1; hydro=0;
+   linear=0;
+   datafp=NULL; arrayfp=NULL;  largeflakefp=NULL; untiltilescountfp=NULL;
+
 
 
    // reset tile colors and names that haven't been assigned
@@ -965,21 +982,21 @@ void getargs(int argc, char **argv)
    for (i=0; i<MAXTILETYPES; i++) tile_names[i]=NULL;
 
 
-   if      ( (sprintf(&tileset_name[0],"%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
-   else if ( (sprintf(&tileset_name[0],"%s.tiles",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp); 
+   if      ( (sprintf(&tileset_name[0],"%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp, params); 
+   else if ( (sprintf(&tileset_name[0],"%s.tiles",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp, params); 
    else {
       fprintf(stderr, "* First argument must be a tile file!\nTry 'xgrow --' for help.\n");
       exit(1);   
    }
 
    for (i=2; i<argc; i++) {
-      parse_arg_line(argv[i]);
+      parse_arg_line(argv[i], params);
    }
    if (tmax==0 && emax==0 && smax==0 && mmax==0 && fsmax==0 && smin==-1) {
      fprintf(stderr, "No max setting: forcing UI mode.\n");
      XXX=1;
    }
-   if (hydro && fission_allowed==2) {
+   if (params->hydro && params->fission_allowed==2) {
       fprintf(stderr, "* Current implementation does not allow chunk_fission and hydrolysis simultaneously.\n"); exit(1);
    }
    if (double_tiles || vdouble_tiles) {
@@ -987,7 +1004,7 @@ void getargs(int argc, char **argv)
       //fprintf(stderr, "Double tiles cannot be used with fission or chunk_fission currently.\n");
       //exit(0);
       //}
-      if (hydro) {
+      if (params->hydro) {
 	 fprintf(stderr, "Double tiles cannot be used with hydrolysis currently.\n");
 	 exit(1);
       }
@@ -995,41 +1012,43 @@ void getargs(int argc, char **argv)
 	 fprintf(stderr, "Double tiles cannot be used with repair or fill cycles currently.\n");
 	 exit(1);
       }
-      if (blast_rate > 0) {
+      if (params->blast_rate > 0) {
 	 fprintf(stderr, "Blasting cannot be used with double tiles currently.\n");
 	 exit(1);
       }
    }
 
    for (size_P=5; (1<<size_P)<size; size_P++);
-   size=(1<<size_P); 
-   //if (XXX) {
+   size=(1<<size_P);
+   // if (XXX) {
    //   if (size*block > 800) block=800/size;
    //   if (block==0) { size=512; block=1; size_P=9; }
    //}
 
-   if (blast_rate_alpha>0) { int kb;
-      fprintf(stderr, "blast_rate: alpha = %f, beta = %f, gamma = %f\n",blast_rate_alpha,blast_rate_beta,blast_rate_gamma);
-      for (kb=1; kb<size; kb++)  
-	 blast_rate += blast_rate_alpha * exp(-blast_rate_gamma*(kb-1)) / pow(kb*1.0,blast_rate_beta) ;
-      fprintf(stderr, "total blast_rate per site = %f\n",blast_rate);
+   if (params->blast_rate_alpha > 0) {
+       int kb;
+       fprintf(stderr, "blast_rate: alpha = %f, beta = %f, gamma = %f\n", params->blast_rate_alpha,
+           params->blast_rate_beta, params->blast_rate_gamma);
+       for (kb = 1; kb < size; kb++)
+           params->blast_rate += params->blast_rate_alpha * exp(-params->blast_rate_gamma * (kb - 1))
+               / pow(kb * 1.0, params->blast_rate_beta);
+       fprintf(stderr, "total blast_rate per site = %f\n", params->blast_rate);
    }
-
 
    NROWS=(size+NBDY*2);
    NCOLS=(size+NBDY*2);
    VOLUME=(NROWS*NCOLS);
 
-   T=T*Gse;
+   params->T=params->T*params->Gse;
 
    /* for consistency's sake, insert seed_i, seed_j, seed_n, Gfc into fparam */
    /* if no addflake commands were issued */
    if (fparam==NULL) {
       fprm = (struct flake_param *)malloc(sizeof(struct flake_param)); 
-      fprm->seed_i=seed_i; fprm->seed_j=seed_j; fprm->seed_n=seed_n; 
+      fprm->seed_i=params->seed_i; fprm->seed_j=params->seed_j; fprm->seed_n=params->seed_n; 
       fprm->import_from=NULL;
-      fprm->N= (tinybox == 0); 
-      fprm->Gfc=Gfc;
+      fprm->N= (params->tinybox == 0); 
+      fprm->Gfc=params->Gfc;
       fprm->next_param=fparam;
       fparam=fprm;
    }
@@ -1040,34 +1059,38 @@ void getargs(int argc, char **argv)
       while (fprm->seed_j>=size) fprm->seed_j/=2;
    }
    if (fparam != NULL) {
-      seed_i=fparam->seed_i; seed_j=fparam->seed_j;
+      params->seed_i=fparam->seed_i; params->seed_j=fparam->seed_j;
    }
 
    if (!XXX) {
      fprintf(stderr, " Starting simulation (1st seed=%d,%d,%d) on %d x %d board.\n",
-	    seed_i, seed_j, seed_n, size, size);
+	    params->seed_i, params->seed_j, params->seed_n, size, size);
    }
 
 }
 
-void write_datalines(FILE *out, char *text)
-{ flake *fpp; int perimeter; double dG_bonds;  
+void write_datalines(tube_params* params, tube* tp, flake* fp, FILE* out, char* text) {
+    flake* fpp;
+    int perimeter;
+    double dG_bonds;
 
-   for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
-      if (strcmp(text,"")==0) fpp=fp;
-      perimeter=calc_perimeter(fpp);
-      dG_bonds = calc_dG_bonds(fpp);
-      if (tp->hydro) fprintf(out, " %f %f %f %f %f %f %f %f %f ",
-	    Gseh, Gmch, Ghyd, Gas, Gam, Gae, Gah, Gao, Gfc);
-      fprintf(out, " %f %f %f %f %d %d %lld %d %f %f%s",
-	    Gmc,tp->Gse,ratek,tp->t,fpp->tiles,fpp->mismatches,tp->events,
-	    perimeter, fpp->G, dG_bonds,text);
-      if (strcmp(text,"")==0) break;
-   }
-   fflush(out);
+    for (fpp = tp->flake_list; fpp != NULL; fpp = fpp->next_flake) {
+        if (strcmp(text, "") == 0)
+            fpp = fp;
+        perimeter = calc_perimeter(fpp);
+        dG_bonds = calc_dG_bonds(fpp);
+        if (tp->hydro)
+            fprintf(out, " %f %f %f %f %f %f %f %f %f ", params->Gseh, params->Gmch, params->Ghyd,
+                params->Gas, params->Gam, params->Gae, params->Gah, params->Gao, params->Gfc);
+        fprintf(out, " %f %f %f %f %d %d %lld %d %f %f%s", tp->Gmc, tp->Gse, tp->k, tp->t,
+            fpp->tiles, fpp->mismatches, tp->events, perimeter, fpp->G, dG_bonds, text);
+        if (strcmp(text, "") == 0)
+            break;
+    }
+    fflush(out);
 }
 
-void write_largeflakedata(FILE *filep) {
+void write_largeflakedata(tube *tp, FILE *filep) {
    flake *fp;
    int large_flakes = 0;
    for (fp = tp->flake_list; fp != NULL; fp=fp->next_flake) {
@@ -1078,11 +1101,11 @@ void write_largeflakedata(FILE *filep) {
    fprintf(filep,"%d\n",large_flakes);
 }
 
-void write_untiltilescountdata(FILE *filep) {
+void write_untiltilescountdata(tube *tp, FILE *filep) {
    fprintf(filep,"%d\n",tp->untiltilescount);
 }
 
-void write_flake(FILE *filep, char *mode, flake *fp)
+void write_flake(tube_params *params, tube *tp, FILE *filep, char *mode, flake *fp)
 { int n, row, col, tl; 
 
    if (filep!=NULL) {
@@ -1090,7 +1113,8 @@ void write_flake(FILE *filep, char *mode, flake *fp)
       else if (strcmp(mode,"movie")==0) n=export_movie_n++;
       else n=1;
       fprintf(filep,"\n%s{%d}={ ...\n",mode,n);
-      fprintf(filep,"[ "); write_datalines(filep,"");
+      fprintf(filep, "[ ");
+      write_datalines(params, tp, fp, filep, "");
       fprintf(filep," ],...\n  [");
       for (tl=1; tl<=tp->N; tl++) 
 	 fprintf(filep," %8.5f", (tp->conc[tl]>0)?-log(tp->conc[tl]):0 );
@@ -1105,11 +1129,11 @@ void write_flake(FILE *filep, char *mode, flake *fp)
    }
 }  
 
-void export_flake(char *mode, flake *fp)
+void export_flake(tube_params *params, tube *tp, char *mode, flake *fp)
 {
    if (export_fp==NULL) export_fp=fopen("xgrow_export_output","a+");
    fprintf(stderr, "Writing flake #%d...\n",export_flake_n);
-   write_flake(export_fp, mode, fp);
+   write_flake(params, tp, export_fp, mode, fp);
    fflush(export_fp);
 }
 
@@ -1268,7 +1292,7 @@ int count_flakes(FILE *flake_file)
  * flake fp, then recalc_g at the end.  If there is no corresponding flake
  * in the file, it doesn't modify the flake.
  */
-void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
+void import_flake(tube *tp, flake *current_flake, FILE *flake_file, int flake_number)
 {
    fpos_t flake_start;
    int tile_type, read_flake_number, translate_i, translate_j, i, j, end, flake_size;
@@ -1395,13 +1419,13 @@ void import_flake(flake *current_flake, FILE *flake_file, int flake_number)
    current_flake->seed_n = current_flake->Cell(i,j);
 
    /*    fprintf(stderr, "Just set seed for flake %d to (%d,%d), tile type %d\n", flake_number, i, j, current_flake->Cell(i,j)); */
-   fp->events = 0;
+   current_flake->events = 0;
 
-   recalc_G(fp);
+   recalc_G(current_flake);
 }
 
 
-void closeargs()
+void closeargs(tube *tp, tube_params *params)
 { 
    int i;  flake *fpp;
 
@@ -1416,7 +1440,7 @@ void closeargs()
    // alternative fix-up routine; redundant with clean/fill, but supposedly more reliable
    if (repair_unique) 
       for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) 
-	 repair_flake(fpp,repair_unique_T,Gse); 
+	 repair_flake(fpp,repair_unique_T, tp->Gse); 
 
    // recalc's all mismatch #'s if error_radius is given -- keep only those not near an empty cell.
    if (error_radius>.5) {
@@ -1426,32 +1450,28 @@ void closeargs()
 
    /* output information for *all* flakes */
    if (datafp!=NULL) {
-      write_datalines(datafp,"\n"); fclose(datafp);
+      write_datalines(params, tp, tp->flake_list, datafp,"\n"); fclose(datafp);
    } 
 
    if (largeflakefp!=NULL) {
-      write_largeflakedata(largeflakefp); fclose(largeflakefp);
+      write_largeflakedata(tp, largeflakefp); fclose(largeflakefp);
    }
 
    if (untiltilescountfp!=NULL) {
-      write_untiltilescountdata(untiltilescountfp);
+      write_untiltilescountdata(tp, untiltilescountfp);
       fclose(untiltilescountfp);
    }
    if (arrayfp!=NULL) {
       export_flake_n=1;
       for (fpp=tp->flake_list; fpp!=NULL; fpp=fpp->next_flake) {
-	 write_flake(arrayfp, "flake", fpp);
+	 write_flake(params, tp, arrayfp, "flake", fpp);
       }
       fclose(arrayfp);
    }
    if (export_fp!=NULL) fclose(export_fp);
 
    // free memory
-   for (i=0;i<=tp->N;i++) free(tileb[i]);
-   free(tileb);
-   for (i=0;i<=tp->num_bindings;i++) free(glue[i]);
-   free(glue);
-   free(strength); free(stoic);
+   free(params->stoic);
 
    while (fparam!=NULL) { fprm=fparam->next_param; free(fparam); fparam=fprm; }
 
@@ -1460,28 +1480,38 @@ void closeargs()
 
 // (i,j) should not be empty. returns 0 if OK, 1 if mismatches with E or S or N or W, or unbound s.e.
 #define errortile(i,j) ( (                                                      \
-	 (tileb[fp->Cell(i,j)][1] != tileb[fp->Cell(i,(j)+1)][3] && \
-	  tileb[fp->Cell(i,j)][1]*tileb[fp->Cell(i,(j)+1)][3] > 0 && \
-	  (fp->tube->glue)[tileb[fp->Cell(i,j)][1]][tileb[fp->Cell(i,(j)+1)][3]] < min_strength) || \
-	 (tileb[fp->Cell(i,j)][3] != tileb[fp->Cell(i,(j)-1)][1] &&           \
-	  tileb[fp->Cell(i,j)][3]*tileb[fp->Cell(i,(j)-1)][1] > 0 &&   \
-	  (fp->tube->glue)[tileb[fp->Cell(i,j)][3]][tileb[fp->Cell(i,(j)-1)][1]] < min_strength) || \
-	 (tileb[fp->Cell(i,j)][2] != tileb[fp->Cell((i)+1,j)][0] &&           \
-	  tileb[fp->Cell(i,j)][2]*tileb[fp->Cell((i)+1,(j))][0] > 0 &&   /* This one works!? */ \
-	  (fp->tube->glue)[tileb[fp->Cell(i,j)][2]][tileb[fp->Cell((i)+1,j)][0]] < min_strength) || \
-	 (tileb[fp->Cell(i,j)][0] != tileb[fp->Cell((i)-1,j)][2] &&           \
-	  tileb[fp->Cell(i,j)][0]*tileb[fp->Cell((i)-1,(j))][2] > 0 &&   \
-	  (fp->tube->glue)[tileb[fp->Cell(i,j)][0]][tileb[fp->Cell((i)-1,j)][2]] < min_strength) ) ? 1 : 0 )
+	 (tp->tileb[fp->Cell(i,j)][1] != tp->tileb[fp->Cell(i,(j)+1)][3] && \
+	  tp->tileb[fp->Cell(i,j)][1]*tp->tileb[fp->Cell(i,(j)+1)][3] > 0 && \
+	  (fp->tube->glue)[tp->tileb[fp->Cell(i,j)][1]][tp->tileb[fp->Cell(i,(j)+1)][3]] < min_strength) || \
+	 (tp->tileb[fp->Cell(i,j)][3] != tp->tileb[fp->Cell(i,(j)-1)][1] &&           \
+	  tp->tileb[fp->Cell(i,j)][3]*tp->tileb[fp->Cell(i,(j)-1)][1] > 0 &&   \
+	  (fp->tube->glue)[tp->tileb[fp->Cell(i,j)][3]][tp->tileb[fp->Cell(i,(j)-1)][1]] < min_strength) || \
+	 (tp->tileb[fp->Cell(i,j)][2] != tp->tileb[fp->Cell((i)+1,j)][0] &&           \
+	  tp->tileb[fp->Cell(i,j)][2]*tp->tileb[fp->Cell((i)+1,(j))][0] > 0 &&   /* This one works!? */ \
+	  (fp->tube->glue)[tp->tileb[fp->Cell(i,j)][2]][tp->tileb[fp->Cell((i)+1,j)][0]] < min_strength) || \
+	 (tp->tileb[fp->Cell(i,j)][0] != tp->tileb[fp->Cell((i)-1,j)][2] &&           \
+	  tp->tileb[fp->Cell(i,j)][0]*tp->tileb[fp->Cell((i)-1,(j))][2] > 0 &&   \
+	  (fp->tube->glue)[tp->tileb[fp->Cell(i,j)][0]][tp->tileb[fp->Cell((i)-1,j)][2]] < min_strength) ) ? 1 : 0 )
 
-#define getcolor(i,j) ( (fp->Cell(i,j)==0)? translate[0] : (              \
-	 (err==1) ? ( errortile(i,j) ? errorcolor : goodcolor ) : (       \
-	    (err==2) ? ( (fp->Cell(i,j)>fp->N/2) ?                           \
-	       ( errortile(i,j) ? hydroerrcolor : hydrocolor ) :   \
-	       ( errortile(i,j) ? errorcolor : goodcolor ) ) :     \
-	    translate[fp->Cell(i,j)] ) ) )
+int getcolor(tube *tp, flake *fp, int i, int j, int err)
+{
+    int min_strength = tp->min_strength;
+    return ((fp->Cell(i, j) == 0)
+            ? translate[0]
+            : ((err == 1) ? (errortile(i, j) ? errorcolor : goodcolor)
+                          : ((err == 2) ? ((fp->Cell(i, j) > fp->N / 2)
+                                     ? (errortile(i, j) ? hydroerrcolor : hydrocolor)
+                                     : (errortile(i, j) ? errorcolor : goodcolor))
+                                        : translate[fp->Cell(i, j)])));
+}
+
+#define getcolordij(tp, fp, row, col, di, dj, err)                                                         \
+    (((row + (di)) >= 0 && (row + (di)) < size && (col + (dj)) >= 0 && (col + (dj)) < size)        \
+            ? getcolor(tp, fp, row + di, col + dj, err)                                                    \
+            : 0)
 
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
-void showpic(flake *fp, int err) /* display the field */  // err param is ignored!
+void showpic(tube *tp, flake *fp, int err) /* display the field */  // err param is ignored!
 {int row,col,i1,i2,color,j,j1,j2,blocktop=block;
    char *picture=(*spinimage).data; static int last_display_type=0;
    int new_display=(last_display_type!=(10*errors+errorc)); 
@@ -1492,7 +1522,7 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
       if (block>1) /* I wish I knew how to do this faster */
 	 for (row=0;row<size;row++)
 	    for (col=0;col<size;col++) {
-	       color = getcolor(row,col);
+	       color = getcolor(tp, fp, row, col, err);
 	       j=block*((col+NBDY)+block*NCOLS*(row+NBDY));
 	       if (color!=picture[j] || new_display) {
 		  for (i1=0;i1<blocktop;i1++) {
@@ -1507,14 +1537,14 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
 			int ncolm=fp->Cell(row,col-1),  ncolp=fp->Cell(row,col+1);  
 			int nrowm=fp->Cell(row-1,col),  nrowp=fp->Cell(row+1,col);  
 			Ccolm=weakcolor; Ccolp=weakcolor; Crowp=weakcolor; Crowm=weakcolor;
-			if (fp->tube->Gse_EW[ n ] [ ncolm ] > 1.5*Gse) Ccolm=strongcolor;
-			if (fp->tube->Gse_EW[ ncolp ] [ n ] > 1.5*Gse) Ccolp=strongcolor;
-			if (fp->tube->Gse_NS[ n ] [ nrowp ] > 1.5*Gse) Crowp=strongcolor;
-			if (fp->tube->Gse_NS[ nrowm ] [ n ] > 1.5*Gse) Crowm=strongcolor;
-			if (fp->tube->Gse_EW[ n ] [ ncolm ] < 0.5*Gse) Ccolm=nullcolor;
-			if (fp->tube->Gse_EW[ ncolp ] [ n ] < 0.5*Gse) Ccolp=nullcolor;
-			if (fp->tube->Gse_NS[ n ] [ nrowp ] < 0.5*Gse) Crowp=nullcolor;
-			if (fp->tube->Gse_NS[ nrowm ] [ n ] < 0.5*Gse) Crowm=nullcolor;
+			if (tp->Gse_EW[ n ] [ ncolm ] > 1.5*tp->Gse) Ccolm=strongcolor;
+			if (tp->Gse_EW[ ncolp ] [ n ] > 1.5*tp->Gse) Ccolp=strongcolor;
+			if (tp->Gse_NS[ n ] [ nrowp ] > 1.5*tp->Gse) Crowp=strongcolor;
+			if (tp->Gse_NS[ nrowm ] [ n ] > 1.5*tp->Gse) Crowm=strongcolor;
+			if (tp->Gse_EW[ n ] [ ncolm ] < 0.5*tp->Gse) Ccolm=nullcolor;
+			if (tp->Gse_EW[ ncolp ] [ n ] < 0.5*tp->Gse) Ccolp=nullcolor;
+			if (tp->Gse_NS[ n ] [ nrowp ] < 0.5*tp->Gse) Crowp=nullcolor;
+			if (tp->Gse_NS[ nrowm ] [ n ] < 0.5*tp->Gse) Crowm=nullcolor;
 		     }
 		     if (n==0 && fp->Cell(row,col-1)==0) Ccolm=translate[0];
 		     if (n==0 && fp->Cell(row,col+1)==0) Ccolp=translate[0];
@@ -1534,13 +1564,13 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
       else { 
 	 for (row=0,j=NCOLS*NBDY+NBDY;row<size;row++,j+=2*NBDY) 
 	    for (col=0;col<size;col++,j++)
-	       picture[j]=getcolor(row,col);
+                picture[j] = getcolor(tp, fp, row, col, err);
       }
    } else {/* depth is not == 8, use xputpixel (this is really ugly) */
       if (block>1) /* I wish I knew how to do this faster */
 	 for (row=0;row<size;row++)
 	    for (col=0;col<size;col++) {
-	       color=getcolor(row,col);
+	       color = getcolor(tp, fp, row, col, err);
 	       if (color!=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY)) 
 		     || new_display) {
 		  for (i2=0;i2<blocktop;i2++)
@@ -1554,14 +1584,14 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
 			   int ncolm=fp->Cell(row,col-1),  ncolp=fp->Cell(row,col+1);  
 			   int nrowm=fp->Cell(row-1,col),  nrowp=fp->Cell(row+1,col);  
 			   Ccolm=weakcolor; Ccolp=weakcolor; Crowp=weakcolor; Crowm=weakcolor;
-			   if (fp->tube->Gse_EW[ n ] [ ncolm ] > 1.5*Gse) Ccolm=strongcolor;
-			   if (fp->tube->Gse_EW[ ncolp ] [ n ] > 1.5*Gse) Ccolp=strongcolor;
-			   if (fp->tube->Gse_NS[ n ] [ nrowp ] > 1.5*Gse) Crowp=strongcolor;
-			   if (fp->tube->Gse_NS[ nrowm ] [ n ] > 1.5*Gse) Crowm=strongcolor;
-			   if (fp->tube->Gse_EW[ n ] [ ncolm ] < 0.5*Gse) Ccolm=nullcolor;
-			   if (fp->tube->Gse_EW[ ncolp ] [ n ] < 0.5*Gse) Ccolp=nullcolor;
-			   if (fp->tube->Gse_NS[ n ] [ nrowp ] < 0.5*Gse) Crowp=nullcolor;
-			   if (fp->tube->Gse_NS[ nrowm ] [ n ] < 0.5*Gse) Crowm=nullcolor;
+			   if (tp->Gse_EW[ n ] [ ncolm ] > 1.5*tp->Gse) Ccolm=strongcolor;
+			   if (tp->Gse_EW[ ncolp ] [ n ] > 1.5*tp->Gse) Ccolp=strongcolor;
+			   if (tp->Gse_NS[ n ] [ nrowp ] > 1.5*tp->Gse) Crowp=strongcolor;
+			   if (tp->Gse_NS[ nrowm ] [ n ] > 1.5*tp->Gse) Crowm=strongcolor;
+			   if (tp->Gse_EW[ n ] [ ncolm ] < 0.5*tp->Gse) Ccolm=nullcolor;
+			   if (tp->Gse_EW[ ncolp ] [ n ] < 0.5*tp->Gse) Ccolp=nullcolor;
+			   if (tp->Gse_NS[ n ] [ nrowp ] < 0.5*tp->Gse) Crowp=nullcolor;
+			   if (tp->Gse_NS[ nrowm ] [ n ] < 0.5*tp->Gse) Crowm=nullcolor;
 			}
 			if (n==0 && fp->Cell(row,col-1)==0) Ccolm=translate[0];
 			if (n==0 && fp->Cell(row,col+1)==0) Ccolp=translate[0];
@@ -1578,7 +1608,7 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
       else
 	 for (row=0;row<size;row++)
 	    for (col=0;col<size;col++) {
-	       color = getcolor(row,col);
+	       color = getcolor(tp, fp, row,col, err);
 	       XPutPixel(spinimage,col+NBDY,row+NBDY,color);
 	    }
    }
@@ -1586,12 +1616,8 @@ void showpic(flake *fp, int err) /* display the field */  // err param is ignore
    return;
 }
 
-#define getcolordij(row,col,di,dj) \
-   (((row+(di))>=0 && (row+(di))<size && (col+(dj))>=0 && (col+(dj))<size) ? \
-    getcolor(row+di,col+dj) : 0)
-
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
-void add_sample_pic(flake *fp, int err) /* add sample the field */
+void add_sample_pic(tube *tp, flake *fp, int err) /* add sample the field */
 {int row,col,i1,i2,di=0,ddi,j1,j2,dj=0,ddj,blocktop=block;
    int color, oldcolor, n_tries=10000,n, collision=0, anything=0;
 
@@ -1610,11 +1636,12 @@ void add_sample_pic(flake *fp, int err) /* add sample the field */
 	 for (col=0;col<size;col++) { 
 	    color = 0;
 	    for (ddi=-1; ddi<=1; ddi++) for (ddj=-1; ddj<=1; ddj++)
-	       color = MAX( getcolordij(row,col,di+ddi,dj+ddj), color ); 
-	    oldcolor=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY));
-	    if (oldcolor>0 && color>0) collision=1;   
-	    if (getcolordij(row,col,di,dj) >0) anything++;
-	 }
+                    color = MAX(getcolordij(tp, fp, row, col, di + ddi, dj + ddj, err), color);
+            oldcolor = XGetPixel(spinimage, j1 = block * (col + NBDY), j2 = block * (row + NBDY));
+            if (oldcolor>0 && color>0) collision=1;
+            if (getcolordij(tp, fp, row, col, di, dj, err) > 0)
+                anything++;
+         }
       anything = anything && (anything==fp->tiles);
    }
    // if (n==n_tries)  fprintf(stderr, "---GAVE UP---\n"); else fprintf(stderr, "!!!SUCCESS!!!\n");
@@ -1625,7 +1652,7 @@ void add_sample_pic(flake *fp, int err) /* add sample the field */
       for (row=0;row<size;row++)
 	 for (col=0;col<size;col++) { 
 	    oldcolor=XGetPixel(spinimage,j1=block*(col+NBDY),j2=block*(row+NBDY));
-	    color = MAX( getcolordij(row,col,di,dj), oldcolor ); 
+	    color = MAX(getcolordij(tp, fp, row,col,di,dj,err), oldcolor); 
 	    if (color!=oldcolor) {
 	       for (i2=0;i2<blocktop;i2++)
 		  for (i1=0;i1<blocktop;i1++)
@@ -1675,21 +1702,22 @@ void setpause(int value)
 }
 
 /* fix up the colors button */
-void settilecolor(int value)
-{errorc=value;
-   if (hydro) {
-      if (errorc==2) 
-	 XDrawImageString(display,colorbutton,gcr,0,font_height,"tile/err/HYD",12);
-      else if (errorc==1) 
-	 XDrawImageString(display,colorbutton,gcr,0,font_height,"tile/ERR/hyd",12);
-      else if (errorc==0)
-	 XDrawImageString(display,colorbutton,gcr,0,font_height,"TILE/err/hyd",12);
-   } else {
-      if (errorc==1) 
-	 XDrawImageString(display,colorbutton,gcr,0,font_height,"  tile/ERR  ",12);
-      else if (errorc==0)
-	 XDrawImageString(display,colorbutton,gcr,0,font_height,"  TILE/err  ",12);
-   }
+void settilecolor(tube *tp, int value)
+{
+    errorc = value;
+    if (tp->hydro) {
+        if (errorc == 2)
+            XDrawImageString(display, colorbutton, gcr, 0, font_height, "tile/err/HYD", 12);
+        else if (errorc == 1)
+            XDrawImageString(display, colorbutton, gcr, 0, font_height, "tile/ERR/hyd", 12);
+        else if (errorc == 0)
+            XDrawImageString(display, colorbutton, gcr, 0, font_height, "TILE/err/hyd", 12);
+    } else {
+        if (errorc == 1)
+            XDrawImageString(display, colorbutton, gcr, 0, font_height, "  tile/ERR  ", 12);
+        else if (errorc == 0)
+            XDrawImageString(display, colorbutton, gcr, 0, font_height, "  TILE/err  ", 12);
+    }
 }
 
 void setsidecolor(int value)
@@ -1725,30 +1753,32 @@ void setexport(int value)
 }
 
 /* fix up the seed mode button */
-void setwander(int value)
-{wander=value;
-   if (wander) 
-      XDrawImageString(display,seedbutton,gcr,0,font_height,"fixed/WANDER",12);
-   else
-      XDrawImageString(display,seedbutton,gcr,0,font_height,"FIXED/wander",12);
+void setwander(tube* tp, int value)
+{
+    tp->wander = value;
+    if (tp->wander)
+        XDrawImageString(display, seedbutton, gcr, 0, font_height, "fixed/WANDER", 12);
+    else
+        XDrawImageString(display, seedbutton, gcr, 0, font_height, "FIXED/wander", 12);
 }
 
 /* fix up the fission mode button */
-void setfission(int value)
-{fission_allowed=value;
-   if (hydro && value==2) fission_allowed=0;
-   if (fission_allowed>0) 
-      if (fission_allowed==1)
-	 XDrawImageString(display,fissionbutton,gcr,0,font_height," fission  OK ",13);
-      else
-	 XDrawImageString(display,fissionbutton,gcr,0,font_height,"chunk fission",13);
-   else
-      XDrawImageString(display,fissionbutton,gcr,0,font_height," NO  fission ",13);
+void setfission(tube* tp, int value)
+{
+    tp->fission_allowed = value;
+    if (tp->hydro && value == 2)
+        tp->fission_allowed = 0;
+    if (tp->fission_allowed > 0)
+        if (tp->fission_allowed == 1)
+            XDrawImageString(display, fissionbutton, gcr, 0, font_height, " fission  OK ", 13);
+        else
+            XDrawImageString(display, fissionbutton, gcr, 0, font_height, "chunk fission", 13);
+    else
+        XDrawImageString(display, fissionbutton, gcr, 0, font_height, " NO  fission ", 13);
 }
 
-
 /* this fixes the window up whenever it is uncovered */
-void repaint()
+void repaint(tube_params *params, tube *tp, flake *fp)
 {int i=0;
    XDrawString(display,quitbutton,    gcr,0,font_height,"    quit     ",13);
    XDrawString(display,restartbutton, gcr,0,font_height,"   restart   ",13);
@@ -1758,14 +1788,14 @@ void repaint()
    XDrawString(display,tempbutton,    gcr,0,font_height," cool   heat ",13);
    setexport(export_mode);
    setpause(paused);
-   settilecolor(errorc); setsidecolor(errors);
-   setwander(wander);
-   setfission(fission_allowed);
+   settilecolor(tp, errorc); setsidecolor(errors);
+   setwander(tp, tp->wander);
+   setfission(tp, tp->fission_allowed);
 
    /* write various strings */
    if (fp) {
       sprintf(stringbuffer,"flake %d (%d by %d%s, seed %d @ (%d,%d))",
-	    fp->flake_ID, (1<<fp->P),(1<<fp->P), periodic?", periodic":"",
+	    fp->flake_ID, (1<<fp->P),(1<<fp->P), tp->periodic?", periodic":"",
 	    fp->seed_n, fp->seed_i, fp->seed_j);
       XDrawImageString(display,window,gc,5,(++i)*font_height,
 	    stringbuffer,strlen(stringbuffer));
@@ -1776,32 +1806,30 @@ void repaint()
    }
 
    sprintf(stringbuffer,"([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    ",
-	 1000000.0*20.0*exp(-Gmc),  4000/(Gse/5+11)-273.15);
+	 1000000.0*20.0*exp(-tp->Gmc),  4000/(tp->Gse/5+11)-273.15);
    XDrawImageString(display,window,gc,5,(++i)*font_height,
 	 stringbuffer,strlen(stringbuffer));
 
-   if (T>0) 
+   if (tp->T>0) 
       sprintf(stringbuffer,"Gmc=%4.1f  Gse=%4.1f  k=%6.0f   T=%4.1f",
-	    Gmc,tp->Gse,ratek,T/tp->Gse);
+	    tp->Gmc,tp->Gse,tp->k,tp->T/tp->Gse);
    else 
       sprintf(stringbuffer,"Gmc=%4.1f  Gse=%4.1f  k=%6.0f   ",
-	    Gmc,tp->Gse,ratek);
+	    tp->Gmc,tp->Gse,tp->k);
    XDrawImageString(display,window,gc,5,(++i)*font_height,
 	 stringbuffer,strlen(stringbuffer));
 
    if (tp->hydro) {
-      sprintf(stringbuffer,"Gmch=%4.1f  Gseh=%4.1f  Ghyd=%4.1f",
-	    Gmch,Gseh,Ghyd);
-      XDrawString(display,window,gc,5,(++i)*font_height,
-	    stringbuffer,strlen(stringbuffer));
-      sprintf(stringbuffer,"Gas=%4.1f Gam=%4.1f Gae=%4.1f Gah=%4.1f Gao=%4.1f",
-	    Gas,Gam,Gae,Gah,Gao);
-      XDrawString(display,window,gc,5,(++i)*font_height,
-	    stringbuffer,strlen(stringbuffer));
+       sprintf(stringbuffer, "Gmch=%4.1f  Gseh=%4.1f  Ghyd=%4.1f", params->Gmch, params->Gseh,
+           params->Ghyd);
+       XDrawString(display, window, gc, 5, (++i) * font_height, stringbuffer, strlen(stringbuffer));
+       sprintf(stringbuffer, "Gas=%4.1f Gam=%4.1f Gae=%4.1f Gah=%4.1f Gao=%4.1f", params->Gas, params->Gam, params->Gae,
+           params->Gah, params->Gao);
+       XDrawString(display, window, gc, 5, (++i) * font_height, stringbuffer, strlen(stringbuffer));
    }
    if (fp) {
       sprintf(stringbuffer,"t = %12.3f sec; G = %12.3f      ",tp->t, 
-	    ( wander || tp->conc[fp->seed_n]==0 ) ? fp->G : (fp->G+log(tp->conc[fp->seed_n])));           
+	    ( tp->wander || tp->conc[fp->seed_n]==0 ) ? fp->G : (fp->G+log(tp->conc[fp->seed_n])));           
    }
    XDrawImageString(display,window,gc,5,(++i)*font_height,
 	 stringbuffer,strlen(stringbuffer));
@@ -1824,7 +1852,7 @@ void repaint()
    XDrawString(display, window, gc, PLAY_MARGIN, WINDOWHEIGHT - 2 - font->descent,
                "left: identify, middle: puncture, right: Gmc/Gse | EW, RS, CGE '98-'21", 70);
 
-   if (!sampling && fp) showpic(fp,errorc); 
+   if (!sampling && fp) showpic(tp, fp,errorc); 
    else XPutImage(display,playground,gc,spinimage,0,0,0,0,block*NCOLS,block*NROWS); 
 }
 
@@ -2107,7 +2135,7 @@ void cleanup()
 
 
 
-void identify(int x, int y)
+void identify(tube *tp, flake *fp, int x, int y)
 {
    int i, j, t;
    i = MIN(MAX(0, y - 2), size - 1);
@@ -2115,7 +2143,7 @@ void identify(int x, int y)
    t = fp->Cell(i, j);
    sprintf(stringbuffer, "([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
                          "%s #%d = {%d %d %d %d} at (%d,%d)              ",
-           1000000.0 * 20.0 * exp(-Gmc), 4000 / (Gse / 5 + 11) - 273.15,
+           1000000.0 * 20.0 * exp(-tp->Gmc), 4000 / (tp->Gse / 5 + 11) - 273.15,
            (tile_names[t] != NULL) ? tile_names[t] : "tile", t, tp->tileb[t][0], tp->tileb[t][1], tp->tileb[t][2], tp->tileb[t][3], i, j);
    XDrawImageString(display, window, gc, 5, 3 * font_height,
                     stringbuffer, strlen(stringbuffer));
@@ -2130,11 +2158,14 @@ int main(int argc, char **argv)
    XEvent report;
    progname=argv[0];
 
+   tube_params *params = (tube_params*)malloc(sizeof(tube_params));
+   set_default_params(params);
+
    for (i=0;i<MAXTILETYPES;i++) {
       translate[i]=0; /* translate[] from tiles to colors */
    }
 
-   getargs(argc, argv);
+   getargs(argc, argv, params);
 
    if (import_flake_size > size)
    {
@@ -2143,28 +2174,28 @@ int main(int argc, char **argv)
       exit(-1);
    }
 
-   if (hydro) { /* automatically double the number of tiles */
-      tileb=(int**) realloc(tileb,sizeof(int*)*(2*N+1));
+   if (params->hydro) { /* automatically double the number of tiles */
+      params->tileb=(int**) realloc(params->tileb,sizeof(int*)*(2*N+1));
       for (i=1;i<=N;i++) {
-	 tileb[i+N]= (int*) calloc(sizeof(int),4);
-	 for (j=0;j<4;j++) tileb[i+N][j] = tileb[i][j];
+	 params->tileb[i+N]= (int*) calloc(sizeof(int),4);
+	 for (j=0;j<4;j++) params->tileb[i+N][j] = params->tileb[i][j];
       }
-      stoic=(double*) realloc(stoic,sizeof(double)*(2*N+1));
-      for (i=1;i<=N;i++) stoic[i+N]= stoic[i];
+      params->stoic=(double*) realloc(params->stoic,sizeof(double)*(2*N+1));
+      for (i=1;i<=N;i++) params->stoic[i+N]= params->stoic[i];
       N = N*2;
    }
 
    if (linear) {
-      linear_simulate(ratek,Gmc,Gse,tmax,emax,smax,mmax);
+      linear_simulate(params->k,params->Gmc,params->Gse,tmax,emax,smax,mmax);
       return 0;
    }
 
+   tube *tp;
+   flake *fp;
+
    if (testing) {
       tp = init_tube(size_P,N,num_bindings);   
-      set_params(tp,tileb,strength,glue,stoic,0,initial_rc,updates_per_RC,
-	    anneal_h,anneal_s,startC,endC,seconds_per_C,
-	    dt_right, dt_left, dt_down, dt_up, hydro,ratek,
-	    Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox, seed_i, seed_j, Gfc);
+      set_params(tp, params);
 #ifdef TESTING_OK
       run_xgrow_tests(tp,Gmc,Gse,seed_i,seed_j,seed_n,size);
 #endif
@@ -2177,11 +2208,9 @@ int main(int argc, char **argv)
 
    /* set initial state */
    tp = init_tube(size_P,N,num_bindings);   
-   set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,anneal_h,anneal_s,startC,endC,seconds_per_C,dt_right, dt_left, dt_down, dt_up, hydro,ratek,
-	 Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,Gfc);
+   set_params(tp, params);
 
    fprm=fparam;
-
 
    /* initialize flakes */
    while (fprm!=NULL)
@@ -2193,15 +2222,18 @@ int main(int argc, char **argv)
 	    fprm->seed_n = tp->dt_left[fprm->seed_n]; // FIXME: vdouble
 	    fprm->seed_j--;
 	 }
-	 insert_flake(fp=init_flake(size_P,N,
-		  fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp);
+
+    fp = init_flake(size_P,N,fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc, tp->present_list_len, tp->periodic);
+
+	 insert_flake(fp, tp);
+
 	 if (tp->dt_right[fprm->seed_n]) {
-	    change_cell (fp,seed_i,seed_j+1,tp->dt_right[fprm->seed_n]);
+	    change_cell (fp,params->seed_i,params->seed_j+1,tp->dt_right[fprm->seed_n]);
 	    fp->seed_is_double_tile = 1;
 	 }
 	 assert (!tp->dt_left[fprm->seed_n]);
 	 if (tp->dt_down[fprm->seed_n]) {
-	    change_cell (fp,seed_i+1,seed_j,tp->dt_down[fprm->seed_n]);
+	    change_cell (fp,params->seed_i+1,params->seed_j,tp->dt_down[fprm->seed_n]);
 	    fp->seed_is_vdouble_tile = 1;
 	 }
 	 assert (!tp->dt_up[fprm->seed_n]);
@@ -2210,7 +2242,7 @@ int main(int argc, char **argv)
 	 if (fprm->import_from != NULL)
 	 {
 	    fprintf(stderr, "WARNING: In imported flakes, the seed position is chosen randomly.\n");
-	    import_flake(fp, fprm->import_from, fn);
+	    import_flake(tp, fp, fprm->import_from, fn);
 	 }
       }
       fprm=fprm->next_param;
@@ -2242,7 +2274,7 @@ int main(int argc, char **argv)
 		  tp->events--; /* don't count these as events */
 		  /* ERROR: stats are also modified!!! */
 	       }
-	    }
+	   }
 	 }
       }
       /* no corner or boundary tiles for stripe simulations */
@@ -2254,13 +2286,13 @@ int main(int argc, char **argv)
 
    // fprintf(stderr, "flake initialized, size_P=%d, size=%d\n",size_P,size);
 
-   new_Gse=Gse; new_Gmc=Gmc;
-   if (tracefp!=NULL) write_datalines(tracefp,"\n");
-
+   new_Gse=tp->Gse; new_Gmc=tp->Gmc;
+   if (tracefp != NULL)
+       write_datalines(params, tp, fp, tracefp, "\n");
 
    // fprintf(stderr, "tmax=%f  emax=%d  smax=%d\n",tmax,emax,smax);
 
-   if (XXX) repaint();
+   if (XXX) repaint(params, tp, fp);
 
    /* loop forever, looking for events */
    while((tmax==0 || tp->t < tmax) && 
@@ -2270,32 +2302,35 @@ int main(int argc, char **argv)
 	 (smin==-1 || tp->stat_a-tp->stat_d > smin) &&
 	 (fsmax==0 || tp->largest_flake_size < fsmax) &&
 	 (tp->seconds_per_C == 0 || tp->currentC > tp->endC) &&
-	 !(untiltiles && tp->all_present)) { 
+	 !(tp->untiltiles && tp->all_present)) { 
 
-      Gse=tp->Gse;  // keep them sync'd in case "anneal" is ongoing.
       if (!XXX) {
 	 simulate(tp,update_rate,tmax,emax,smax,fsmax,smin,mmax);
-	 if (tracefp!=NULL) write_datalines(tracefp,"\n");
-	 if (export_mode==2 && export_movie==1) export_flake("movie",fp);
+         if (tracefp != NULL)
+             write_datalines(params, tp, fp, tracefp, "\n");
+         if (export_mode == 2 && export_movie == 1)
+             export_flake(params, tp, "movie", fp);
       } else {
 	 if (0==paused && 0==mousing && !XPending(display)) {
 	    simulate(tp,update_rate,tmax,emax,smax,fsmax,smin,mmax);
 	    fp = tp->flake_list;
 	    assert (!fp || !tp->tinybox ||
 		  ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
-	    if (tracefp!=NULL) write_datalines(tracefp,"\n");
-	    if (export_mode==2 && export_movie==1) export_flake("movie",fp);
-	    if (fp && fp->flake_conc>0) recalc_G(fp);
+            if (tracefp != NULL)
+                write_datalines(params, tp, fp, tracefp, "\n");
+            if (export_mode == 2 && export_movie == 1)
+                export_flake(params, tp, "movie", fp);
+            if (fp && fp->flake_conc>0) recalc_G(fp);
 	    // make sure displayed G is accurate for conc's
 	    // hopefully this won't slow things down too much.
-	    stat++; if (stat==1) { stat=0; repaint(); }
+	    stat++; if (stat==1) { stat=0; repaint(params, tp, fp); }
 	 }
 	 if (paused|mousing|XPending(display)) {
 	    XNextEvent(display,&report); 
 	    switch (report.type)
 	    {case Expose:
 	       if (report.xexpose.count!=0) break; /* more in queue, wait for them */
-	       repaint();  
+	       repaint(params, tp, fp);  
 	       break;
 	       case ConfigureNotify:
 	       break; 
@@ -2310,14 +2345,14 @@ int main(int argc, char **argv)
 		  y=report.xbutton.y/block;
 		  b=report.xbutton.button;
 		  if (mousing==0) { /* identify while moving around */
-           identify(x, y);
+           identify(tp, fp, x, y);
 		  }
 		  if (mousing==3) {
 		     /* was sketch(x,y,b); now change Gse & Gmc */
 		     new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
 		     /* draw current Gse, Gmc values */
 		     sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
-			   Gmc,new_Gmc,Gse,new_Gse);
+			   tp->Gmc,new_Gmc,tp->Gse,new_Gse);
 		     XDrawImageString(display,window,gc,5,3*font_height,
 			   stringbuffer,strlen(stringbuffer));
 		     /* this is necessary in order to get more than one MotionNotify
@@ -2332,15 +2367,15 @@ int main(int argc, char **argv)
 	       case ButtonRelease:
 	       if (mousing==3) { // change Gmc, Gse w/ visual GUI
 		  fprintf(stderr, "Changing Gmc -> %f, Gse -> %f \n", new_Gmc, new_Gse);
-		  reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);
-		  if (Gfc>0) Gfc+=(new_Gmc-Gmc); 
+		  reset_params(tp, tp->Gmc, tp->Gse, new_Gmc, new_Gse, params->Gseh);
+		  if (params->Gfc>0) params->Gfc+=(new_Gmc-tp->Gmc); 
 		  fprm=fparam;
 		  while (fprm!=NULL) {  /* fix up all flake info, for restarting */
-		     if (fprm->Gfc > 0) fprm->Gfc += (new_Gmc-Gmc); 
+		     if (fprm->Gfc > 0) fprm->Gfc += (new_Gmc-tp->Gmc); 
 		     fprm=fprm->next_param;
 		  } 
-		  Gse=new_Gse; Gmc=new_Gmc; tp->Gse=Gse; tp->Gmc=Gmc;
-		  showpic(fp,errorc); 
+		  tp->Gse=new_Gse; tp->Gmc=new_Gmc;
+		  showpic(tp, fp, errorc); 
 	       } else if (mousing==1) {
 		  /* clear a region, i.e., "puncture" */
 		  int i,j,mi,Mi,mj,Mj;
@@ -2351,7 +2386,7 @@ int main(int argc, char **argv)
 		  else           { mi=MIN(MAX(0,clear_y-2),size-1); Mi=MIN(MAX(0,y-2),size-1); }
 		  if (clear_x>x) { mj=MIN(MAX(0,x-2),size-1); Mj=MIN(MAX(0,clear_x-2),size-1); }
 		  else           { mj=MIN(MAX(0,clear_x-2),size-1); Mj=MIN(MAX(0,x-2),size-1); }
-		  if (mi != Mi && mj != Mj) { int fa=fission_allowed;
+		  if (mi != Mi && mj != Mj) { int fa=tp->fission_allowed;
 		     if (mi<=fp->seed_i && fp->seed_i<=Mi &&
 			   mj<=fp->seed_j && fp->seed_j<=Mj) { int si=fp->seed_i,sj=fp->seed_j;
 			// better move the seed out of the way, if possible
@@ -2361,33 +2396,29 @@ int main(int argc, char **argv)
 			for (j=mj; j<=Mj; j++) if (fp->Cell(Mi+1,j)>0) { si=(Mi+1)%size; sj=j; }
 			change_seed(fp,si,sj);
 		     }
-		     fission_allowed=1; 
+		     tp->fission_allowed=1; 
 		     for (i=mi; i<=Mi; i++)
 			for (j=mj; j<=Mj; j++) {
 			   if (fp->Cell(i,j)>0) { 
 			      change_cell(fp, i, j, 0); flake_fission(fp,i,j); 
 			   }
 			}
-		     fission_allowed=fa; 
+		     tp->fission_allowed=fa; 
 		  }
-		  showpic(fp,errorc); 
+		  showpic(tp, fp, errorc); 
 	       }
 	       mousing=0; 
 	       break;
 	       case ButtonPress:
 	       if (report.xbutton.window == quitbutton) {
-             closeargs();  // This cleans up and exports things if instructed.
+             closeargs(tp, params);  // This cleans up and exports things if instructed.
              exit(0);
           } else if (report.xbutton.window==pausebutton) {
-		  setpause(1-paused); repaint(); 
+		  setpause(1-paused); repaint(params, tp, fp); 
 	       } else if (report.xbutton.window==restartbutton) {
 		  free_tube(tp); 
 		  tp = init_tube(size_P,N,num_bindings);   
-		  set_params(tp,tileb,strength,glue,stoic,anneal_g,anneal_t,updates_per_RC,
-			anneal_h, anneal_s, startC, endC, seconds_per_C,
-			dt_right, dt_left, dt_down, dt_up, hydro,ratek,
-			Gmc,Gse,Gmch,Gseh,Ghyd,Gas,Gam,Gae,Gah,Gao,T,tinybox,seed_i,seed_j,
-			Gfc);
+		  set_params(tp, params);
 		  fprm=fparam; 
            while (fprm!=NULL)
            {
@@ -2399,9 +2430,9 @@ int main(int argc, char **argv)
                 fprm->seed_j--;
              }
              insert_flake(fp=init_flake(size_P,N,
-                  fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc), tp);
+                  fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc, tp->present_list_len, tp->periodic), tp);
              if (tp->dt_right[fprm->seed_n]) {
-                change_cell (fp,seed_i,seed_j+1,tp->dt_right[fprm->seed_n]);
+                change_cell (fp,params->seed_i,params->seed_j+1,tp->dt_right[fprm->seed_n]);
                 fp->seed_is_double_tile = 1;
              }
              assert (!tp->dt_left[fprm->seed_n]);
@@ -2409,23 +2440,23 @@ int main(int argc, char **argv)
              if (fprm->import_from != NULL)
              {
                 fprintf(stderr, "WARNING: In imported flakes, the seed position is chosen randomly.\n");
-                import_flake(fp, fprm->import_from, fn);
+                import_flake(tp, fp, fprm->import_from, fn);
              }
               }
               fprm=fprm->next_param;
            }
-		  repaint();
+		  repaint(params, tp, fp);
 	       } else if (report.xbutton.window==colorbutton) { // show tiles or error or hyd
-		  settilecolor(hydro ? (errorc+1)%3 : (errorc+1)%2); repaint(); 
+		  settilecolor(tp, tp->hydro ? (errorc+1)%3 : (errorc+1)%2); repaint(params, tp, fp); 
 	       } else if (report.xbutton.window==sidebutton) { // show box or null/weak/strong
-		  setsidecolor((errors+1)%2); repaint(); 
+		  setsidecolor((errors+1)%2); repaint(params, tp, fp); 
 	       } else if (report.xbutton.window==seedbutton) {
-		  setwander(1-wander); repaint(); 
+		  setwander(tp, 1-tp->wander); repaint(params, tp, fp); 
 	       } else if (report.xbutton.window==fissionbutton) {
-		  fission_allowed = (fission_allowed+1)%3;
-		  setfission(fission_allowed); 
+		  tp->fission_allowed = (tp->fission_allowed+1)%3;
+		  setfission(tp, tp->fission_allowed); 
 		  update_all_rates(tp);  
-		  repaint(); 
+		  repaint(params, tp, fp); 
 	       } else if (report.xbutton.window==cleanbutton) {
 		  x=report.xbutton.x;
 		  y=report.xbutton.y;
@@ -2438,9 +2469,9 @@ int main(int argc, char **argv)
 		     fill_flake(fp,fill_X,1); 
 		  } else {
 		     fprintf(stderr, "Repairing, uniqueness for T=%f\n",repair_unique_T);
-		     repair_flake(fp,repair_unique_T,Gse); 
+		     repair_flake(fp,repair_unique_T,tp->Gse); 
 		  }
-		  repaint();           
+		  repaint(params, tp, fp);           
 	       } else if (report.xbutton.window==exportbutton) {
 		  x=report.xbutton.x;
 		  y=report.xbutton.y;
@@ -2449,18 +2480,18 @@ int main(int argc, char **argv)
 		     setexport((export_mode+1)%3); 
 		  } else if (export_mode==0) { 
 		     // output to file (unless MOVIE mode already)
-		     export_flake("flake", fp);
+		     export_flake(params, tp, "flake", fp);
 		  } else if (export_mode==1) { 
 		     flake *tfp=tp->flake_list; 
 		     while (tfp->next_flake != NULL) {
-			export_flake("flake", tfp);
+			export_flake(params, tp, "flake", tfp);
 			tfp=tfp->next_flake;
 		     }
 		  } else if (export_mode==2) {
 		     // turn movie mode on & off
 		     export_movie= !export_movie;
 		  }
-		  repaint();           
+		  repaint(params, tp, fp);           
 	       } else if (report.xbutton.window==samplebutton) {
 		  flake *tfp; int n,num_big=0;
 		  x=report.xbutton.x;
@@ -2479,8 +2510,8 @@ int main(int argc, char **argv)
 		     tfp=tfp->next_flake;
 		     while (num_big>0 && tfp->tiles==1) { tfp=tfp->next_flake; } 
 		  }
-		  add_sample_pic(tfp,errorc); 
-		  repaint(); 
+		  add_sample_pic(tp, tfp, errorc); 
+		  repaint(params, tp, fp); 
 	       } else if (report.xbutton.window==flakebutton) { 
 		  flake *tfp=tp->flake_list; 
 		  x=report.xbutton.x;
@@ -2504,15 +2535,15 @@ int main(int argc, char **argv)
 		     }
 		  } 
 		  //             print_tree(tp->flake_tree,0,'*');  
-		  sampling=0; repaint();
+		  sampling=0; repaint(params, tp, fp);
 	       } else if (report.xbutton.window==tempbutton) { // change Gse w/ button
 		  x=report.xbutton.x;  
 		  y=report.xbutton.y;
 		  b=report.xbutton.button;
 		  if (tp->hydro) break; /* don't know how to reset params */
-		  if (x>60) new_Gse=Gse-0.1; else new_Gse=Gse+0.1;
-		  reset_params(tp, Gmc, Gse, new_Gmc, new_Gse,Gseh);
-		  Gse=new_Gse; tp->Gse=Gse; repaint();
+		  if (x>60) new_Gse=tp->Gse-0.1; else new_Gse=tp->Gse+0.1;
+		  reset_params(tp, tp->Gmc, tp->Gse, new_Gmc, new_Gse, params->Gseh);
+		  tp->Gse=new_Gse; repaint(params, tp, fp);
 	       } else if (report.xbutton.window==playground) // we're in ButtonPress
 	       {x=report.xbutton.x/block;
 		  y=report.xbutton.y/block;
@@ -2522,7 +2553,7 @@ int main(int argc, char **argv)
 		     new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
 		     /* draw current Gse, Gmc values */
 		     sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
-			   Gmc,new_Gmc,Gse,new_Gse);
+			   tp->Gmc,new_Gmc,tp->Gse,new_Gse);
 		     XDrawImageString(display,window,gc,5,3*font_height,
 			   stringbuffer,strlen(stringbuffer));
 		     /* later: if down button, draw T=1/T=2 diagram */
@@ -2532,7 +2563,7 @@ int main(int argc, char **argv)
 		  }
         else if (b == 1)
         { // "identify"
-         identify(x, y);
+         identify(tp, fp, x, y);
         }
           }
 	       else {
@@ -2545,6 +2576,6 @@ int main(int argc, char **argv)
 	 } /* end of if XPending */
       }} /* end of while(...) if...else */
 
-   closeargs();
+   closeargs(tp, params);
    return 0;
 } /* end of main */
