@@ -8,6 +8,8 @@
 #ifndef __GROW_H__
 #define __GROW_H__
 
+#include <limits.h>
+
 #ifdef SMALL
 #define MAXTILETYPES 256
 #else
@@ -43,7 +45,7 @@ double log();
 #endif
 /* make off-by-one error less likely : include a boundary of empty */
 /* cells that will never be modified                               */
-#define Cell(i, j) cell[(size + 2) * (i + 1) + j + 1]
+#define Cell(i, j) cell[(size + 2) * ((i) + 1) + (j) + 1]
 /* note i,j here are indexed 0 <= i,j < (1<<P)                     */
 /*
    for periodic boundary conditions, where size=2^P,
@@ -57,51 +59,56 @@ double log();
 
 /* for times when it's inconvenience to know if i,j are within bounds */
 #define CellM(i, j)                                                                      \
-   cell[(fp->periodic ? ((i % size) + 1) : MAX(0, MIN(i + 1, size + 1))) * (size + 2) +  \
-        (fp->periodic ? ((j % size) + 1) : MAX(0, MIN(j + 1, size + 1)))]
+   cell[(fp->periodic ? (((i) % size) + 1) : MAX(0, MIN((i) + 1, size + 1))) *           \
+            (size + 2) +                                                                 \
+        (fp->periodic ? (((j) % size) + 1) : MAX(0, MIN((j) + 1, size + 1)))]
 
 /* macro definition of summed sticky end bond energy                    */
 /* computes energy IF Cell(i,j) were n, given its current neighbors     */
 /* assumes "fp" arg is a simple variable, but others can be expressions */
 /* note that n != 0  and assumes 0 <= i,j < (1<<fp->P)                  */
 #define Gse(fp, i, j, n)                                                                 \
-   (fp->tube->Gse_EW[n][fp->Cell(i, (j)-1)] +                                            \
-    fp->tube->Gse_EW[fp->Cell(i, (j) + 1)][n] +                                          \
-    fp->tube->Gse_NS[n][fp->Cell((i) + 1, j)] + fp->tube->Gse_NS[fp->Cell((i)-1, j)][n])
+   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
+    (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
+    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)] +                                      \
+    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n])
 
 #define Gse_double(fp, i, j, n)                                                          \
-   (fp->tube->Gse_EW[n][fp->Cell(i, (j)-1)] +                                            \
-    fp->tube->Gse_NS[n][fp->Cell((i) + 1, j)] +                                          \
-    fp->tube->Gse_NS[fp->Cell((i)-1, j)][n] +                                            \
-    fp->tube->Gse_EW[fp->CellM(i, (j) + 2)][fp->Cell(i, (j) + 1)] +                      \
-    fp->tube->Gse_NS[fp->Cell(i, (j) + 1)][fp->Cell((i) + 1, (j) + 1)] +                 \
-    fp->tube->Gse_NS[fp->Cell((i)-1, (j) + 1)]                                           \
-                    [fp->Cell(i, (j) + 1)]) /* FIXME: is this right!? */
+   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
+    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)] +                                      \
+    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n] +                                        \
+    (fp)->tube->Gse_EW[(fp)->CellM(i, (j) + 2)][(fp)->Cell(i, (j) + 1)] +                \
+    (fp)->tube->Gse_NS[(fp)->Cell(i, (j) + 1)][(fp)->Cell((i) + 1, (j) + 1)] +           \
+    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, (j) + 1)]                                       \
+                      [(fp)->Cell(i, (j) + 1)]) /* FIXME: is this right!? */
 
 #define Gse_vdouble(fp, i, j, n)                                                         \
-   (fp->tube->Gse_EW[n][fp->Cell(i, (j)-1)] +                                            \
-    fp->tube->Gse_EW[fp->Cell(i, (j) + 1)][n] +                                          \
-    fp->tube->Gse_NS[fp->Cell((i)-1, j)][n] +                                            \
-    fp->tube->Gse_NS[fp->Cell((i) + 1, j)][fp->CellM((i) + 2, j)] +                      \
-    fp->tube->Gse_EW[fp->Cell((i) + 1, j)][fp->Cell((i) + 1, (j)-1)] +                   \
-    fp->tube->Gse_EW[fp->Cell((i) + 1, (j) + 1)][fp->Cell((i) + 1, j)])
+   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
+    (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
+    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n] +                                        \
+    (fp)->tube->Gse_NS[(fp)->Cell((i) + 1, j)][(fp)->CellM((i) + 2, j)] +                \
+    (fp)->tube->Gse_EW[(fp)->Cell((i) + 1, j)][(fp)->Cell((i) + 1, (j)-1)] +             \
+    (fp)->tube->Gse_EW[(fp)->Cell((i) + 1, (j) + 1)][(fp)->Cell((i) + 1, j)])
 
 #define Gse_double_left(fp, i, j, n)                                                     \
-   (fp->tube->Gse_EW[n][fp->Cell(i, (j)-1)] +                                            \
-    fp->tube->Gse_NS[n][fp->Cell((i) + 1, j)] + fp->tube->Gse_NS[fp->Cell((i)-1, j)][n])
+   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
+    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)] +                                      \
+    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n])
 
 #define Gse_double_right(fp, i, j, n)                                                    \
-   (fp->tube->Gse_EW[fp->Cell(i, (j) + 1)][n] +                                          \
-    fp->tube->Gse_NS[n][fp->Cell((i) + 1, j)] + fp->tube->Gse_NS[fp->Cell((i)-1, j)][n])
+   ((fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
+    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)] +                                      \
+    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n])
 
 #define Gse_vdouble_up(fp, i, j, n)                                                      \
-   (fp->tube->Gse_EW[n][fp->Cell(i, (j)-1)] +                                            \
-    fp->tube->Gse_EW[fp->Cell(i, (j) + 1)][n] + fp->tube->Gse_NS[fp->Cell((i)-1, j)][n])
+   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
+    (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
+    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n])
 
 #define Gse_vdouble_down(fp, i, j, n)                                                    \
-   (fp->tube->Gse_EW[n][fp->Cell(i, (j)-1)] +                                            \
-    fp->tube->Gse_EW[fp->Cell(i, (j) + 1)][n] +                                          \
-    fp->tube->Gse_NS[n][fp->Cell((i) + 1, j)])
+   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
+    (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
+    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)])
 
 /* definition for total sticky-end strength around a pair or a 2x2 chunk */
 /* -- note that if some site is empty, this still gives the correct      */
@@ -109,20 +116,20 @@ double log();
 /* Here, 0 <= i,j < 2^P if periodic, and 0 <= i,j < 2^P-1 otherwise.     */
 /* FIXME: does this work for doubles? */
 #define chunk_Gse_EW(fp, i, j, n)                                                        \
-   (Gse(fp, i, j, n) + Gse(fp, i, ((j) + 1) % size, fp->Cell(i, ((j) + 1) % size)) -     \
-    2 * fp->tube->Gse_EW[fp->Cell(i, (j) + 1)][n])
+   (Gse(fp, i, j, n) + Gse(fp, i, ((j) + 1) % size, (fp)->Cell(i, ((j) + 1) % size)) -   \
+    2 * (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n])
 #define chunk_Gse_NS(fp, i, j, n)                                                        \
-   (Gse(fp, i, j, n) + Gse(fp, ((i) + 1) % size, j, fp->Cell(((i) + 1) % size, j)) -     \
-    2 * fp->tube->Gse_NS[n][fp->Cell((i) + 1, j)])
+   (Gse(fp, i, j, n) + Gse(fp, ((i) + 1) % size, j, (fp)->Cell(((i) + 1) % size, j)) -   \
+    2 * (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)])
 #define chunk_Gse_2x2(fp, i, j, n)                                                       \
-   (Gse(fp, i, j, n) + Gse(fp, i, ((j) + 1) % size, fp->Cell(i, ((j) + 1) % size)) +     \
-    Gse(fp, ((i) + 1) % size, j, fp->Cell(((i) + 1) % size, j)) +                        \
+   (Gse(fp, i, j, n) + Gse(fp, i, ((j) + 1) % size, (fp)->Cell(i, ((j) + 1) % size)) +   \
+    Gse(fp, ((i) + 1) % size, j, (fp)->Cell(((i) + 1) % size, j)) +                      \
     Gse(fp, ((i) + 1) % size, ((j) + 1) % size,                                          \
-        fp->Cell(((i) + 1) % size, ((j) + 1) % size)) -                                  \
-    2 * fp->tube->Gse_EW[fp->Cell(i, (j) + 1)][fp->Cell(i, j)] -                         \
-    2 * fp->tube->Gse_NS[fp->Cell(i, j)][fp->Cell((i) + 1, j)] -                         \
-    2 * fp->tube->Gse_EW[fp->Cell((i) + 1, (j) + 1)][fp->Cell((i) + 1, j)] -             \
-    2 * fp->tube->Gse_NS[fp->Cell(i, (j) + 1)][fp->Cell((i) + 1, (j) + 1)])
+        (fp)->Cell(((i) + 1) % size, ((j) + 1) % size)) -                                \
+    2 * (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][(fp)->Cell(i, j)] -                   \
+    2 * (fp)->tube->Gse_NS[(fp)->Cell(i, j)][(fp)->Cell((i) + 1, j)] -                   \
+    2 * (fp)->tube->Gse_EW[(fp)->Cell((i) + 1, (j) + 1)][(fp)->Cell((i) + 1, j)] -       \
+    2 * (fp)->tube->Gse_NS[(fp)->Cell(i, (j) + 1)][(fp)->Cell((i) + 1, (j) + 1)])
 
 /* similar definition to count the number of sides that are mismatched   */
 /* also,  n != 0   and assumes 0 <= i,j < (1<<fp->P).                    */
@@ -133,22 +140,22 @@ double log();
 /* the tile at i,j is being added, then it counts each mismatch ONCE.    */
 
 #define Mism(fp, i, j, n)                                                                \
-   (((fp->tube->tileb)[n][1] != (fp->tube->tileb)[fp->Cell(i, (j) + 1)][3] &&            \
-     (fp->tube->tileb)[n][1] * (fp->tube->tileb)[fp->Cell(i, (j) + 1)][3] > 0 &&         \
-     (fp->tube->glue)[(fp->tube->tileb)[n][1]]                                           \
-                     [(fp->tube->tileb)[fp->Cell(i, (j) + 1)][3]] < tp->min_strength) +  \
-    ((fp->tube->tileb)[n][3] != (fp->tube->tileb)[fp->Cell(i, (j)-1)][1] &&              \
-     (fp->tube->tileb)[n][3] * (fp->tube->tileb)[fp->Cell(i, (j)-1)][1] > 0 &&           \
-     (fp->tube->glue)[(fp->tube->tileb)[n][3]]                                           \
-                     [(fp->tube->tileb)[fp->Cell(i, (j)-1)][1]] < tp->min_strength) +    \
-    ((fp->tube->tileb)[n][2] != (fp->tube->tileb)[fp->Cell((i) + 1, j)][0] &&            \
-     (fp->tube->tileb)[n][2] * (fp->tube->tileb)[fp->Cell((i) + 1, j)][0] > 0 &&         \
-     (fp->tube->glue)[(fp->tube->tileb)[n][2]]                                           \
-                     [(fp->tube->tileb)[fp->Cell((i) + 1, j)][0]] < tp->min_strength) +  \
-    ((fp->tube->tileb)[n][0] != (fp->tube->tileb)[fp->Cell((i)-1, j)][2] &&              \
-     (fp->tube->tileb)[n][0] * (fp->tube->tileb)[fp->Cell((i)-1, j)][2] > 0 &&           \
-     (fp->tube->glue)[(fp->tube->tileb)[n][0]]                                           \
-                     [(fp->tube->tileb)[fp->Cell((i)-1, j)][2]] < tp->min_strength))
+   ((((fp)->tube->tileb)[n][1] != ((fp)->tube->tileb)[(fp)->Cell(i, (j) + 1)][3] &&      \
+     ((fp)->tube->tileb)[n][1] * ((fp)->tube->tileb)[(fp)->Cell(i, (j) + 1)][3] > 0 &&   \
+     ((fp)->tube->glue)[((fp)->tube->tileb)[n][1]][(                                     \
+         (fp)->tube->tileb)[(fp)->Cell(i, (j) + 1)][3]] < tp->min_strength) +            \
+    (((fp)->tube->tileb)[n][3] != ((fp)->tube->tileb)[(fp)->Cell(i, (j)-1)][1] &&        \
+     ((fp)->tube->tileb)[n][3] * ((fp)->tube->tileb)[(fp)->Cell(i, (j)-1)][1] > 0 &&     \
+     ((fp)->tube->glue)[((fp)->tube->tileb)[n][3]][(                                     \
+         (fp)->tube->tileb)[(fp)->Cell(i, (j)-1)][1]] < tp->min_strength) +              \
+    (((fp)->tube->tileb)[n][2] != ((fp)->tube->tileb)[(fp)->Cell((i) + 1, j)][0] &&      \
+     ((fp)->tube->tileb)[n][2] * ((fp)->tube->tileb)[(fp)->Cell((i) + 1, j)][0] > 0 &&   \
+     ((fp)->tube->glue)[((fp)->tube->tileb)[n][2]][(                                     \
+         (fp)->tube->tileb)[(fp)->Cell((i) + 1, j)][0]] < tp->min_strength) +            \
+    (((fp)->tube->tileb)[n][0] != ((fp)->tube->tileb)[(fp)->Cell((i)-1, j)][2] &&        \
+     ((fp)->tube->tileb)[n][0] * ((fp)->tube->tileb)[(fp)->Cell((i)-1, j)][2] > 0 &&     \
+     ((fp)->tube->glue)[((fp)->tube->tileb)[n][0]][(                                     \
+         (fp)->tube->tileb)[(fp)->Cell((i)-1, j)][2]] < tp->min_strength))
 
 typedef struct flake_struct {
    struct tube_struct *tube; /* contains tile set, reaction conditions,     */
@@ -223,6 +230,8 @@ typedef struct tube_struct {
    int *dt_down;     /* dt_down and dt_up are analagous to dt_right and dt_left
                       for vertical tiles. */
    int *dt_up;
+   int double_tile_count;
+   int vdouble_tile_count;
    double tinybox;     /* If this value is nonzero, indicates that
                           each kind of two tile flake should be
                           dynamically created at a rate
@@ -264,6 +273,8 @@ typedef struct tube_struct {
    /* also, prevents incorrect association             */
    /* on-rates & off-rates are calculated as usual,    */
    /* but events violating the model are discarded     */
+   double Gseh;
+   double Gmch;
    double k;          /* forward rate constant for on-events.             */
    double kas, kao,   /* f.r.c (ratio to k) for "hydrolysis" spontaneous, */
        kam, kae, kah; /* and when input se are mismatched, empty, or      */
@@ -317,60 +328,7 @@ typedef struct tube_struct {
    // End of former externs
 } tube;
 
-typedef struct tube_params_struct {
-   // formerly shared with grow
-   double blast_rate_alpha; //  =0;
-   double blast_rate_beta;  //  =4;  // k>3 required for finite rate of blasting a given
-                            //  tile in infinite size flakes (gamma=0)
-   double blast_rate_gamma; //  =0;
-   double blast_rate;       //  =0;
-   double min_strength;     //  =1;
-   int wander;              //  ,
-   int periodic, linear, fission_allowed, zero_bonds_allowed;
-   int *present_list;    //  =NULL;
-   int present_list_len; //  =0;
-   int untiltiles;       //  =0,
-   int untiltilescount;  //=0;
-   int **tileb;
-   double *strength;
-   double **glue;
-   double *stoic;
-   double anneal_g;
-   double anneal_t;
-   int updates_per_RC;
-   double anneal_h;
-   double anneal_s;
-   double startC;
-   double endC;
-   double seconds_per_C;
-   int *dt_right;
-   int *dt_left;
-   int *dt_down;
-   int *dt_up;
-   int hydro;
-   double k;
-   double Gmc;
-   double Gse;
-   double Gmch;
-   double Gseh;
-   double Ghyd;
-   double Gas;
-   double Gam;
-   double Gae;
-   double Gah;
-   double Gao;
-   double T;
-   double tinybox;
-   int seed_i;
-   int seed_j;
-   int seed_n;
-   double Gfc;
-   char *tile_names[MAXTILETYPES];
-   int size;
-   int size_P;
-} tube_params;
-
-void set_default_params(tube_params *params);
+void setup_tube(tube *tp);
 tube *init_tube(Trep P, Trep N, int num_bindings);
 flake *init_flake(Trep P, Trep N, int seed_i, int seed_j, int seed_n, double Gfc,
                   int present_list_len, int periodic);
@@ -383,7 +341,6 @@ void clean_flake(flake *fp, double X, int iters);
 void fill_flake(flake *fp, double X, int iters);
 void error_radius_flake(flake *fp, double rad);
 void repair_flake(flake *fp, double T, double Gse);
-void set_params(tube *tp, tube_params *params);
 void reset_params(tube *tp, double old_Gmc, double old_Gse, double new_Gmc,
                   double new_Gse, double Gseh);
 void recalc_G(flake *fp);
