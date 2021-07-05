@@ -1305,7 +1305,7 @@ void write_untiltilescountdata(tube *tp, FILE *filep) {
 
 void write_flake(tube_params *params, tube *tp, FILE *filep, char *mode, flake *fp) {
    int n, row, col, tl;
-
+   int size = (1 << fp->P);
    if (filep != NULL) {
       if (strcmp(mode, "flake") == 0)
          n = export_flake_n++;
@@ -1711,6 +1711,7 @@ void closeargs(tube *tp, tube_params *params) {
 
 int getcolor(tube *tp, flake *fp, int i, int j, int err) {
    int min_strength = tp->min_strength;
+   int size = (1 << fp->P);
    return (
        (fp->Cell(i, j) == 0)
            ? translate[0]
@@ -2552,7 +2553,7 @@ int main(int argc, char **argv) {
    set_params(tp, params);
 
    fprm = fparam;
-
+   int size = (1 << tp->P);
    /* initialize flakes */
    while (fprm != NULL) {
       int fn;
