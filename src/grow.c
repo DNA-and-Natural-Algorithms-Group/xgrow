@@ -28,6 +28,10 @@ unsigned char ring[256];
 #define ROTATE_CLEAR(i) (((i) >> 1))
 #define AVOGADROS_NUMBER 6.022e23
 
+#define EXIT_NULL 20
+
+const double k_b = 0.0019872;
+
 /*************** the fill routine for checking connectedness ***********/
 
 #if 0
@@ -51,34 +55,36 @@ unsigned char ring[256];
 /* This is hypothetical on i,j being tile n != 0.                       */
 /* CONNECTED is the non-hypothetical version.                           */
 #define HCONNECTED_N(fp, i, j, n)                                                        \
-   ((fp->tube->Gse_NS[fp->Cell((i)-1, j)][n] > 0) ||                                     \
-    (fp->tube->dt_up[n] && (fp->tube->dt_up[n] == fp->Cell((i)-1, j))))
+   (((fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n] > 0) ||                                 \
+    ((fp)->tube->dt_up[n] && ((fp)->tube->dt_up[n] == (fp)->Cell((i)-1, j))))
 #define HCONNECTED_E(fp, i, j, n)                                                        \
-   ((fp->tube->Gse_EW[fp->Cell(i, (j) + 1)][n] > 0) ||                                   \
-    (fp->tube->dt_right[n] && (fp->tube->dt_right[n] == fp->Cell(i, (j) + 1))))
+   (((fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] > 0) ||                               \
+    ((fp)->tube->dt_right[n] && ((fp)->tube->dt_right[n] == (fp)->Cell(i, (j) + 1))))
 #define HCONNECTED_S(fp, i, j, n)                                                        \
-   ((fp->tube->Gse_NS[n][fp->Cell((i) + 1, j)] > 0) ||                                   \
-    (fp->tube->dt_down[n] && (fp->tube->dt_down[n] == fp->Cell((i) + 1, j))))
+   (((fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)] > 0) ||                               \
+    ((fp)->tube->dt_down[n] && ((fp)->tube->dt_down[n] == (fp)->Cell((i) + 1, j))))
 #define HCONNECTED_W(fp, i, j, n)                                                        \
-   ((fp->tube->Gse_EW[n][fp->Cell(i, (j)-1)] > 0) ||                                     \
-    (fp->tube->dt_left[n] && (fp->tube->dt_left[n] == fp->Cell(i, (j)-1))))
+   (((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] > 0) ||                                 \
+    ((fp)->tube->dt_left[n] && ((fp)->tube->dt_left[n] == (fp)->Cell(i, (j)-1))))
 #endif
 
 #define HCONNECTED(fp, i, j, n)                                                          \
    (HCONNECTED_N(fp, i, j, n) || HCONNECTED_E(fp, i, j, n) ||                            \
     HCONNECTED_S(fp, i, j, n) || HCONNECTED_W(fp, i, j, n))
-#define CONNECTED_N(fp, i, j) HCONNECTED_N(fp, i, j, fp->Cell(i, j))
-#define CONNECTED_E(fp, i, j) HCONNECTED_E(fp, i, j, fp->Cell(i, j))
-#define CONNECTED_S(fp, i, j) HCONNECTED_S(fp, i, j, fp->Cell(i, j))
-#define CONNECTED_W(fp, i, j) HCONNECTED_W(fp, i, j, fp->Cell(i, j))
-#define CONNECTED(fp, i, j) HCONNECTED(fp, i, j, fp->Cell(i, j))
+#define CONNECTED_N(fp, i, j) HCONNECTED_N(fp, i, j, (fp)->Cell(i, j))
+#define CONNECTED_E(fp, i, j) HCONNECTED_E(fp, i, j, (fp)->Cell(i, j))
+#define CONNECTED_S(fp, i, j) HCONNECTED_S(fp, i, j, (fp)->Cell(i, j))
+#define CONNECTED_W(fp, i, j) HCONNECTED_W(fp, i, j, (fp)->Cell(i, j))
+#define CONNECTED(fp, i, j) HCONNECTED(fp, i, j, (fp)->Cell(i, j))
 /* all of these can only be used for 0 <= i,j < size                     */
 
-int num_flakes = 0;
-int double_tile_count = 0;
-int vdouble_tile_count = 0;
+// int num_flakes = 0;
+// int double_tile_count = 0;
+// int vdouble_tile_count = 0;
+// double k_b = .0019872;
+
+/* Used to store blank, reusable flakes */
 flake *blank_flakes = NULL;
-double k_b = .0019872;
 
 void *calloc_err(size_t nmemb, size_t size) {
    void *res;
@@ -101,8 +107,8 @@ flake *init_flake(Trep P, Trep N, int seed_i, int seed_j, int seed_n, double Gfc
    fp->N = N;
    fp->periodic = periodic;
 
-   fprintf(stderr, "Making flake %d x %d, %d tiles, seed=%d,%d,%d @ %6.2f\n", size, size,
-           N, seed_i, seed_j, seed_n, Gfc);
+   fprintf(stderr, "Making flake %d x %d, %d tile types, seed=%d,%d,%d @ %6.2f\n", size,
+           size, N, seed_i, seed_j, seed_n, Gfc);
 
    fp->cell = (Trep *)calloc_err(sizeof(Trep *), (2 + size) * (2 + size));
    fp->rate = (double ***)calloc_err(sizeof(Trep **), P + 1);
@@ -151,8 +157,7 @@ flake *free_flake(flake *fp) {
    free(fp->cell);
 
    for (p = 0; p <= fp->P; p++) {
-      size = (1 << p);
-      for (i = 0; i < size; i++) {
+      for (i = 0; i < (1 << p); i++) {
          free(fp->rate[p][i]);
          // free(fp->empty[p][i]);
       }
@@ -199,43 +204,6 @@ void free_tree(flake_tree *ftp) {
    }
 }
 
-void set_default_params(tube_params *params) {
-   params->blast_rate_alpha = 0;
-   params->blast_rate_beta = 4; // k>3 required for finite rate of blasting a given tile
-                                // in infinite size flakes (gamma=0)
-   params->blast_rate_gamma = 0;
-   params->blast_rate = 0;
-   params->min_strength = 1;
-   params->wander = 0;
-   params->periodic = 0;
-   params->linear = 0;
-   params->fission_allowed = 0;
-   params->zero_bonds_allowed = 0;
-   params->present_list = NULL;
-   params->present_list_len = 0;
-   params->untiltiles = 0;
-   params->untiltilescount = 0;
-   params->Gmc = 17;
-   params->Gse = 8.6;
-   params->k = 1000000.0;
-   params->T = 0;
-   params->Gmch = 30;
-   params->Gseh = 0;
-   params->Ghyd = 30;
-   params->Gas = 30;
-   params->Gam = 15;
-   params->Gae = 30;
-   params->Gah = 30;
-   params->Gao = 10;
-   params->seed_i = 250;
-   params->seed_j = 250;
-   params->seed_n = 1;
-   params->hydro = 0;
-   params->Gfc = 0;
-   params->size = 256;
-   params->size_P = 8;
-}
-
 /* sets up data structures for tube -- tile set, params, scratch, stats  */
 tube *init_tube(Trep P, Trep N, int num_bindings) {
    int i, j, n, m;
@@ -267,6 +235,8 @@ tube *init_tube(Trep P, Trep N, int num_bindings) {
    tp->k = 1000000.0;
    tp->T = 0;
    tp->hydro = 0;
+   tp->Gseh = 0;
+   tp->Gmch = 30;
 
    tp->kas = exp(-30);
    tp->kao = exp(-10);
@@ -324,6 +294,9 @@ tube *init_tube(Trep P, Trep N, int num_bindings) {
    tp->dt_up = (int *)calloc(sizeof(int), N + 1);
 
    tp->dt_left = (int *)calloc(sizeof(int), N + 1);
+
+   tp->double_tile_count = 0;
+   tp->vdouble_tile_count = 0;
 
    tp->Gcb = (double *)calloc(sizeof(double), N + 1);
 
@@ -437,120 +410,51 @@ void set_Gses(tube *tp, double Gse, double Gseh) {
 
 /* set up info for tile set, in flake data struc  */
 /* fp->seed_n should have a defined value before entering set_params */
-void set_params(tube *tp, tube_params *params) {
+void setup_tube(tube *tp) {
    int i, j, n;
-   /* make our own copy of tile set and strengths, so the calling program
-      can do as it pleases with it's tileb & strength information */
-   for (i = 0; i <= tp->N; i++)
-      for (j = 0; j < 4; j++)
-         tp->tileb[i][j] = params->tileb[i][j];
-   for (i = 0; i <= tp->num_bindings; i++)
-      tp->strength[i] = params->strength[i];
-   for (i = 0; i <= tp->num_bindings; i++) {
-      for (j = 0; j <= tp->num_bindings; j++) {
-         tp->glue[i][j] = params->glue[i][j];
-      }
-   }
-
-   tp->blast_rate_alpha = params->blast_rate_alpha;
-   tp->blast_rate_beta = params->blast_rate_beta;
-   tp->blast_rate_gamma = params->blast_rate_gamma;
-   tp->blast_rate = params->blast_rate;
-   tp->min_strength = params->min_strength;
-   tp->wander = params->wander;
-   tp->periodic = params->periodic;
-   tp->fission_allowed = params->fission_allowed;
-   tp->zero_bonds_allowed = params->zero_bonds_allowed;
-   tp->present_list = params->present_list;
-   tp->present_list_len = params->present_list_len;
-   tp->untiltiles = params->untiltiles;
-   tp->untiltilescount = params->untiltilescount;
-
-   tp->hydro = params->hydro;
-   tp->T = params->T;
-
-   tp->k = params->k;
-   tp->kas = exp(-params->Gas);
-   tp->kao = exp(-params->Gao);
-   tp->kam = exp(-params->Gam);
-   tp->kae = exp(-params->Gae);
-   tp->kah = exp(-params->Gah);
-
-   /* set tp->conc from Gmc... and from Gmch for hydrolysis rules */
-   tp->conc[0] = 0;
-   for (n = 1; n <= tp->N; n++)
-      tp->conc[0] +=
-          (tp->conc[n] =
-               exp(-((n > tp->N / 2 && tp->hydro) ? params->Gmch : params->Gmc)) *
-               params->stoic[n]);
-   if (params->anneal_t && params->Gse < params->anneal_g) {
+   if (tp->anneal_t && tp->Gse < tp->anneal_g) {
       fprintf(stderr, "Final Gse must be larger than initial Gse for an anneal.\n");
       exit(-1);
    }
-   tp->Gmc = params->Gmc;
-   tp->anneal_g = params->anneal_g;
-   tp->anneal_t = params->anneal_t;
-   tp->anneal_h = params->anneal_h;
-   tp->anneal_s = params->anneal_s;
-   tp->startC = params->startC;
-   tp->currentC = params->startC;
-   tp->endC = params->endC;
-   tp->seconds_per_C = params->seconds_per_C;
+
    if (tp->seconds_per_C) {
-      tp->Gse_final = (params->anneal_h - (tp->endC + 273) * params->anneal_s) /
-                      (k_b * (tp->endC + 273));
+      tp->Gse_final =
+          (tp->anneal_h - (tp->endC + 273) * tp->anneal_s) / (k_b * (tp->endC + 273));
    } else {
-      tp->Gse_final = params->Gse;
+      tp->Gse_final = tp->Gse;
    }
    if (tp->anneal_t) {
-      tp->Gse = params->anneal_g;
+      tp->Gse = tp->anneal_g;
    } else if (tp->seconds_per_C) {
-      tp->Gse = (params->anneal_h - (tp->startC + 273) * params->anneal_s) /
-                (k_b * (tp->startC + 273));
+      tp->Gse =
+          (tp->anneal_h - (tp->startC + 273) * tp->anneal_s) / (k_b * (tp->startC + 273));
       fprintf(stderr, "Gse is %f\n", tp->Gse);
-   } else {
-      tp->Gse = params->Gse;
    }
+
    tp->updates = 1;
-   tp->update_freq = params->updates_per_RC;
    if (tp->anneal_t) {
       tp->next_update_t = tp->updates * tp->anneal_t / tp->update_freq;
    } else {
-      tp->next_update_t = params->seconds_per_C / 100;
+      tp->next_update_t = tp->seconds_per_C / 100;
    }
-   tp->dt_right = params->dt_right;
-   tp->dt_left = params->dt_left;
+
+   tp->double_tile_count = 0;
+   tp->vdouble_tile_count = 0;
    for (n = 0; n < tp->N; n++) {
       if (tp->dt_right[n]) {
-         double_tile_count++;
+         tp->double_tile_count++;
       }
-   }
-   tp->dt_up = params->dt_up;
-   tp->dt_down = params->dt_down;
-   for (n = 0; n < tp->N; n++) {
       if (tp->dt_down[n]) {
-         vdouble_tile_count++;
+         tp->vdouble_tile_count++;
       }
    }
-   tp->tinybox = params->tinybox;
-   tp->default_seed_i = params->seed_i;
-   tp->default_seed_j = params->seed_j;
-   tp->initial_Gfc = params->Gfc;
-
-   /* set tp->Gcb from Ghyd */
-   for (n = 0; n <= tp->N; n++)
-      tp->Gcb[n] = 0;
-   if (tp->hydro)
-      for (n = tp->N / 2 + 1; n <= tp->N; n++)
-         tp->Gcb[n] = params->Ghyd;
 
    /* set Gse_EW Gse_NS from Gse, Gseh rules */
    /* uses (tp->tileb)[] and tp->strength[] and tp->glue[] */
    /* XXX We will want to modify this */ /* See also (change also!) reset_params */
-   set_Gses(tp, params->Gse, params->Gseh);
+   set_Gses(tp, tp->Gse, tp->Gseh);
    tp->watching_states = 0;
    tp->tracking_seen_states = 0;
-
 } // set_params()
 
 /* recalculate flake energy & rates from scratch                    */
@@ -624,7 +528,7 @@ int calc_perimeter(flake *fp) {
    /* add up number of empty cells next to this one */
    for (i = 0; i < size; i++)
       for (j = 0; j < size; j++) {
-         if ((n = fp->Cell(i, j)) > 0) {
+         if (fp->Cell(i, j) > 0) {
             perimeter += (fp->Cell(i - 1, j) == 0) + (fp->Cell(i + 1, j) == 0) +
                          (fp->Cell(i, j - 1) == 0) + (fp->Cell(i, j + 1) == 0);
          }
@@ -1435,8 +1339,6 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np) {
    tube *tp = fp->tube;
    int size = (1 << fp->P);
 
-   sum = fp->rate[0][0][0];
-
    i = 0;
    j = 0;
    r = drand48();                // we'll re-use this random number for all levels
@@ -1528,6 +1430,11 @@ flake *choose_flake(tube *tp) {
    int oops;
    flake_tree *ftp = tp->flake_tree;
 
+   if (ftp == NULL) {
+      /* We don't have a flake */
+      exit(EXIT_NULL);
+   }
+
    r = drand48(); // we'll re-use this random number for all levels
    while (ftp->fp == NULL) {
       kL = ftp->left->rate;
@@ -1585,8 +1492,8 @@ flake *choose_flake(tube *tp) {
 #define Fpull(g, i, j)                                                                   \
    {                                                                                     \
       int oldh = head[g];                                                                \
-      i = Qi(head[g]);                                                                   \
-      j = Qj(head[g]);                                                                   \
+      (i) = Qi(head[g]);                                                                 \
+      (j) = Qj(head[g]);                                                                 \
       head[g] = tp->Fnext[head[g]];                                                      \
       tp->Fnext[oldh] = -1;                                                              \
       if (Fempty(g))                                                                     \
@@ -2262,7 +2169,6 @@ void order_removals(tube *tp, flake *fp, int n, const int *di, const int *dj,
    // it or satisfies (1).
    // First, we must leave at least one tile:
    assert(n < fp->tiles);
-   index = n - 1;
    size = (1 << tp->P);
    // index = place in removal order
    // t = place in unordered chunk
@@ -2501,26 +2407,12 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
    double total_rate, total_blast_rate, new_flake_rate, event_choice;
    long int emaxL;
    int size = (1 << tp->P), N = tp->N;
-   if (tp->flake_list == NULL && tp->tinybox == 0)
+   if ((tp->flake_list == NULL) && (tp->tinybox == 0))
       return; /* no flakes! */
 
-   /* Check to see wehether the number of events needs to be wrapped.
-    * As we are using unsigned long long, this should never actually
-    * happen. FIXME: think about removing this.
+   /* Removed wrapping code: 1.8e19 (as an integer!) should be
+    * enough for anyone.
     */
-   if (tp->events + 2 * events >= ULLONG_MAX) {
-      tp->ewrapped = 1;
-      tp->events = 0;
-      tp->stat_a -= tp->stat_d;
-      tp->stat_d = 0;
-      tp->stat_h = 0;
-      tp->stat_f = 0;
-      fp = tp->flake_list;
-      while (fp != NULL) {
-         fp->events = 0;
-         fp = fp->next_flake;
-      }
-   }
 
    emaxL = (emax == 0 || tp->events + events < emax) ? (tp->events + events) : emax;
 
@@ -2659,8 +2551,14 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
          // choose a flake
          flake_n = random() % (tp->num_flakes);
          fp = tp->flake_list;
-         for (i = 0; i < flake_n; i++)
+         for (i = 0; i < flake_n; i++) {
             fp = fp->next_flake;
+            if (fp == NULL) {
+               fprintf(stderr, "Blast rate flake choice: ran out of flakes (num_flakes "
+                               "and list out of sync).\n");
+               exit(EXIT_NULL);
+            }
+         }
 
          ic = random() % size;
          jc = random() % size; // corner coordinates for kb x kb square to be removed
