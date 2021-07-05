@@ -292,10 +292,12 @@ long int translate[MAXTILETYPES]; /* for converting colors */
 int paused = 0, errorc = 0, errors = 0, sampling = 0;
 int export_mode = 0, export_flake_n = 1, export_movie_n = 1, export_movie = 0;
 FILE *export_fp = NULL;
-int update_rate = 10000;
 static char *progname;
-char stringbuffer[256];
-char tileset_name[256];
+
+#define BUFFER_LEN 256
+
+char stringbuffer[BUFFER_LEN];
+char tileset_name[BUFFER_LEN];
 int testing = 0;
 int initial_rc = 1;
 
@@ -323,8 +325,6 @@ char *tile_colors[MAXTILETYPES] = {"black",     "blue",     "red",        "green
 // tube *tp; flake *fp;
 
 int first_tile, second_tile;
-int double_tiles = 0;
-int vdouble_tiles = 0;
 
 int NROWS, NCOLS, VOLUME, WINDOWWIDTH, WINDOWHEIGHT;
 int block = 1; /* default to small blocks; calling with argument changes this */
@@ -345,9 +345,6 @@ int emax, smax, fsmax, smin, mmax;
 char *stripe_args = NULL;
 int XXX = 1; /* If 1, draw the simulation, otherwise don't.  (as inferred from the effect
                 of -nw)*/
-/* This has been adjusted so that updating the temperature and thus
-   the required rates takes about 1% of the simulation time */
-
 int import = 0; /* Are we importing flakes? */
 int import_flake_size = 0;
 int import_offset_i = 0, import_offset_j = 0;
@@ -364,6 +361,100 @@ struct flake_param {
 struct flake_param *fparam = NULL, *fprm;
 
 int count_flakes(FILE *flake_file);
+
+typedef struct tube_params_struct {
+   // formerly shared with grow
+   double blast_rate_alpha; //  =0;
+   double blast_rate_beta;  //  =4;  // k>3 required for finite rate of blasting a given
+                            //  tile in infinite size flakes (gamma=0)
+   double blast_rate_gamma; //  =0;
+   double blast_rate;       //  =0;
+   double min_strength;     //  =1;
+   int wander;              //  ,
+   int periodic, linear, fission_allowed, zero_bonds_allowed;
+   int *present_list;    //  =NULL;
+   int present_list_len; //  =0;
+   int untiltiles;       //  =0,
+   int untiltilescount;  //=0;
+   int **tileb;
+   double *strength;
+   double **glue;
+   double *stoic;
+   double anneal_g;
+   double anneal_t;
+   int updates_per_RC;
+   double anneal_h;
+   double anneal_s;
+   double startC;
+   double endC;
+   double seconds_per_C;
+   int double_tiles;
+   int *dt_right;
+   int *dt_left;
+   int *dt_down;
+   int *dt_up;
+   int hydro;
+   double k;
+   double Gmc;
+   double Gse;
+   double Gmch;
+   double Gseh;
+   double Ghyd;
+   double Gas;
+   double Gam;
+   double Gae;
+   double Gah;
+   double Gao;
+   double T;
+   double tinybox;
+   int seed_i;
+   int seed_j;
+   int seed_n;
+   double Gfc;
+   char *tile_names[MAXTILETYPES];
+   int size;
+   int size_P;
+   int update_rate;
+} tube_params;
+
+void set_default_params(tube_params *params) {
+   params->blast_rate_alpha = 0;
+   params->blast_rate_beta = 4; // k>3 required for finite rate of blasting a given tile
+                                // in infinite size flakes (gamma=0)
+   params->blast_rate_gamma = 0;
+   params->blast_rate = 0;
+   params->min_strength = 1;
+   params->wander = 0;
+   params->periodic = 0;
+   params->linear = 0;
+   params->fission_allowed = 0;
+   params->zero_bonds_allowed = 0;
+   params->present_list = NULL;
+   params->present_list_len = 0;
+   params->untiltiles = 0;
+   params->untiltilescount = 0;
+   params->double_tiles = 0;
+   params->Gmc = 17;
+   params->Gse = 8.6;
+   params->k = 1000000.0;
+   params->T = 0;
+   params->Gmch = 30;
+   params->Gseh = 0;
+   params->Ghyd = 30;
+   params->Gas = 30;
+   params->Gam = 15;
+   params->Gae = 30;
+   params->Gah = 30;
+   params->Gao = 10;
+   params->seed_i = 250;
+   params->seed_j = 250;
+   params->seed_n = 1;
+   params->hydro = 0;
+   params->Gfc = 0;
+   params->size = 256;
+   params->size_P = 8;
+   params->update_rate = 10000;
+}
 
 int parse_arg_line(char *arg, tube_params *params) {
    if (IS_ARG_MATCH(arg, "block="))
@@ -567,7 +658,7 @@ int parse_arg_line(char *arg, tube_params *params) {
       }
       params->dt_right[first_tile] = second_tile;
       params->dt_left[second_tile] = first_tile;
-      double_tiles = 1;
+      params->double_tiles = 1;
    } else if (IS_ARG_MATCH(arg, "vdoubletile=")) {
       char *p;
       first_tile = atoi(&arg[12]);
@@ -585,9 +676,9 @@ int parse_arg_line(char *arg, tube_params *params) {
       }
       params->dt_down[first_tile] = second_tile;
       params->dt_up[second_tile] = first_tile;
-      vdouble_tiles = 1;
+      params->double_tiles = 1;
    } else if (IS_ARG_MATCH(arg, "update_rate="))
-      update_rate = MAX(1, MIN(atol(&arg[12]), 10000000));
+      params->update_rate = MAX(1, MIN(atol(&arg[12]), 10000000));
    else if (IS_ARG_MATCH(arg, "tracefile="))
       tracefp = fopen(strtok(&arg[10], NEWLINE), "a");
    else if (IS_ARG_MATCH(arg, "movie")) {
@@ -1164,11 +1255,11 @@ void getargs(int argc, char **argv, tube_params *params) {
    for (i = 0; i < MAXTILETYPES; i++)
       params->tile_names[i] = NULL;
 
-   if ((sprintf(&tileset_name[0], "%s", argv[1]),
-        tilefp = fopen(&tileset_name[0], "r")) != NULL)
+   if ((snprintf(tileset_name, 256, "%s", argv[1]), tilefp = fopen(tileset_name, "r")) !=
+       NULL)
       read_tilefile(tilefp, params);
-   else if ((sprintf(&tileset_name[0], "%s.tiles", argv[1]),
-             tilefp = fopen(&tileset_name[0], "r")) != NULL)
+   else if ((snprintf(tileset_name, 256, "%s.tiles", argv[1]),
+             tilefp = fopen(tileset_name, "r")) != NULL)
       read_tilefile(tilefp, params);
    else {
       fprintf(stderr,
@@ -1188,7 +1279,7 @@ void getargs(int argc, char **argv, tube_params *params) {
                       "hydrolysis simultaneously.\n");
       exit(1);
    }
-   if (double_tiles || vdouble_tiles) {
+   if (params->double_tiles) {
       // if (fission_allowed != 0) {
       // fprintf(stderr, "Double tiles cannot be used with fission or chunk_fission
       // currently.\n"); exit(0);
@@ -1724,9 +1815,9 @@ int getcolor(tube *tp, flake *fp, int i, int j, int err) {
 }
 
 #define getcolordij(tp, fp, row, col, di, dj, err)                                       \
-   (((row + (di)) >= 0 && (row + (di)) < size && (col + (dj)) >= 0 &&                    \
-     (col + (dj)) < size)                                                                \
-        ? getcolor(tp, fp, row + di, col + dj, err)                                      \
+   ((((row) + (di)) >= 0 && ((row) + (di)) < size && ((col) + (dj)) >= 0 &&              \
+     ((col) + (dj)) < size)                                                              \
+        ? getcolor(tp, fp, (row) + (di), (col) + (dj), err)                              \
         : 0)
 
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
@@ -2077,58 +2168,60 @@ void repaint(tube_params *params, tube *tp, flake *fp) {
 
    /* write various strings */
    if (fp) {
-      sprintf(stringbuffer, "flake %d (%d by %d%s, seed %d @ (%d,%d))", fp->flake_ID,
-              (1 << fp->P), (1 << fp->P), tp->periodic ? ", periodic" : "", fp->seed_n,
-              fp->seed_i, fp->seed_j);
+      snprintf(stringbuffer, BUFFER_LEN, "flake %d (%d by %d%s, seed %d @ (%d,%d))",
+               fp->flake_ID, (1 << fp->P), (1 << fp->P), tp->periodic ? ", periodic" : "",
+               fp->seed_n, fp->seed_i, fp->seed_j);
       XDrawImageString(display, window, gc, 5, (++i) * font_height, stringbuffer,
                        strlen(stringbuffer));
-      sprintf(stringbuffer, "%lld events, %d tiles, %d mismatches         ", fp->events,
-              fp->tiles, fp->mismatches);
+      snprintf(stringbuffer, BUFFER_LEN, "%lld events, %d tiles, %d mismatches         ",
+               fp->events, fp->tiles, fp->mismatches);
       XDrawImageString(display, window, gc, 5, (++i) * font_height, stringbuffer,
                        strlen(stringbuffer));
    }
 
-   sprintf(stringbuffer, "([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    ",
-           1000000.0 * 20.0 * exp(-tp->Gmc), 4000 / (tp->Gse / 5 + 11) - 273.15);
+   snprintf(stringbuffer, BUFFER_LEN, "([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    ",
+            1000000.0 * 20.0 * exp(-tp->Gmc), 4000 / (tp->Gse / 5 + 11) - 273.15);
    XDrawImageString(display, window, gc, 5, (++i) * font_height, stringbuffer,
                     strlen(stringbuffer));
 
    if (tp->T > 0)
-      sprintf(stringbuffer, "Gmc=%4.1f  Gse=%4.1f  k=%6.0f   T=%4.1f", tp->Gmc, tp->Gse,
-              tp->k, tp->T / tp->Gse);
+      snprintf(stringbuffer, BUFFER_LEN, "Gmc=%4.1f  Gse=%4.1f  k=%6.0f   T=%4.1f",
+               tp->Gmc, tp->Gse, tp->k, tp->T / tp->Gse);
    else
-      sprintf(stringbuffer, "Gmc=%4.1f  Gse=%4.1f  k=%6.0f   ", tp->Gmc, tp->Gse, tp->k);
+      snprintf(stringbuffer, BUFFER_LEN, "Gmc=%4.1f  Gse=%4.1f  k=%6.0f   ", tp->Gmc,
+               tp->Gse, tp->k);
    XDrawImageString(display, window, gc, 5, (++i) * font_height, stringbuffer,
                     strlen(stringbuffer));
 
    if (tp->hydro) {
-      sprintf(stringbuffer, "Gmch=%4.1f  Gseh=%4.1f  Ghyd=%4.1f", params->Gmch,
-              params->Gseh, params->Ghyd);
+      snprintf(stringbuffer, BUFFER_LEN, "Gmch=%4.1f  Gseh=%4.1f  Ghyd=%4.1f",
+               params->Gmch, params->Gseh, params->Ghyd);
       XDrawString(display, window, gc, 5, (++i) * font_height, stringbuffer,
                   strlen(stringbuffer));
-      sprintf(stringbuffer, "Gas=%4.1f Gam=%4.1f Gae=%4.1f Gah=%4.1f Gao=%4.1f",
-              params->Gas, params->Gam, params->Gae, params->Gah, params->Gao);
+      snprintf(stringbuffer, BUFFER_LEN,
+               "Gas=%4.1f Gam=%4.1f Gae=%4.1f Gah=%4.1f Gao=%4.1f", params->Gas,
+               params->Gam, params->Gae, params->Gah, params->Gao);
       XDrawString(display, window, gc, 5, (++i) * font_height, stringbuffer,
                   strlen(stringbuffer));
    }
    if (fp) {
-      sprintf(stringbuffer, "t = %12.3f sec; G = %12.3f      ", tp->t,
-              (tp->wander || tp->conc[fp->seed_n] == 0)
-                  ? fp->G
-                  : (fp->G + log(tp->conc[fp->seed_n])));
+      snprintf(stringbuffer, BUFFER_LEN, "t = %12.3f sec; G = %12.3f      ", tp->t,
+               (tp->wander || tp->conc[fp->seed_n] == 0)
+                   ? fp->G
+                   : (fp->G + log(tp->conc[fp->seed_n])));
    }
    XDrawImageString(display, window, gc, 5, (++i) * font_height, stringbuffer,
                     strlen(stringbuffer));
-   sprintf(stringbuffer,
-           "%lld events (%llda,%lldd,%lldh,%lldf), %lld tiles total %s      ", tp->events,
-           tp->stat_a, tp->stat_d, tp->stat_h, tp->stat_f,
-           tp->stat_a - tp->stat_d + tp->num_flakes, tp->ewrapped ? "[wrapped]" : "");
+   snprintf(stringbuffer, BUFFER_LEN,
+            "%lld events (%llda,%lldd,%lldh,%lldf), %lld tiles total %s      ",
+            tp->events, tp->stat_a, tp->stat_d, tp->stat_h, tp->stat_f,
+            tp->stat_a - tp->stat_d + tp->num_flakes, tp->ewrapped ? "[wrapped]" : "");
    XDrawImageString(display, window, gc, 5, (++i) * font_height, stringbuffer,
                     strlen(stringbuffer));
 
    if (fp && fp->flake_conc > 0) {
       int tl;
-      sprintf(stringbuffer, "Gfc=%4.1f; Gmc=[", -log(fp->flake_conc));
+      snprintf(stringbuffer, BUFFER_LEN, "Gfc=%4.1f; Gmc=[", -log(fp->flake_conc));
       for (tl = 1; tl <= tp->N && strlen(stringbuffer) < 230; tl++)
          sprintf(stringbuffer + strlen(stringbuffer), " %4.1f",
                  (tp->conc[tl] > 0) ? -log(tp->conc[tl]) : 0);
@@ -2168,7 +2261,7 @@ void openwindow(int argc, char **argv) {
                                      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
    window_name = (char *)malloc(256 + 10);
-   sprintf(window_name, "xgrow: %s", tileset_name);
+   snprintf(window_name, 256 + 10, "xgrow: %s", tileset_name);
 
    /* open up the display */
    if ((display = XOpenDisplay(display_name)) == NULL) {
@@ -2479,14 +2572,91 @@ void identify(tube_params *params, tube *tp, flake *fp, int x, int y) {
    i = MIN(MAX(0, y - 2), size - 1);
    j = MIN(MAX(0, x - 2), size - 1);
    t = fp->Cell(i, j);
-   sprintf(stringbuffer,
-           "([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
-           "%s #%d = {%d %d %d %d} at (%d,%d)              ",
-           1000000.0 * 20.0 * exp(-tp->Gmc), 4000 / (tp->Gse / 5 + 11) - 273.15,
-           (params->tile_names[t] != NULL) ? params->tile_names[t] : "tile", t,
-           tp->tileb[t][0], tp->tileb[t][1], tp->tileb[t][2], tp->tileb[t][3], i, j);
+   snprintf(stringbuffer, BUFFER_LEN,
+            "([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
+            "%s #%d = {%d %d %d %d} at (%d,%d)              ",
+            1000000.0 * 20.0 * exp(-tp->Gmc), 4000 / (tp->Gse / 5 + 11) - 273.15,
+            (params->tile_names[t] != NULL) ? params->tile_names[t] : "tile", t,
+            tp->tileb[t][0], tp->tileb[t][1], tp->tileb[t][2], tp->tileb[t][3], i, j);
    XDrawImageString(display, window, gc, 5, 3 * font_height, stringbuffer,
                     strlen(stringbuffer));
+}
+
+void set_params(tube *tp, tube_params *params) {
+   int i, j, n;
+
+   /* make our own copy of tile set and strengths, so the calling program
+   can do as it pleases with it's tileb & strength information */
+   for (i = 0; i <= tp->N; i++)
+      for (j = 0; j < 4; j++)
+         tp->tileb[i][j] = params->tileb[i][j];
+   for (i = 0; i <= tp->num_bindings; i++)
+      tp->strength[i] = params->strength[i];
+   for (i = 0; i <= tp->num_bindings; i++) {
+      for (j = 0; j <= tp->num_bindings; j++) {
+         tp->glue[i][j] = params->glue[i][j];
+      }
+   }
+
+   tp->blast_rate_alpha = params->blast_rate_alpha;
+   tp->blast_rate_beta = params->blast_rate_beta;
+   tp->blast_rate_gamma = params->blast_rate_gamma;
+   tp->blast_rate = params->blast_rate;
+   tp->min_strength = params->min_strength;
+   tp->wander = params->wander;
+   tp->periodic = params->periodic;
+   tp->fission_allowed = params->fission_allowed;
+   tp->zero_bonds_allowed = params->zero_bonds_allowed;
+   tp->present_list = params->present_list;
+   tp->present_list_len = params->present_list_len;
+   tp->untiltiles = params->untiltiles;
+   tp->untiltilescount = params->untiltilescount;
+   tp->hydro = params->hydro;
+   tp->T = params->T;
+   tp->k = params->k;
+   tp->kas = exp(-params->Gas);
+   tp->kao = exp(-params->Gao);
+   tp->kam = exp(-params->Gam);
+   tp->kae = exp(-params->Gae);
+   tp->kah = exp(-params->Gah);
+   tp->Gmc = params->Gmc;
+   tp->anneal_g = params->anneal_g;
+   tp->anneal_t = params->anneal_t;
+   tp->anneal_h = params->anneal_h;
+   tp->anneal_s = params->anneal_s;
+   tp->startC = params->startC;
+   tp->endC = params->endC;
+   tp->seconds_per_C = params->seconds_per_C;
+   tp->tinybox = params->tinybox;
+   tp->default_seed_i = params->seed_i;
+   tp->default_seed_j = params->seed_j;
+   tp->initial_Gfc = params->Gfc;
+   tp->Gmch = params->Gmch;
+
+   tp->currentC = tp->startC;
+   tp->Gse = params->Gse;
+   tp->update_freq = params->updates_per_RC;
+
+   tp->dt_right = params->dt_right;
+   tp->dt_left = params->dt_left;
+
+   tp->dt_up = params->dt_up;
+   tp->dt_down = params->dt_down;
+
+   /* set tp->Gcb from Ghyd */
+   for (n = 0; n <= tp->N; n++)
+      tp->Gcb[n] = 0;
+   if (tp->hydro)
+      for (n = tp->N / 2 + 1; n <= tp->N; n++)
+         tp->Gcb[n] = params->Ghyd;
+
+   /* set tp->conc from Gmc... and from Gmch for hydrolysis rules */
+   tp->conc[0] = 0;
+   for (n = 1; n <= tp->N; n++)
+      tp->conc[0] +=
+          (tp->conc[n] =
+               exp(-((n > tp->N / 2 && tp->hydro) ? params->Gmch : params->Gmc)) *
+               params->stoic[n]);
 }
 
 int main(int argc, char **argv) {
@@ -2537,6 +2707,7 @@ int main(int argc, char **argv) {
    if (testing) {
       tp = init_tube(params->size_P, N, num_bindings);
       set_params(tp, params);
+      setup_tube(tp);
 #ifdef TESTING_OK
       run_xgrow_tests(tp, Gmc, Gse, seed_i, seed_j, seed_n, size);
 #endif
@@ -2551,6 +2722,7 @@ int main(int argc, char **argv) {
    /* set initial state */
    tp = init_tube(params->size_P, N, num_bindings);
    set_params(tp, params);
+   setup_tube(tp);
 
    fprm = fparam;
    int size = (1 << tp->P);
@@ -2669,14 +2841,14 @@ int main(int argc, char **argv) {
           !(tp->untiltiles && tp->all_present)) {
 
       if (!XXX) {
-         simulate(tp, update_rate, tmax, emax, smax, fsmax, smin, mmax);
+         simulate(tp, params->update_rate, tmax, emax, smax, fsmax, smin, mmax);
          if (tracefp != NULL)
             write_datalines(params, tp, fp, tracefp, "\n");
          if (export_mode == 2 && export_movie == 1)
             export_flake(params, tp, "movie", fp);
       } else {
          if (0 == paused && 0 == mousing && !XPending(display)) {
-            simulate(tp, update_rate, tmax, emax, smax, fsmax, smin, mmax);
+            simulate(tp, params->update_rate, tmax, emax, smax, fsmax, smin, mmax);
             fp = tp->flake_list;
             assert(!fp || !tp->tinybox ||
                    ((!fp->seed_is_double_tile && fp->tiles > 1) || fp->tiles > 2));
@@ -2723,8 +2895,9 @@ int main(int argc, char **argv) {
                      new_Gse = (30.0 * x) / params->size;
                      new_Gmc = 30 - (30.0 * y) / params->size;
                      /* draw current Gse, Gmc values */
-                     sprintf(stringbuffer, "Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f", tp->Gmc,
-                             new_Gmc, tp->Gse, new_Gse);
+                     snprintf(stringbuffer, BUFFER_LEN,
+                              "Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f", tp->Gmc, new_Gmc,
+                              tp->Gse, new_Gse);
                      XDrawImageString(display, window, gc, 5, 3 * font_height,
                                       stringbuffer, strlen(stringbuffer));
                      /* this is necessary in order to get more than one MotionNotify
@@ -2872,9 +3045,6 @@ int main(int argc, char **argv) {
                   update_all_rates(tp);
                   repaint(params, tp, fp);
                } else if (report.xbutton.window == cleanbutton) {
-                  x = report.xbutton.x;
-                  y = report.xbutton.y;
-                  b = report.xbutton.button;
                   if (x < 50) { // do a clean_flake cycle
                      fprintf(stderr, "Cleaning 1 cycle, clean_X=%f\n", clean_X);
                      clean_flake(fp, clean_X, 1);
@@ -2887,9 +3057,6 @@ int main(int argc, char **argv) {
                   }
                   repaint(params, tp, fp);
                } else if (report.xbutton.window == exportbutton) {
-                  x = report.xbutton.x;
-                  y = report.xbutton.y;
-                  b = report.xbutton.button;
                   if (x > 70) { // change from ONE to ALL to MOVIE
                      setexport((export_mode + 1) % 3);
                   } else if (export_mode == 0) {
@@ -2909,9 +3076,6 @@ int main(int argc, char **argv) {
                } else if (report.xbutton.window == samplebutton) {
                   flake *tfp;
                   int n, num_big = 0;
-                  x = report.xbutton.x;
-                  y = report.xbutton.y;
-                  b = report.xbutton.button;
                   // stop simulation if you're sampling.
                   setpause(1);
                   sampling = 1;
@@ -2935,9 +3099,6 @@ int main(int argc, char **argv) {
                   repaint(params, tp, fp);
                } else if (report.xbutton.window == flakebutton) {
                   flake *tfp = tp->flake_list;
-                  x = report.xbutton.x;
-                  y = report.xbutton.y;
-                  b = report.xbutton.button;
                   // cycle through flakes.
                   if (x > 80) {
                      fp = fp->next_flake;
@@ -2964,9 +3125,6 @@ int main(int argc, char **argv) {
                   sampling = 0;
                   repaint(params, tp, fp);
                } else if (report.xbutton.window == tempbutton) { // change Gse w/ button
-                  x = report.xbutton.x;
-                  y = report.xbutton.y;
-                  b = report.xbutton.button;
                   if (tp->hydro)
                      break; /* don't know how to reset params */
                   if (x > 60)
@@ -2978,17 +3136,15 @@ int main(int argc, char **argv) {
                   repaint(params, tp, fp);
                } else if (report.xbutton.window == playground) // we're in ButtonPress
                {
-                  x = report.xbutton.x / block;
-                  y = report.xbutton.y / block;
-                  b = report.xbutton.button;
                   if (b == 3) {
                      if (tp->hydro)
                         break; /* don't know how to reset params */
                      new_Gse = (30.0 * x) / params->size;
                      new_Gmc = 30 - (30.0 * y) / params->size;
                      /* draw current Gse, Gmc values */
-                     sprintf(stringbuffer, "Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f", tp->Gmc,
-                             new_Gmc, tp->Gse, new_Gse);
+                     snprintf(stringbuffer, BUFFER_LEN,
+                              "Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f", tp->Gmc, new_Gmc,
+                              tp->Gse, new_Gse);
                      XDrawImageString(display, window, gc, 5, 3 * font_height,
                                       stringbuffer, strlen(stringbuffer));
                      /* later: if down button, draw T=1/T=2 diagram */
