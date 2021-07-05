@@ -264,11 +264,6 @@ the file.  (compatibility with existing xgrow tile files must be maintained.)
 /* Aesthetic margin of image area. */
 # define PLAY_MARGIN 10
 
-#ifdef SMALL
-# define MAXTILETYPES 256
-#else
-# define MAXTILETYPES USHRT_MAX
-#endif
 
 #define IS_ARG_MATCH(arg,s) (strncmp(arg,s,strlen(s))==0)
 
@@ -303,7 +298,6 @@ int darkcolor,lightcolor,black,white,
 char *tile_colors[MAXTILETYPES]={ "black",
    "blue",      "red",      "green",      "yellow", "gold",   "purple", "white", 
    "dark blue", "dark red", "dark green", "wheat",  "orange", "cyan",   "light grey"};
-char *tile_names[MAXTILETYPES];
 
 /* simulation parameters */
 //tube *tp; flake *fp; 
@@ -313,7 +307,6 @@ int double_tiles=0;
 int vdouble_tiles=0;
 
 int NROWS,NCOLS,VOLUME,WINDOWWIDTH,WINDOWHEIGHT;
-int size=256, size_P=8; 
 int block=1; /* default to small blocks; calling with argument changes this */
 int linear;
 FILE *tracefp, *datafp, *arrayfp, *tilefp, *largeflakefp;
@@ -344,41 +337,6 @@ struct flake_param {
 struct flake_param *fparam=NULL, *fprm; 
 
 
-void set_default_params(tube_params* params) {
-    params->blast_rate_alpha = 0;
-    params->blast_rate_beta = 4; // k>3 required for finite rate of blasting a given tile in
-                                 // infinite size flakes (gamma=0)
-    params->blast_rate_gamma = 0;
-    params->blast_rate = 0;
-    params->min_strength = 1;
-    params->wander = 0;
-    params->periodic = 0;
-    params->linear = 0;
-    params->fission_allowed = 0;
-    params->zero_bonds_allowed = 0;
-    params->present_list = NULL;
-    params->present_list_len = 0;
-    params->untiltiles = 0;
-    params->untiltilescount = 0;
-    params->Gmc = 17;
-    params->Gse = 8.6;
-    params->k = 1000000.0;
-    params->T = 0;
-    params->Gmch = 30;
-    params->Gseh = 0;
-    params->Ghyd = 30;
-    params->Gas = 30;
-    params->Gam = 15;
-    params->Gae = 30;
-    params->Gah = 30;
-    params->Gao = 10;
-    params->seed_i = 250;
-    params->seed_j = 250;
-    params->seed_n = 1;
-    params->hydro = 0;
-    params->Gfc=0; 
-}
-
 int count_flakes(FILE *flake_file);
 
 int parse_arg_line(char *arg, tube_params *params)
@@ -386,7 +344,7 @@ int parse_arg_line(char *arg, tube_params *params)
    if (IS_ARG_MATCH(arg,"block=")) 
       block=MAX(1,MIN(30,atoi(&arg[6])));
    else if (IS_ARG_MATCH(arg,"size=")) 
-      size=MAX(32,MIN(4096,atoi(&arg[5])));
+      params->size=MAX(32,MIN(4096,atoi(&arg[5])));
    else if (IS_ARG_MATCH(arg,"rand=")) 
    { srand48(atoi(&arg[5])); srandom(atoi(&arg[5])); }
    else if (IS_ARG_MATCH(arg,"k=")) params->k=atof(&arg[2]);
@@ -651,7 +609,7 @@ int parse_arg_line(char *arg, tube_params *params)
        * Randomly choose spots from the smallest flake until we find a tile
        * that is present in each flake.
        */
-      fparam->seed_i = fparam->seed_j = size / 2;
+      fparam->seed_i = fparam->seed_j = params->size / 2;
       fparam->seed_n = 1;
 
       if (IS_ARG_MATCH(arg, "importfile="))
@@ -815,8 +773,8 @@ void read_tilefile(FILE *tilefp, tube_params *params)
 	 strcpy(tile_colors[i],stringbuffer);
       }
       if (fscanf(tilefp,"<%200[^>]>",&stringbuffer[0])) {
-         tile_names[i]=(char *)malloc(strlen(stringbuffer)+2);
-         strcpy(tile_names[i],stringbuffer);
+         params->tile_names[i]=(char *)malloc(strlen(stringbuffer)+2);
+         strcpy(params->tile_names[i],stringbuffer);
       }
       fscanf(tilefp,"\n"); rsc;
    }
@@ -979,7 +937,7 @@ void getargs(int argc, char **argv, tube_params *params)
 
    // reset tile colors and names that haven't been assigned
    for (i=15; i<MAXTILETYPES; i++) tile_colors[i]=NULL;
-   for (i=0; i<MAXTILETYPES; i++) tile_names[i]=NULL;
+   for (i=0; i<MAXTILETYPES; i++) params->tile_names[i]=NULL;
 
 
    if      ( (sprintf(&tileset_name[0],"%s",argv[1]),tilefp = fopen(&tileset_name[0],"r"))!=NULL ) read_tilefile(tilefp, params); 
@@ -1018,8 +976,8 @@ void getargs(int argc, char **argv, tube_params *params)
       }
    }
 
-   for (size_P=5; (1<<size_P)<size; size_P++);
-   size=(1<<size_P);
+   for (params->size_P=5; (1<<params->size_P)<params->size; params->size_P++);
+   params->size=(1<<params->size_P);
    // if (XXX) {
    //   if (size*block > 800) block=800/size;
    //   if (block==0) { size=512; block=1; size_P=9; }
@@ -1029,14 +987,14 @@ void getargs(int argc, char **argv, tube_params *params)
        int kb;
        fprintf(stderr, "blast_rate: alpha = %f, beta = %f, gamma = %f\n", params->blast_rate_alpha,
            params->blast_rate_beta, params->blast_rate_gamma);
-       for (kb = 1; kb < size; kb++)
+       for (kb = 1; kb < params->size; kb++)
            params->blast_rate += params->blast_rate_alpha * exp(-params->blast_rate_gamma * (kb - 1))
                / pow(kb * 1.0, params->blast_rate_beta);
        fprintf(stderr, "total blast_rate per site = %f\n", params->blast_rate);
    }
 
-   NROWS=(size+NBDY*2);
-   NCOLS=(size+NBDY*2);
+   NROWS=(params->size+NBDY*2);
+   NCOLS=(params->size+NBDY*2);
    VOLUME=(NROWS*NCOLS);
 
    params->T=params->T*params->Gse;
@@ -1055,8 +1013,8 @@ void getargs(int argc, char **argv, tube_params *params)
 
    // make sure all seed tiles are on the board
    for (fprm=fparam; fprm!=NULL; fprm=fprm->next_param) {
-      while (fprm->seed_i>=size) fprm->seed_i/=2;
-      while (fprm->seed_j>=size) fprm->seed_j/=2;
+      while (fprm->seed_i>=params->size) fprm->seed_i/=2;
+      while (fprm->seed_j>=params->size) fprm->seed_j/=2;
    }
    if (fparam != NULL) {
       params->seed_i=fparam->seed_i; params->seed_j=fparam->seed_j;
@@ -1064,7 +1022,7 @@ void getargs(int argc, char **argv, tube_params *params)
 
    if (!XXX) {
      fprintf(stderr, " Starting simulation (1st seed=%d,%d,%d) on %d x %d board.\n",
-	    params->seed_i, params->seed_j, params->seed_n, size, size);
+	    params->seed_i, params->seed_j, params->seed_n, params->size, params->size);
    }
 
 }
@@ -1119,8 +1077,8 @@ void write_flake(tube_params *params, tube *tp, FILE *filep, char *mode, flake *
       for (tl=1; tl<=tp->N; tl++) 
 	 fprintf(filep," %8.5f", (tp->conc[tl]>0)?-log(tp->conc[tl]):0 );
       fprintf(filep," ],...\n  [");
-      for (row=0; row<size; row++) {
-	 for (col=0; col<size; col++)
+      for (row=0; row<params->size; row++) {
+	 for (col=0; col<params->size; col++)
 	    fprintf(filep, " %d", fp->Cell(row,col));
 	 fprintf(filep, "; ...\n");
       }
@@ -1385,6 +1343,7 @@ void import_flake(tube *tp, flake *current_flake, FILE *flake_file, int flake_nu
     * We want to import the flake into the middle of the empty flake, so
     * calculate how much we need to translate every cell by.
     */
+   int size = (1<<current_flake->P);
    translate_i = (size - flake_size) / 2 + import_offset_i;
    translate_j = (size - flake_size) / 2 + import_offset_j;
 
@@ -1516,7 +1475,7 @@ void showpic(tube *tp, flake *fp, int err) /* display the field */  // err param
    char *picture=(*spinimage).data; static int last_display_type=0;
    int new_display=(last_display_type!=(10*errors+errorc)); 
    last_display_type=(10*errors+errorc); // re-draw everything when colormap changes
-
+   int size = (1<<fp->P);
    if (block>4) blocktop=block-1;  
    if (8==(*spinimage).depth) {
       if (block>1) /* I wish I knew how to do this faster */
@@ -1620,7 +1579,7 @@ void showpic(tube *tp, flake *fp, int err) /* display the field */  // err param
 void add_sample_pic(tube *tp, flake *fp, int err) /* add sample the field */
 {int row,col,i1,i2,di=0,ddi,j1,j2,dj=0,ddj,blocktop=block;
    int color, oldcolor, n_tries=10000,n, collision=0, anything=0;
-
+   int size = (1<<fp->P);
    // we will try n_tries random offsets before giving up on 
    // avoiding collision.
    // this gets a di, dj
@@ -1675,12 +1634,12 @@ void add_sample_pic(tube *tp, flake *fp, int err) /* add sample the field */
 
 
 /* NOTE: requires 2^P < NCOLS+2*NBDY */
-void showphase() /* replace tiles by phase diagram T=1 & T=2 lines */
+void showphase(tube_params *params) /* replace tiles by phase diagram T=1 & T=2 lines */
 {int row,col,color,i1,i2,j1,j2,blocktop=block;
    if (block>4) blocktop=block-1;
-   for (row=0;row<size;row++)
-      for (col=0;col<size;col++) {
-	 color = ((size-row)/2==col || (size-row)==col) ?
+   for (row=0;row<params->size;row++)
+      for (col=0;col<params->size;col++) {
+	 color = ((params->size-row)/2==col || (params->size-row)==col) ?
 	    translate[7]:translate[0];
 	 j1=block*(col+NBDY); j2=block*(row+NBDY);
 	 for (i2=0;i2<blocktop;i2++)
@@ -2135,16 +2094,17 @@ void cleanup()
 
 
 
-void identify(tube *tp, flake *fp, int x, int y)
+void identify(tube_params *params, tube *tp, flake *fp, int x, int y)
 {
    int i, j, t;
+   int size = (1<<fp->P);
    i = MIN(MAX(0, y - 2), size - 1);
    j = MIN(MAX(0, x - 2), size - 1);
    t = fp->Cell(i, j);
    sprintf(stringbuffer, "([DX] = %g uM, T = %5.3f C, 5-mer s.e.)    "
                          "%s #%d = {%d %d %d %d} at (%d,%d)              ",
            1000000.0 * 20.0 * exp(-tp->Gmc), 4000 / (tp->Gse / 5 + 11) - 273.15,
-           (tile_names[t] != NULL) ? tile_names[t] : "tile", t, tp->tileb[t][0], tp->tileb[t][1], tp->tileb[t][2], tp->tileb[t][3], i, j);
+           (params->tile_names[t] != NULL) ? params->tile_names[t] : "tile", t, tp->tileb[t][0], tp->tileb[t][1], tp->tileb[t][2], tp->tileb[t][3], i, j);
    XDrawImageString(display, window, gc, 5, 3 * font_height,
                     stringbuffer, strlen(stringbuffer));
 }
@@ -2167,7 +2127,7 @@ int main(int argc, char **argv)
 
    getargs(argc, argv, params);
 
-   if (import_flake_size > size)
+   if (import_flake_size > params->size)
    {
       fprintf(stderr, "Error: The input flake size is larger than the "
 	    "simulation flake size.\n");
@@ -2194,7 +2154,7 @@ int main(int argc, char **argv)
    flake *fp;
 
    if (testing) {
-      tp = init_tube(size_P,N,num_bindings);   
+      tp = init_tube(params->size_P,N,num_bindings);   
       set_params(tp, params);
 #ifdef TESTING_OK
       run_xgrow_tests(tp,Gmc,Gse,seed_i,seed_j,seed_n,size);
@@ -2207,7 +2167,7 @@ int main(int argc, char **argv)
    /* fprintf(stderr, "xgrow: tile set read, beginning simulation\n"); */
 
    /* set initial state */
-   tp = init_tube(size_P,N,num_bindings);   
+   tp = init_tube(params->size_P,N,num_bindings);   
    set_params(tp, params);
 
    fprm=fparam;
@@ -2223,7 +2183,7 @@ int main(int argc, char **argv)
 	    fprm->seed_j--;
 	 }
 
-    fp = init_flake(size_P,N,fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc, tp->present_list_len, tp->periodic);
+    fp = init_flake(params->size_P,N,fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc, tp->present_list_len, tp->periodic);
 
 	 insert_flake(fp, tp);
 
@@ -2255,9 +2215,9 @@ int main(int argc, char **argv)
       /* SHOULD REPLACE THIS OPTION BY READING INITIAL FLAKE FROM FILE */
       int i,j,k,w; double p; char *s=stripe_args;
       char XOR[2][2]={ {4,7}, {6,5} }; /* XOR[S][E] */ char c,cc;
-      i=size-1; j = atoi(s)%size; 
-      for (k=0; k<size; k++) 
-	 change_cell(fp, (i-k+size)%size, (j+k)%size, 4+random()%4); 
+      i=params->size-1; j = atoi(s)%params->size; 
+      for (k=0; k<params->size; k++) 
+	 change_cell(fp, (i-k+params->size)%params->size, (j+k)%params->size, 4+random()%4); 
       fp->seed_i=i; fp->seed_j=j; fp->seed_n=fp->Cell(i,j);
       s = strchr(s,':');
       while (s!=NULL) {
@@ -2265,12 +2225,12 @@ int main(int argc, char **argv)
 	 if (s!=NULL) {
 	    w = atoi(s+1); s = strchr(s,':');
 	    for (;w>0;w--) {
-	       i=(i-1+size)%size;
-	       for (k=0; k<size; k++) {
-		  cc=c= XOR[(fp->Cell((i-k+1+size)%size,(j+k)%size)-4)/2]
-		     [(fp->Cell((i-k+size)%size,(j+k+1)%size)-4)/2];
+	       i=(i-1+params->size)%params->size;
+	       for (k=0; k<params->size; k++) {
+		  cc=c= XOR[(fp->Cell((i-k+1+params->size)%params->size,(j+k)%params->size)-4)/2]
+		     [(fp->Cell((i-k+params->size)%params->size,(j+k+1)%params->size)-4)/2];
 		  if (drand48()<p) do cc=4+random()%4; while (cc==c);
-		  change_cell(fp, (i-k+size)%size, (j+k)%size, cc);
+		  change_cell(fp, (i-k+params->size)%params->size, (j+k)%params->size, cc);
 		  tp->events--; /* don't count these as events */
 		  /* ERROR: stats are also modified!!! */
 	       }
@@ -2345,11 +2305,11 @@ int main(int argc, char **argv)
 		  y=report.xbutton.y/block;
 		  b=report.xbutton.button;
 		  if (mousing==0) { /* identify while moving around */
-           identify(tp, fp, x, y);
+           identify(params, tp, fp, x, y);
 		  }
 		  if (mousing==3) {
 		     /* was sketch(x,y,b); now change Gse & Gmc */
-		     new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
+		     new_Gse=(30.0*x)/params->size; new_Gmc=30-(30.0*y)/params->size;
 		     /* draw current Gse, Gmc values */
 		     sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
 			   tp->Gmc,new_Gmc,tp->Gse,new_Gse);
@@ -2382,18 +2342,18 @@ int main(int argc, char **argv)
 		  x=report.xbutton.x/block;
 		  y=report.xbutton.y/block;
 		  b=report.xbutton.button; 
-		  if (clear_y>y) { mi=MIN(MAX(0,y-2),size-1); Mi=MIN(MAX(0,clear_y-2),size-1); }
-		  else           { mi=MIN(MAX(0,clear_y-2),size-1); Mi=MIN(MAX(0,y-2),size-1); }
-		  if (clear_x>x) { mj=MIN(MAX(0,x-2),size-1); Mj=MIN(MAX(0,clear_x-2),size-1); }
-		  else           { mj=MIN(MAX(0,clear_x-2),size-1); Mj=MIN(MAX(0,x-2),size-1); }
+		  if (clear_y>y) { mi=MIN(MAX(0,y-2),params->size-1); Mi=MIN(MAX(0,clear_y-2),params->size-1); }
+		  else           { mi=MIN(MAX(0,clear_y-2),params->size-1); Mi=MIN(MAX(0,y-2),params->size-1); }
+		  if (clear_x>x) { mj=MIN(MAX(0,x-2),params->size-1); Mj=MIN(MAX(0,clear_x-2),params->size-1); }
+		  else           { mj=MIN(MAX(0,clear_x-2),params->size-1); Mj=MIN(MAX(0,x-2),params->size-1); }
 		  if (mi != Mi && mj != Mj) { int fa=tp->fission_allowed;
 		     if (mi<=fp->seed_i && fp->seed_i<=Mi &&
 			   mj<=fp->seed_j && fp->seed_j<=Mj) { int si=fp->seed_i,sj=fp->seed_j;
 			// better move the seed out of the way, if possible
-			for (i=mi; i<=Mi; i++) if (fp->Cell(i,mj-1)>0) { si=i; sj=(mj-1+size)%size; }
-			for (i=mi; i<=Mi; i++) if (fp->Cell(i,Mj+1)>0) { si=i; sj=(Mj+1)%size; }
-			for (j=mj; j<=Mj; j++) if (fp->Cell(mi-1,j)>0) { si=(mi-1+size)%size; sj=j; }
-			for (j=mj; j<=Mj; j++) if (fp->Cell(Mi+1,j)>0) { si=(Mi+1)%size; sj=j; }
+			for (i=mi; i<=Mi; i++) if (fp->Cell(i,mj-1)>0) { si=i; sj=(mj-1+params->size)%params->size; }
+			for (i=mi; i<=Mi; i++) if (fp->Cell(i,Mj+1)>0) { si=i; sj=(Mj+1)%params->size; }
+			for (j=mj; j<=Mj; j++) if (fp->Cell(mi-1,j)>0) { si=(mi-1+params->size)%params->size; sj=j; }
+			for (j=mj; j<=Mj; j++) if (fp->Cell(Mi+1,j)>0) { si=(Mi+1)%params->size; sj=j; }
 			change_seed(fp,si,sj);
 		     }
 		     tp->fission_allowed=1; 
@@ -2417,7 +2377,7 @@ int main(int argc, char **argv)
 		  setpause(1-paused); repaint(params, tp, fp); 
 	       } else if (report.xbutton.window==restartbutton) {
 		  free_tube(tp); 
-		  tp = init_tube(size_P,N,num_bindings);   
+		  tp = init_tube(params->size_P,N,num_bindings);   
 		  set_params(tp, params);
 		  fprm=fparam; 
            while (fprm!=NULL)
@@ -2429,7 +2389,7 @@ int main(int argc, char **argv)
                 fprm->seed_n = tp->dt_left[fprm->seed_n]; // FIXME: vdouble
                 fprm->seed_j--;
              }
-             insert_flake(fp=init_flake(size_P,N,
+             insert_flake(fp=init_flake(params->size_P,N,
                   fprm->seed_i,fprm->seed_j,fprm->seed_n,fprm->Gfc, tp->present_list_len, tp->periodic), tp);
              if (tp->dt_right[fprm->seed_n]) {
                 change_cell (fp,params->seed_i,params->seed_j+1,tp->dt_right[fprm->seed_n]);
@@ -2550,20 +2510,20 @@ int main(int argc, char **argv)
 		  b=report.xbutton.button;
 		  if (b==3) {
 		     if (tp->hydro) break; /* don't know how to reset params */
-		     new_Gse=(30.0*x)/size; new_Gmc=30-(30.0*y)/size;
+		     new_Gse=(30.0*x)/params->size; new_Gmc=30-(30.0*y)/params->size;
 		     /* draw current Gse, Gmc values */
 		     sprintf(stringbuffer,"Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
 			   tp->Gmc,new_Gmc,tp->Gse,new_Gse);
 		     XDrawImageString(display,window,gc,5,3*font_height,
 			   stringbuffer,strlen(stringbuffer));
 		     /* later: if down button, draw T=1/T=2 diagram */
-		     mousing=3; showphase();
+		     mousing=3; showphase(params);
 		  } else if (b==2) { // "puncture"
 		     mousing=1; clear_x=x; clear_y=y;  /* prepare to clear a region */
 		  }
         else if (b == 1)
         { // "identify"
-         identify(tp, fp, x, y);
+         identify(params, tp, fp, x, y);
         }
           }
 	       else {
