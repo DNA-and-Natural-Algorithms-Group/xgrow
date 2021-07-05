@@ -104,9 +104,7 @@ flake *init_flake(Trep P, Trep N, int seed_i, int seed_j, int seed_n, double Gfc
    fprintf(stderr, "Making flake %d x %d, %d tiles, seed=%d,%d,%d @ %6.2f\n", size, size,
            N, seed_i, seed_j, seed_n, Gfc);
 
-   fp->cell = (Trep **)calloc_err(sizeof(Trep *), 2 + size);
-   for (i = 0; i < 2 + size; i++)
-      fp->cell[i] = (Trep *)calloc_err(sizeof(Trep), 2 + size);
+   fp->cell = (Trep *)calloc_err(sizeof(Trep *), (2 + size) * (2 + size));
    fp->rate = (double ***)calloc_err(sizeof(Trep **), P + 1);
    // fp->empty = (int ***)calloc_err(sizeof(int **),P+1);
 
@@ -150,8 +148,6 @@ flake *free_flake(flake *fp) {
    flake *fpn;
    int size = (1 << fp->P);
 
-   for (i = 0; i < 2 + size; i++)
-      free(fp->cell[i]);
    free(fp->cell);
 
    for (p = 0; p <= fp->P; p++) {
@@ -312,53 +308,32 @@ tube *init_tube(Trep P, Trep N, int num_bindings) {
    tp->tileb = (int **)calloc(sizeof(int *), N + 1);
    for (i = 0; i <= N; i++) {
       tp->tileb[i] = (int *)calloc(sizeof(int), 4);
-      for (j = 0; j < 4; j++)
-         tp->tileb[i][j] = 0;
    }
    tp->strength = (double *)calloc(sizeof(double), num_bindings + 1);
    tp->glue = (double **)calloc(sizeof(double *), num_bindings + 1);
    for (i = 0; i <= num_bindings; i++) {
       tp->glue[i] = (double *)calloc(sizeof(double), num_bindings + 1);
-      for (j = 0; j <= num_bindings; j++) {
-         tp->glue[i][j] = 0;
-      } // necessary??  -- EW
    }
 
    tp->conc = (double *)calloc(sizeof(double), N + 1);
-   for (n = 0; n < N + 1; n++)
-      tp->conc[n] = 0;
 
    tp->dt_right = (int *)calloc(sizeof(int), N + 1);
-   for (n = 0; n < N + 1; n++)
-      tp->dt_right[n] = 0;
 
    tp->dt_down = (int *)calloc(sizeof(int), N + 1);
-   for (n = 0; n < N + 1; n++)
-      tp->dt_down[n] = 0;
 
    tp->dt_up = (int *)calloc(sizeof(int), N + 1);
-   for (n = 0; n < N + 1; n++)
-      tp->dt_up[n] = 0;
 
    tp->dt_left = (int *)calloc(sizeof(int), N + 1);
-   for (n = 0; n < N + 1; n++)
-      tp->dt_left[n] = 0;
 
    tp->Gcb = (double *)calloc(sizeof(double), N + 1);
-   for (n = 0; n < N + 1; n++)
-      tp->Gcb[n] = 0;
+
    tp->Gse_EW = (double **)calloc(sizeof(double *), N + 1);
    for (n = 0; n < N + 1; n++)
       tp->Gse_EW[n] = (double *)calloc(sizeof(double), N + 1);
-   for (n = 0; n < N + 1; n++)
-      for (m = 0; m < N + 1; m++)
-         tp->Gse_EW[n][m] = 0;
+
    tp->Gse_NS = (double **)calloc(sizeof(double *), N + 1);
    for (n = 0; n < N + 1; n++)
       tp->Gse_NS[n] = (double *)calloc(sizeof(double), N + 1);
-   for (n = 0; n < N + 1; n++)
-      for (m = 0; m < N + 1; m++)
-         tp->Gse_NS[n][m] = 0;
 
    tp->events = 0;
    tp->t = 0;
@@ -765,8 +740,7 @@ void add_flake_to_reserve_list(flake *fp, int present_list_len) {
    int size;
    // First clear flake
    size = (1 << (fp->P));
-   for (i = 0; i < 2 + size; i++)
-      memset(fp->cell[i], 0, 2 + size * sizeof(Trep));
+   memset(fp->cell, 0, (2 + size) * (2 + size) * sizeof(Trep));
    for (p = 0; p <= fp->P; p++) {
       size = (1 << p);
       for (i = 0; i < size; i++) {
@@ -1109,6 +1083,7 @@ void update_tube_rates(flake *fp) {
 } // update_tube_rates()
 
 int between_double_tile(flake *fp, tube *tp, int i, int j, Trep n) {
+   int size = (1 << fp->P);
    if (n == 0) {
       return (tp->dt_right[fp->Cell(i, j - 1)] || tp->dt_left[fp->Cell(i, j + 1)]);
    }
@@ -1122,6 +1097,7 @@ int between_double_tile(flake *fp, tube *tp, int i, int j, Trep n) {
 }
 
 int between_vdouble_tile(flake *fp, tube *tp, int i, int j, Trep n) {
+   int size = (1 << fp->P);
    if (n == 0) {
       return (tp->dt_down[fp->Cell(i - 1, j)] || tp->dt_up[fp->Cell(i + 1, j)]);
    }
@@ -1371,6 +1347,7 @@ void change_cell(flake *fp, int i, int j, Trep n) {
 } // change_cell()
 
 void change_seed(flake *fp, int new_i, int new_j) {
+   int size = (1 << fp->P);
    int old_i = fp->seed_i;
    int old_j = fp->seed_j;
    fp->seed_n = fp->Cell(new_i, new_j);
@@ -1456,6 +1433,7 @@ void choose_cell(flake *fp, int *ip, int *jp, int *np) {
    double sum, cum, r, k00, k01, k10, k11;
    int p, i, j, di = 1, dj = 1, n, oops;
    tube *tp = fp->tube;
+   int size = (1 << fp->P);
 
    sum = fp->rate[0][0][0];
 
@@ -1833,6 +1811,7 @@ int flake_fission(flake *fp, int ii, int jj) {
 /* If we can verify that what used to be connected still must be connected, */
 /* then it is safe.                                                         */
 int locally_fission_proof(flake *fp, int i, int j, int oldn) {
+   int size = (1 << fp->P);
    unsigned char ringi;
    ringi = ((fp->Cell(i - 1, j) != 0) << 7) +
            ((CONNECTED_W(fp, i - 1, j + 1) && CONNECTED_S(fp, i - 1, j + 1)) << 6) +
@@ -2555,7 +2534,7 @@ void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax
                                fp->tiles > 1) ||
                               fp->tiles > 2));
 
-      fprintf(stderr, "Seed is tile %d at %d,%d.\n", fp->seed_n, fp->seed_i, fp->seed_j);
+      d2printf("Seed is tile %d at %d,%d.\n", fp->seed_n, fp->seed_i, fp->seed_j);
       if (tp->periodic) {
          assert(fp->Cell((fp->seed_i + size) % size, (fp->seed_j + size) % size) ==
                 fp->seed_n);
