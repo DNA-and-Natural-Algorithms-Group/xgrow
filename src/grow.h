@@ -43,7 +43,7 @@ double log();
 #endif
 /* make off-by-one error less likely : include a boundary of empty */
 /* cells that will never be modified                               */
-#define Cell(i, j) cell[(i) + 1][(j) + 1]
+#define Cell(i, j) cell[(size + 2) * (i + 1) + j + 1]
 /* note i,j here are indexed 0 <= i,j < (1<<P)                     */
 /*
    for periodic boundary conditions, where size=2^P,
@@ -57,8 +57,8 @@ double log();
 
 /* for times when it's inconvenience to know if i,j are within bounds */
 #define CellM(i, j)                                                                      \
-   cell[fp->periodic ? ((i + size) % size) : MAX(0, MIN((i) + 1, size + 1))]             \
-       [fp->periodic ? ((j + size) % size) : MAX(0, MIN((j) + 1, size + 1))]
+   cell[(fp->periodic ? ((i % size) + 1) : MAX(0, MIN(i + 1, size + 1))) * (size + 2) +  \
+        (fp->periodic ? ((j % size) + 1) : MAX(0, MIN(j + 1, size + 1)))]
 
 /* macro definition of summed sticky end bond energy                    */
 /* computes energy IF Cell(i,j) were n, given its current neighbors     */
@@ -156,7 +156,7 @@ typedef struct flake_struct {
    /* all flakes are the same size, 2^(tube->P)        */
    Trep N, P; /* # non-empty tile types; 2^P active cell grid     */
 
-   Trep **cell; /* tile type at [i][j]; array of arrays             */
+   Trep *cell; /* tile type at [i][j]; array of arrays             */
    /* note 0 <= i,j <= 2^P+1, allowing for borders     */
    double ***rate; /* hierarchical rates for events in non-empty cells */
    /* rate[p][i][j] has 0 <= i,j < 2^p                 */
