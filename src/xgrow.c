@@ -417,7 +417,9 @@ typedef struct tube_params_struct {
    int update_rate;
 } tube_params;
 
-void set_default_params(tube_params *params) {
+tube_params *new_params() {
+   tube_params *params = (tube_params *)malloc(sizeof(tube_params));
+
    params->blast_rate_alpha = 0;
    params->blast_rate_beta = 4; // k>3 required for finite rate of blasting a given tile
                                 // in infinite size flakes (gamma=0)
@@ -454,6 +456,8 @@ void set_default_params(tube_params *params) {
    params->size = 256;
    params->size_P = 8;
    params->update_rate = 10000;
+
+   return params;
 }
 
 int parse_arg_line(char *arg, tube_params *params) {
@@ -1779,38 +1783,46 @@ void closeargs(tube *tp, tube_params *params) {
 
 // (i,j) should not be empty. returns 0 if OK, 1 if mismatches with E or S or N or W, or
 // unbound s.e.
-#define errortile(i, j)                                                                  \
-   (((tp->tileb[fp->Cell(i, j)][1] != tp->tileb[fp->Cell(i, (j) + 1)][3] &&              \
-      tp->tileb[fp->Cell(i, j)][1] * tp->tileb[fp->Cell(i, (j) + 1)][3] > 0 &&           \
-      (fp->tube->glue)[tp->tileb[fp->Cell(i, j)][1]]                                     \
-                      [tp->tileb[fp->Cell(i, (j) + 1)][3]] < min_strength) ||            \
-     (tp->tileb[fp->Cell(i, j)][3] != tp->tileb[fp->Cell(i, (j)-1)][1] &&                \
-      tp->tileb[fp->Cell(i, j)][3] * tp->tileb[fp->Cell(i, (j)-1)][1] > 0 &&             \
-      (fp->tube->glue)[tp->tileb[fp->Cell(i, j)][3]][tp->tileb[fp->Cell(i, (j)-1)][1]] < \
-          min_strength) ||                                                               \
-     (tp->tileb[fp->Cell(i, j)][2] != tp->tileb[fp->Cell((i) + 1, j)][0] &&              \
-      tp->tileb[fp->Cell(i, j)][2] * tp->tileb[fp->Cell((i) + 1, (j))][0] >              \
-          0 && /* This one works!? */                                                    \
-      (fp->tube->glue)[tp->tileb[fp->Cell(i, j)][2]]                                     \
-                      [tp->tileb[fp->Cell((i) + 1, j)][0]] < min_strength) ||            \
-     (tp->tileb[fp->Cell(i, j)][0] != tp->tileb[fp->Cell((i)-1, j)][2] &&                \
-      tp->tileb[fp->Cell(i, j)][0] * tp->tileb[fp->Cell((i)-1, (j))][2] > 0 &&           \
-      (fp->tube->glue)[tp->tileb[fp->Cell(i, j)][0]][tp->tileb[fp->Cell((i)-1, j)][2]] < \
-          min_strength))                                                                 \
-        ? 1                                                                              \
-        : 0)
+int errortile(tube *tp, flake *fp, int size, int i, int j) {
+   return (
+       ((tp->tileb[fp->Cell(i, j) * 4 + 1] != tp->tileb[fp->Cell(i, (j) + 1) * 4 + 3] &&
+         tp->tileb[fp->Cell(i, j) * 4 + 1] * tp->tileb[fp->Cell(i, (j) + 1) * 4 + 3] >
+             0 &&
+         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 1]) * tp->num_bindings +
+                          tp->tileb[fp->Cell(i, (j) + 1) * 4 + 3]] < tp->min_strength) ||
+        (tp->tileb[fp->Cell(i, j) * 4 + 3] != tp->tileb[fp->Cell(i, (j)-1) * 4 + 1] &&
+         tp->tileb[fp->Cell(i, j) * 4 + 3] * tp->tileb[fp->Cell(i, (j)-1) * 4 + 1] > 0 &&
+         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 3]) * tp->num_bindings +
+                          tp->tileb[fp->Cell(i, (j)-1) * 4 + 1]] < tp->min_strength) ||
+        (tp->tileb[fp->Cell(i, j) * 4 + 2] != tp->tileb[fp->Cell((i) + 1, j) * 4 + 0] &&
+         tp->tileb[fp->Cell(i, j) * 4 + 2] * tp->tileb[fp->Cell((i) + 1, (j)) * 4 + 0] >
+             0 && /* This one works!? */
+         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 2]) * tp->num_bindings +
+                          tp->tileb[fp->Cell((i) + 1, j) * 4 + 0]] < tp->min_strength) ||
+        (tp->tileb[fp->Cell(i, j) * 4 + 0] != tp->tileb[fp->Cell((i)-1, j) * 4 + 2] &&
+         tp->tileb[fp->Cell(i, j) * 4 + 0] * tp->tileb[fp->Cell((i)-1, (j)) * 4 + 2] >
+             0 &&
+         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 0]) * tp->num_bindings +
+                          tp->tileb[fp->Cell((i)-1, j) * 4 + 2]] < tp->min_strength))
+           ? 1
+           : 0);
+}
 
 int getcolor(tube *tp, flake *fp, int i, int j, int err) {
    int min_strength = tp->min_strength;
-   int size = (1 << fp->P);
+   int size = (1 << tp->P);
+   if (fp == NULL)
+      return 0;
    return (
        (fp->Cell(i, j) == 0)
            ? translate[0]
            : ((err == 1)
-                  ? (errortile(i, j) ? errorcolor : goodcolor)
+                  ? (errortile(tp, fp, size, i, j) ? errorcolor : goodcolor)
                   : ((err == 2) ? ((fp->Cell(i, j) > fp->N / 2)
-                                       ? (errortile(i, j) ? hydroerrcolor : hydrocolor)
-                                       : (errortile(i, j) ? errorcolor : goodcolor))
+                                       ? (errortile(tp, fp, size, i, j) ? hydroerrcolor
+                                                                        : hydrocolor)
+                                       : (errortile(tp, fp, size, i, j) ? errorcolor
+                                                                        : goodcolor))
                                 : translate[fp->Cell(i, j)])));
 }
 
@@ -2577,7 +2589,8 @@ void identify(tube_params *params, tube *tp, flake *fp, int x, int y) {
             "%s #%d = {%d %d %d %d} at (%d,%d)              ",
             1000000.0 * 20.0 * exp(-tp->Gmc), 4000 / (tp->Gse / 5 + 11) - 273.15,
             (params->tile_names[t] != NULL) ? params->tile_names[t] : "tile", t,
-            tp->tileb[t][0], tp->tileb[t][1], tp->tileb[t][2], tp->tileb[t][3], i, j);
+            tp->tileb[t * 4 + 0], tp->tileb[t * 4 + 1], tp->tileb[t * 4 + 2],
+            tp->tileb[t * 4 + 3], i, j);
    XDrawImageString(display, window, gc, 5, 3 * font_height, stringbuffer,
                     strlen(stringbuffer));
 }
@@ -2589,12 +2602,12 @@ void set_params(tube *tp, tube_params *params) {
    can do as it pleases with it's tileb & strength information */
    for (i = 0; i <= tp->N; i++)
       for (j = 0; j < 4; j++)
-         tp->tileb[i][j] = params->tileb[i][j];
+         tp->tileb[i * 4 + j] = params->tileb[i][j];
    for (i = 0; i <= tp->num_bindings; i++)
       tp->strength[i] = params->strength[i];
    for (i = 0; i <= tp->num_bindings; i++) {
       for (j = 0; j <= tp->num_bindings; j++) {
-         tp->glue[i][j] = params->glue[i][j];
+         tp->glue[i * (tp->num_bindings + 1) + j] = params->glue[i][j];
       }
    }
 
@@ -2659,17 +2672,373 @@ void set_params(tube *tp, tube_params *params) {
                params->stoic[n]);
 }
 
+int handle_xevent(Display *display, tube *tp, flake *fp, int size, tube_params *params,
+                  int *mousing, int *clear_x, int *clear_y, double *new_Gse,
+                  double *new_Gmc) {
+   XEvent report;
+   XNextEvent(display, &report);
+   int x, y, b, i;
+
+   switch (report.type) {
+   case Expose:
+      if (report.xexpose.count != 0)
+         break; /* more in queue, wait for them */
+      repaint(params, tp, fp);
+      break;
+   case ConfigureNotify:
+      break;
+   case MotionNotify:
+      if (report.xbutton.window == playground) {
+         int newx, newy;
+         Window root, child;
+         unsigned int keys_buttons;
+         int window_x, window_y;
+         if (tp->hydro)
+            break; /* don't know how to reset params */
+         x = report.xbutton.x / block;
+         y = report.xbutton.y / block;
+         b = report.xbutton.button;
+         if (mousing == 0) { /* identify while moving around */
+            identify(params, tp, fp, x, y);
+         }
+         if (mousing == 3) {
+            /* was sketch(x,y,b); now change Gse & Gmc */
+            *new_Gse = (30.0 * x) / params->size;
+            *new_Gmc = 30 - (30.0 * y) / params->size;
+            /* draw current Gse, Gmc values */
+            snprintf(stringbuffer, BUFFER_LEN, "Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
+                     tp->Gmc, new_Gmc, tp->Gse, new_Gse);
+            XDrawImageString(display, window, gc, 5, 3 * font_height, stringbuffer,
+                             strlen(stringbuffer));
+            /* this is necessary in order to get more than one MotionNotify
+          event; I don't know why. */
+         }
+         if (!XQueryPointer(display, playground, &root, &child, &window_x, &window_y,
+                            &newx, &newy, &keys_buttons)) {
+            mousing = 0;
+            fprintf(stderr, "Weird X feature\n");
+         }
+      }
+      break;
+   case ButtonRelease:
+      if (mousing == 3) { // change Gmc, Gse w/ visual GUI
+         fprintf(stderr, "Changing Gmc -> %f, Gse -> %f \n", new_Gmc, new_Gse);
+         reset_params(tp, tp->Gmc, tp->Gse, *new_Gmc, *new_Gse, params->Gseh);
+         if (params->Gfc > 0)
+            params->Gfc += (*new_Gmc - tp->Gmc);
+         fprm = fparam;
+         while (fprm != NULL) { /* fix up all flake info, for restarting */
+            if (fprm->Gfc > 0)
+               fprm->Gfc += (*new_Gmc - tp->Gmc);
+            fprm = fprm->next_param;
+         }
+         tp->Gse = *new_Gse;
+         tp->Gmc = *new_Gmc;
+         showpic(tp, fp, errorc);
+      } else if (mousing == 1) {
+         /* clear a region, i.e., "puncture" */
+         int i, j, mi, Mi, mj, Mj;
+         x = report.xbutton.x / block;
+         y = report.xbutton.y / block;
+         b = report.xbutton.button;
+         if (clear_y > y) {
+            mi = MIN(MAX(0, y - 2), params->size - 1);
+            Mi = MIN(MAX(0, clear_y - 2), params->size - 1);
+         } else {
+            mi = MIN(MAX(0, clear_y - 2), params->size - 1);
+            Mi = MIN(MAX(0, y - 2), params->size - 1);
+         }
+         if (clear_x > x) {
+            mj = MIN(MAX(0, x - 2), params->size - 1);
+            Mj = MIN(MAX(0, clear_x - 2), params->size - 1);
+         } else {
+            mj = MIN(MAX(0, clear_x - 2), params->size - 1);
+            Mj = MIN(MAX(0, x - 2), params->size - 1);
+         }
+         if (mi != Mi && mj != Mj) {
+            int fa = tp->fission_allowed;
+            if (mi <= fp->seed_i && fp->seed_i <= Mi && mj <= fp->seed_j &&
+                fp->seed_j <= Mj) {
+               int si = fp->seed_i, sj = fp->seed_j;
+               // better move the seed out of the way, if possible
+               for (i = mi; i <= Mi; i++)
+                  if (fp->Cell(i, mj - 1) > 0) {
+                     si = i;
+                     sj = (mj - 1 + params->size) % params->size;
+                  }
+               for (i = mi; i <= Mi; i++)
+                  if (fp->Cell(i, Mj + 1) > 0) {
+                     si = i;
+                     sj = (Mj + 1) % params->size;
+                  }
+               for (j = mj; j <= Mj; j++)
+                  if (fp->Cell(mi - 1, j) > 0) {
+                     si = (mi - 1 + params->size) % params->size;
+                     sj = j;
+                  }
+               for (j = mj; j <= Mj; j++)
+                  if (fp->Cell(Mi + 1, j) > 0) {
+                     si = (Mi + 1) % params->size;
+                     sj = j;
+                  }
+               change_seed(fp, si, sj);
+            }
+            tp->fission_allowed = 1;
+            for (i = mi; i <= Mi; i++)
+               for (j = mj; j <= Mj; j++) {
+                  if (fp->Cell(i, j) > 0) {
+                     change_cell(fp, i, j, 0);
+                     flake_fission(fp, i, j);
+                  }
+               }
+            tp->fission_allowed = fa;
+         }
+         showpic(tp, fp, errorc);
+      }
+      mousing = 0;
+      break;
+   case ButtonPress:
+      if (report.xbutton.window == quitbutton) {
+         closeargs(tp,
+                   params); // This cleans up and exports things if instructed.
+         exit(0);
+      } else if (report.xbutton.window == pausebutton) {
+         setpause(1 - paused);
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == restartbutton) {
+         free_tube(tp);
+         tp = init_tube(params->size_P, N, num_bindings);
+         set_params(tp, params);
+         setup_tube(tp);
+         fprm = fparam;
+         while (fprm != NULL) {
+            int fn;
+            for (fn = 1; fn <= fprm->N; fn++) {
+               if (tp->dt_left[fprm->seed_n]) {
+                  fprm->seed_n = tp->dt_left[fprm->seed_n]; // FIXME: vdouble
+                  fprm->seed_j--;
+               }
+               insert_flake(fp = init_flake(params->size_P, N, fprm->seed_i, fprm->seed_j,
+                                            fprm->seed_n, fprm->Gfc, tp->present_list_len,
+                                            tp->periodic),
+                            tp);
+               if (tp->dt_right[fprm->seed_n]) {
+                  change_cell(fp, params->seed_i, params->seed_j + 1,
+                              tp->dt_right[fprm->seed_n]);
+                  fp->seed_is_double_tile = 1;
+               }
+               assert(!tp->dt_left[fprm->seed_n]);
+
+               if (fprm->import_from != NULL) {
+                  fprintf(stderr, "WARNING: In imported flakes, the seed "
+                                  "position is chosen randomly.\n");
+                  import_flake(tp, fp, fprm->import_from, fn);
+               }
+            }
+            fprm = fprm->next_param;
+         }
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == colorbutton) { // show tiles or error or hyd
+         settilecolor(tp, tp->hydro ? (errorc + 1) % 3 : (errorc + 1) % 2);
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == sidebutton) { // show box or null/weak/strong
+         setsidecolor((errors + 1) % 2);
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == seedbutton) {
+         setwander(tp, 1 - tp->wander);
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == fissionbutton) {
+         tp->fission_allowed = (tp->fission_allowed + 1) % 3;
+         setfission(tp, tp->fission_allowed);
+         update_all_rates(tp);
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == cleanbutton) {
+         if (x < 50) { // do a clean_flake cycle
+            fprintf(stderr, "Cleaning 1 cycle, clean_X=%f\n", clean_X);
+            clean_flake(fp, clean_X, 1);
+         } else if (x < 90) { // do a fill_flake cycle
+            fprintf(stderr, "Filling 1 cycle, fill_X=%f\n", fill_X);
+            fill_flake(fp, fill_X, 1);
+         } else {
+            fprintf(stderr, "Repairing, uniqueness for T=%f\n", repair_unique_T);
+            repair_flake(fp, repair_unique_T, tp->Gse);
+         }
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == exportbutton) {
+         if (x > 70) { // change from ONE to ALL to MOVIE
+            setexport((export_mode + 1) % 3);
+         } else if (export_mode == 0) {
+            // output to file (unless MOVIE mode already)
+            export_flake(params, tp, "flake", fp);
+         } else if (export_mode == 1) {
+            flake *tfp = tp->flake_list;
+            while (tfp->next_flake != NULL) {
+               export_flake(params, tp, "flake", tfp);
+               tfp = tfp->next_flake;
+            }
+         } else if (export_mode == 2) {
+            // turn movie mode on & off
+            export_movie = !export_movie;
+         }
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == samplebutton) {
+         flake *tfp;
+         int n, num_big = 0;
+         // stop simulation if you're sampling.
+         setpause(1);
+         sampling = 1;
+         // pick a (if possible non-monomer) sample and add to the field
+         for (tfp = tp->flake_list; tfp != NULL; tfp = tfp->next_flake) {
+            if (tfp->tiles > 1)
+               num_big++;
+         }
+         n = random() % (num_big > 0 ? num_big : tp->num_flakes);
+         tfp = tp->flake_list;
+         while (num_big > 0 && tfp->tiles == 1) {
+            tfp = tfp->next_flake;
+         }
+         for (i = 0; i < n; i++) {
+            tfp = tfp->next_flake;
+            while (num_big > 0 && tfp->tiles == 1) {
+               tfp = tfp->next_flake;
+            }
+         }
+         add_sample_pic(tp, tfp, errorc);
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == flakebutton) {
+         flake *tfp = tp->flake_list;
+         // cycle through flakes.
+         if (x > 80) {
+            fp = fp->next_flake;
+            if (fp == NULL)
+               fp = tp->flake_list;
+         } else if (x < 40) {
+            while (tfp && tfp->next_flake != NULL && tfp->next_flake != fp)
+               tfp = tfp->next_flake;
+            if (tfp == NULL)
+               fp = tp->flake_list;
+            else
+               fp = tfp;
+         } else { // find the biggest flake.
+            fp = tfp;
+            if (fp) {
+               while (tfp->next_flake != NULL) {
+                  tfp = tfp->next_flake;
+                  if (tfp->tiles > fp->tiles)
+                     fp = tfp;
+               }
+            }
+         }
+         //             print_tree(tp->flake_tree,0,'*');
+         sampling = 0;
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == tempbutton) { // change Gse w/ button
+         if (tp->hydro)
+            break; /* don't know how to reset params */
+         if (x > 60)
+            *new_Gse = tp->Gse - 0.1;
+         else
+            *new_Gse = tp->Gse + 0.1;
+         reset_params(tp, tp->Gmc, tp->Gse, *new_Gmc, *new_Gse, params->Gseh);
+         tp->Gse = *new_Gse;
+         repaint(params, tp, fp);
+      } else if (report.xbutton.window == playground) // we're in ButtonPress
+      {
+         if (b == 3) {
+            if (tp->hydro)
+               break; /* don't know how to reset params */
+            *new_Gse = (30.0 * x) / params->size;
+            *new_Gmc = 30 - (30.0 * y) / params->size;
+            /* draw current Gse, Gmc values */
+            snprintf(stringbuffer, BUFFER_LEN, "Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f",
+                     tp->Gmc, new_Gmc, tp->Gse, new_Gse);
+            XDrawImageString(display, window, gc, 5, 3 * font_height, stringbuffer,
+                             strlen(stringbuffer));
+            /* later: if down button, draw T=1/T=2 diagram */
+            mousing = 3;
+            showphase(params);
+         } else if (b == 2) { // "puncture"
+            mousing = 1;
+            clear_x = x;
+            clear_y = y;      /* prepare to clear a region */
+         } else if (b == 1) { // "identify"
+            identify(params, tp, fp, x, y);
+         }
+      } else {
+         /*  what here ?  */
+      }
+      break;
+   default:
+      break;
+   } /* end of switch */
+}
+
+void setup_stripe(tube *tp, flake *fp, int size, tube_params *params, char *stripe_args) {
+   /* STRIPE OPTION HAS HARDCODED TILESET NONSENSE -- A BUG */
+   /* SHOULD REPLACE THIS OPTION BY READING INITIAL FLAKE FROM FILE */
+   int i, j, k, w;
+   double p;
+   char *s = stripe_args;
+   char XOR[2][2] = {{4, 7}, {6, 5}}; /* XOR[S][E] */
+   char c, cc;
+   i = params->size - 1;
+   j = atoi(s) % params->size;
+   for (k = 0; k < params->size; k++)
+      change_cell(fp, (i - k + params->size) % params->size, (j + k) % params->size,
+                  4 + random() % 4);
+   fp->seed_i = i;
+   fp->seed_j = j;
+   fp->seed_n = fp->Cell(i, j);
+   s = strchr(s, ':');
+   while (s != NULL) {
+      p = atof(s + 1);
+      s = strchr(s, ',');
+      if (s != NULL) {
+         w = atoi(s + 1);
+         s = strchr(s, ':');
+         for (; w > 0; w--) {
+            i = (i - 1 + params->size) % params->size;
+            for (k = 0; k < params->size; k++) {
+               cc = c = XOR[(fp->Cell((i - k + 1 + params->size) % params->size,
+                                      (j + k) % params->size) -
+                             4) /
+                            2][(fp->Cell((i - k + params->size) % params->size,
+                                         (j + k + 1) % params->size) -
+                                4) /
+                               2];
+               if (drand48() < p)
+                  do
+                     cc = 4 + random() % 4;
+                  while (cc == c);
+               change_cell(fp, (i - k + params->size) % params->size,
+                           (j + k) % params->size, cc);
+               tp->events--; /* don't count these as events */
+                             /* ERROR: stats are also modified!!! */
+            }
+         }
+      }
+   }
+   /* no corner or boundary tiles for stripe simulations */
+   tp->conc[0] -= tp->conc[1];
+   tp->conc[0] += (tp->conc[1] = exp(-35));
+   tp->conc[0] -= tp->conc[2];
+   tp->conc[0] += (tp->conc[2] = exp(-35));
+   tp->conc[0] -= tp->conc[3];
+   tp->conc[0] += (tp->conc[3] = exp(-35));
+}
+
 int main(int argc, char **argv) {
    int x, y, b, i, j;
    int clear_x = 0, clear_y = 0;
    int mousing = 0;
    int stat = 0;
    double new_Gse, new_Gmc;
-   XEvent report;
    progname = argv[0];
+   tube *tp;
+   flake *fp = NULL;
+   tube_params *params;
 
-   tube_params *params = (tube_params *)malloc(sizeof(tube_params));
-   set_default_params(params);
+   params = new_params();
 
    for (i = 0; i < MAXTILETYPES; i++) {
       translate[i] = 0; /* translate[] from tiles to colors */
@@ -2700,9 +3069,6 @@ int main(int argc, char **argv) {
       linear_simulate(params->k, params->Gmc, params->Gse, tmax, emax, smax, mmax);
       return 0;
    }
-
-   tube *tp;
-   flake *fp;
 
    if (testing) {
       tp = init_tube(params->size_P, N, num_bindings);
@@ -2766,57 +3132,7 @@ int main(int argc, char **argv) {
    //   print_tree(tp->flake_tree,0,'*');
 
    if (stripe_args != NULL) {
-      /* STRIPE OPTION HAS HARDCODED TILESET NONSENSE -- A BUG */
-      /* SHOULD REPLACE THIS OPTION BY READING INITIAL FLAKE FROM FILE */
-      int i, j, k, w;
-      double p;
-      char *s = stripe_args;
-      char XOR[2][2] = {{4, 7}, {6, 5}}; /* XOR[S][E] */
-      char c, cc;
-      i = params->size - 1;
-      j = atoi(s) % params->size;
-      for (k = 0; k < params->size; k++)
-         change_cell(fp, (i - k + params->size) % params->size, (j + k) % params->size,
-                     4 + random() % 4);
-      fp->seed_i = i;
-      fp->seed_j = j;
-      fp->seed_n = fp->Cell(i, j);
-      s = strchr(s, ':');
-      while (s != NULL) {
-         p = atof(s + 1);
-         s = strchr(s, ',');
-         if (s != NULL) {
-            w = atoi(s + 1);
-            s = strchr(s, ':');
-            for (; w > 0; w--) {
-               i = (i - 1 + params->size) % params->size;
-               for (k = 0; k < params->size; k++) {
-                  cc = c = XOR[(fp->Cell((i - k + 1 + params->size) % params->size,
-                                         (j + k) % params->size) -
-                                4) /
-                               2][(fp->Cell((i - k + params->size) % params->size,
-                                            (j + k + 1) % params->size) -
-                                   4) /
-                                  2];
-                  if (drand48() < p)
-                     do
-                        cc = 4 + random() % 4;
-                     while (cc == c);
-                  change_cell(fp, (i - k + params->size) % params->size,
-                              (j + k) % params->size, cc);
-                  tp->events--; /* don't count these as events */
-                                /* ERROR: stats are also modified!!! */
-               }
-            }
-         }
-      }
-      /* no corner or boundary tiles for stripe simulations */
-      tp->conc[0] -= tp->conc[1];
-      tp->conc[0] += (tp->conc[1] = exp(-35));
-      tp->conc[0] -= tp->conc[2];
-      tp->conc[0] += (tp->conc[2] = exp(-35));
-      tp->conc[0] -= tp->conc[3];
-      tp->conc[0] += (tp->conc[3] = exp(-35));
+      setup_stripe(tp, fp, size, params, stripe_args);
    }
 
    // fprintf(stderr, "flake initialized, size_P=%d, size=%d\n",size_P,size);
@@ -2867,304 +3183,9 @@ int main(int argc, char **argv) {
             }
          }
          if (paused | mousing | XPending(display)) {
-            XNextEvent(display, &report);
-            switch (report.type) {
-            case Expose:
-               if (report.xexpose.count != 0)
-                  break; /* more in queue, wait for them */
-               repaint(params, tp, fp);
-               break;
-            case ConfigureNotify:
-               break;
-            case MotionNotify:
-               if (report.xbutton.window == playground) {
-                  int newx, newy;
-                  Window root, child;
-                  unsigned int keys_buttons;
-                  int window_x, window_y;
-                  if (tp->hydro)
-                     break; /* don't know how to reset params */
-                  x = report.xbutton.x / block;
-                  y = report.xbutton.y / block;
-                  b = report.xbutton.button;
-                  if (mousing == 0) { /* identify while moving around */
-                     identify(params, tp, fp, x, y);
-                  }
-                  if (mousing == 3) {
-                     /* was sketch(x,y,b); now change Gse & Gmc */
-                     new_Gse = (30.0 * x) / params->size;
-                     new_Gmc = 30 - (30.0 * y) / params->size;
-                     /* draw current Gse, Gmc values */
-                     snprintf(stringbuffer, BUFFER_LEN,
-                              "Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f", tp->Gmc, new_Gmc,
-                              tp->Gse, new_Gse);
-                     XDrawImageString(display, window, gc, 5, 3 * font_height,
-                                      stringbuffer, strlen(stringbuffer));
-                     /* this is necessary in order to get more than one MotionNotify
-                   event; I don't know why. */
-                  }
-                  if (!XQueryPointer(display, playground, &root, &child, &window_x,
-                                     &window_y, &newx, &newy, &keys_buttons)) {
-                     mousing = 0;
-                     fprintf(stderr, "Weird X feature\n");
-                  }
-               }
-               break;
-            case ButtonRelease:
-               if (mousing == 3) { // change Gmc, Gse w/ visual GUI
-                  fprintf(stderr, "Changing Gmc -> %f, Gse -> %f \n", new_Gmc, new_Gse);
-                  reset_params(tp, tp->Gmc, tp->Gse, new_Gmc, new_Gse, params->Gseh);
-                  if (params->Gfc > 0)
-                     params->Gfc += (new_Gmc - tp->Gmc);
-                  fprm = fparam;
-                  while (fprm != NULL) { /* fix up all flake info, for restarting */
-                     if (fprm->Gfc > 0)
-                        fprm->Gfc += (new_Gmc - tp->Gmc);
-                     fprm = fprm->next_param;
-                  }
-                  tp->Gse = new_Gse;
-                  tp->Gmc = new_Gmc;
-                  showpic(tp, fp, errorc);
-               } else if (mousing == 1) {
-                  /* clear a region, i.e., "puncture" */
-                  int i, j, mi, Mi, mj, Mj;
-                  x = report.xbutton.x / block;
-                  y = report.xbutton.y / block;
-                  b = report.xbutton.button;
-                  if (clear_y > y) {
-                     mi = MIN(MAX(0, y - 2), params->size - 1);
-                     Mi = MIN(MAX(0, clear_y - 2), params->size - 1);
-                  } else {
-                     mi = MIN(MAX(0, clear_y - 2), params->size - 1);
-                     Mi = MIN(MAX(0, y - 2), params->size - 1);
-                  }
-                  if (clear_x > x) {
-                     mj = MIN(MAX(0, x - 2), params->size - 1);
-                     Mj = MIN(MAX(0, clear_x - 2), params->size - 1);
-                  } else {
-                     mj = MIN(MAX(0, clear_x - 2), params->size - 1);
-                     Mj = MIN(MAX(0, x - 2), params->size - 1);
-                  }
-                  if (mi != Mi && mj != Mj) {
-                     int fa = tp->fission_allowed;
-                     if (mi <= fp->seed_i && fp->seed_i <= Mi && mj <= fp->seed_j &&
-                         fp->seed_j <= Mj) {
-                        int si = fp->seed_i, sj = fp->seed_j;
-                        // better move the seed out of the way, if possible
-                        for (i = mi; i <= Mi; i++)
-                           if (fp->Cell(i, mj - 1) > 0) {
-                              si = i;
-                              sj = (mj - 1 + params->size) % params->size;
-                           }
-                        for (i = mi; i <= Mi; i++)
-                           if (fp->Cell(i, Mj + 1) > 0) {
-                              si = i;
-                              sj = (Mj + 1) % params->size;
-                           }
-                        for (j = mj; j <= Mj; j++)
-                           if (fp->Cell(mi - 1, j) > 0) {
-                              si = (mi - 1 + params->size) % params->size;
-                              sj = j;
-                           }
-                        for (j = mj; j <= Mj; j++)
-                           if (fp->Cell(Mi + 1, j) > 0) {
-                              si = (Mi + 1) % params->size;
-                              sj = j;
-                           }
-                        change_seed(fp, si, sj);
-                     }
-                     tp->fission_allowed = 1;
-                     for (i = mi; i <= Mi; i++)
-                        for (j = mj; j <= Mj; j++) {
-                           if (fp->Cell(i, j) > 0) {
-                              change_cell(fp, i, j, 0);
-                              flake_fission(fp, i, j);
-                           }
-                        }
-                     tp->fission_allowed = fa;
-                  }
-                  showpic(tp, fp, errorc);
-               }
-               mousing = 0;
-               break;
-            case ButtonPress:
-               if (report.xbutton.window == quitbutton) {
-                  closeargs(tp,
-                            params); // This cleans up and exports things if instructed.
-                  exit(0);
-               } else if (report.xbutton.window == pausebutton) {
-                  setpause(1 - paused);
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window == restartbutton) {
-                  free_tube(tp);
-                  tp = init_tube(params->size_P, N, num_bindings);
-                  set_params(tp, params);
-                  fprm = fparam;
-                  while (fprm != NULL) {
-                     int fn;
-                     for (fn = 1; fn <= fprm->N; fn++) {
-                        if (tp->dt_left[fprm->seed_n]) {
-                           fprm->seed_n = tp->dt_left[fprm->seed_n]; // FIXME: vdouble
-                           fprm->seed_j--;
-                        }
-                        insert_flake(fp =
-                                         init_flake(params->size_P, N, fprm->seed_i,
-                                                    fprm->seed_j, fprm->seed_n, fprm->Gfc,
-                                                    tp->present_list_len, tp->periodic),
-                                     tp);
-                        if (tp->dt_right[fprm->seed_n]) {
-                           change_cell(fp, params->seed_i, params->seed_j + 1,
-                                       tp->dt_right[fprm->seed_n]);
-                           fp->seed_is_double_tile = 1;
-                        }
-                        assert(!tp->dt_left[fprm->seed_n]);
-
-                        if (fprm->import_from != NULL) {
-                           fprintf(stderr, "WARNING: In imported flakes, the seed "
-                                           "position is chosen randomly.\n");
-                           import_flake(tp, fp, fprm->import_from, fn);
-                        }
-                     }
-                     fprm = fprm->next_param;
-                  }
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window ==
-                          colorbutton) { // show tiles or error or hyd
-                  settilecolor(tp, tp->hydro ? (errorc + 1) % 3 : (errorc + 1) % 2);
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window ==
-                          sidebutton) { // show box or null/weak/strong
-                  setsidecolor((errors + 1) % 2);
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window == seedbutton) {
-                  setwander(tp, 1 - tp->wander);
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window == fissionbutton) {
-                  tp->fission_allowed = (tp->fission_allowed + 1) % 3;
-                  setfission(tp, tp->fission_allowed);
-                  update_all_rates(tp);
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window == cleanbutton) {
-                  if (x < 50) { // do a clean_flake cycle
-                     fprintf(stderr, "Cleaning 1 cycle, clean_X=%f\n", clean_X);
-                     clean_flake(fp, clean_X, 1);
-                  } else if (x < 90) { // do a fill_flake cycle
-                     fprintf(stderr, "Filling 1 cycle, fill_X=%f\n", fill_X);
-                     fill_flake(fp, fill_X, 1);
-                  } else {
-                     fprintf(stderr, "Repairing, uniqueness for T=%f\n", repair_unique_T);
-                     repair_flake(fp, repair_unique_T, tp->Gse);
-                  }
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window == exportbutton) {
-                  if (x > 70) { // change from ONE to ALL to MOVIE
-                     setexport((export_mode + 1) % 3);
-                  } else if (export_mode == 0) {
-                     // output to file (unless MOVIE mode already)
-                     export_flake(params, tp, "flake", fp);
-                  } else if (export_mode == 1) {
-                     flake *tfp = tp->flake_list;
-                     while (tfp->next_flake != NULL) {
-                        export_flake(params, tp, "flake", tfp);
-                        tfp = tfp->next_flake;
-                     }
-                  } else if (export_mode == 2) {
-                     // turn movie mode on & off
-                     export_movie = !export_movie;
-                  }
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window == samplebutton) {
-                  flake *tfp;
-                  int n, num_big = 0;
-                  // stop simulation if you're sampling.
-                  setpause(1);
-                  sampling = 1;
-                  // pick a (if possible non-monomer) sample and add to the field
-                  for (tfp = tp->flake_list; tfp != NULL; tfp = tfp->next_flake) {
-                     if (tfp->tiles > 1)
-                        num_big++;
-                  }
-                  n = random() % (num_big > 0 ? num_big : tp->num_flakes);
-                  tfp = tp->flake_list;
-                  while (num_big > 0 && tfp->tiles == 1) {
-                     tfp = tfp->next_flake;
-                  }
-                  for (i = 0; i < n; i++) {
-                     tfp = tfp->next_flake;
-                     while (num_big > 0 && tfp->tiles == 1) {
-                        tfp = tfp->next_flake;
-                     }
-                  }
-                  add_sample_pic(tp, tfp, errorc);
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window == flakebutton) {
-                  flake *tfp = tp->flake_list;
-                  // cycle through flakes.
-                  if (x > 80) {
-                     fp = fp->next_flake;
-                     if (fp == NULL)
-                        fp = tp->flake_list;
-                  } else if (x < 40) {
-                     while (tfp && tfp->next_flake != NULL && tfp->next_flake != fp)
-                        tfp = tfp->next_flake;
-                     if (tfp == NULL)
-                        fp = tp->flake_list;
-                     else
-                        fp = tfp;
-                  } else { // find the biggest flake.
-                     fp = tfp;
-                     if (fp) {
-                        while (tfp->next_flake != NULL) {
-                           tfp = tfp->next_flake;
-                           if (tfp->tiles > fp->tiles)
-                              fp = tfp;
-                        }
-                     }
-                  }
-                  //             print_tree(tp->flake_tree,0,'*');
-                  sampling = 0;
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window == tempbutton) { // change Gse w/ button
-                  if (tp->hydro)
-                     break; /* don't know how to reset params */
-                  if (x > 60)
-                     new_Gse = tp->Gse - 0.1;
-                  else
-                     new_Gse = tp->Gse + 0.1;
-                  reset_params(tp, tp->Gmc, tp->Gse, new_Gmc, new_Gse, params->Gseh);
-                  tp->Gse = new_Gse;
-                  repaint(params, tp, fp);
-               } else if (report.xbutton.window == playground) // we're in ButtonPress
-               {
-                  if (b == 3) {
-                     if (tp->hydro)
-                        break; /* don't know how to reset params */
-                     new_Gse = (30.0 * x) / params->size;
-                     new_Gmc = 30 - (30.0 * y) / params->size;
-                     /* draw current Gse, Gmc values */
-                     snprintf(stringbuffer, BUFFER_LEN,
-                              "Gmc=%4.1f->%4.1f  Gse=%4.1f->%4.1f", tp->Gmc, new_Gmc,
-                              tp->Gse, new_Gse);
-                     XDrawImageString(display, window, gc, 5, 3 * font_height,
-                                      stringbuffer, strlen(stringbuffer));
-                     /* later: if down button, draw T=1/T=2 diagram */
-                     mousing = 3;
-                     showphase(params);
-                  } else if (b == 2) { // "puncture"
-                     mousing = 1;
-                     clear_x = x;
-                     clear_y = y;      /* prepare to clear a region */
-                  } else if (b == 1) { // "identify"
-                     identify(params, tp, fp, x, y);
-                  }
-               } else {
-                  /*  what here ?  */
-               }
-               break;
-            default:
-               break;
-            } /* end of switch */
-         }    /* end of if XPending */
+            handle_xevent(display, tp, fp, size, params, &mousing, &clear_x, &clear_y,
+                          &new_Gse, &new_Gmc);
+         } /* end of if XPending */
       }
    } /* end of while(...) if...else */
 
