@@ -1,151 +1,20 @@
-/* grow.h
+import cffi
+import numpy as np
+import os, re
 
-   This code is freely distributable.
+_XGROW_LIB = re.sub(r" ", r"\ ", os.path.join(os.path.dirname(__file__), "_xgrow.so"))
 
-   by Erik Winfree
-   */
+ffi = cffi.FFI()
 
-#ifndef __GROW_H__
-#define __GROW_H__
-
-#include <limits.h>
-
-#ifdef SMALL
-#define MAXTILETYPES 256
-#else
-#define MAXTILETYPES USHRT_MAX
-#endif
-
-#ifndef SMALL
-#define Trep unsigned int
-#else
-#define Trep unsigned char
-#endif
-
-#define evint unsigned long long
-
-#define DEBUG 0
-#define dprintf                                                                          \
-   if (DEBUG)                                                                            \
-   printf
-#define d2printf                                                                         \
-   if (DEBUG == 2)                                                                       \
-   printf
-
-double drand48();
-long lrand48();
-double exp();
-double log();
-
-#ifndef MIN
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#endif
-#ifndef MAX
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
-/* make off-by-one error less likely : include a boundary of empty */
-/* cells that will never be modified                               */
-#define Cell(i, j) cell[(size + 2) * ((i) + 1) + (j) + 1]
-/* note i,j here are indexed 0 <= i,j < (1<<P)                     */
-/*
-   for periodic boundary conditions, where size=2^P,
-   cell[0][*] cell[size+1][*] cell[*][0] cell[*][size+1]
-   are maintained with the contents of the opposite wall;
-   for non-periodic conditions, they are maintained as 0=empty
-
-   Thus, it is meaningful to request
-   Cell(-1,j), Cell(size,j), Cell(i,-1), Cell(i,size)
-   */
-
-/* for times when it's inconvenience to know if i,j are within bounds */
-#define CellM(i, j)                                                                      \
-   cell[(fp->periodic ? (((i) % size) + 1) : MAX(0, MIN((i) + 1, size + 1))) *           \
-            (size + 2) +                                                                 \
-        (fp->periodic ? (((j) % size) + 1) : MAX(0, MIN((j) + 1, size + 1)))]
-
-/* macro definition of summed sticky end bond energy                    */
-/* computes energy IF Cell(i,j) were n, given its current neighbors     */
-/* assumes "fp" arg is a simple variable, but others can be expressions */
-/* note that n != 0  and assumes 0 <= i,j < (1<<fp->P)                  */
-#define Gse(fp, i, j, n)                                                                 \
-   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
-    (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
-    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)] +                                      \
-    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n])
-
-#define Gse_double(fp, i, j, n)                                                          \
-   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
-    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)] +                                      \
-    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n] +                                        \
-    (fp)->tube->Gse_EW[(fp)->CellM(i, (j) + 2)][(fp)->Cell(i, (j) + 1)] +                \
-    (fp)->tube->Gse_NS[(fp)->Cell(i, (j) + 1)][(fp)->Cell((i) + 1, (j) + 1)] +           \
-    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, (j) + 1)]                                       \
-                      [(fp)->Cell(i, (j) + 1)]) /* FIXME: is this right!? */
-
-#define Gse_vdouble(fp, i, j, n)                                                         \
-   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
-    (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
-    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n] +                                        \
-    (fp)->tube->Gse_NS[(fp)->Cell((i) + 1, j)][(fp)->CellM((i) + 2, j)] +                \
-    (fp)->tube->Gse_EW[(fp)->Cell((i) + 1, j)][(fp)->Cell((i) + 1, (j)-1)] +             \
-    (fp)->tube->Gse_EW[(fp)->Cell((i) + 1, (j) + 1)][(fp)->Cell((i) + 1, j)])
-
-#define Gse_double_left(fp, i, j, n)                                                     \
-   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
-    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)] +                                      \
-    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n])
-
-#define Gse_double_right(fp, i, j, n)                                                    \
-   ((fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
-    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)] +                                      \
-    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n])
-
-#define Gse_vdouble_up(fp, i, j, n)                                                      \
-   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
-    (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
-    (fp)->tube->Gse_NS[(fp)->Cell((i)-1, j)][n])
-
-#define Gse_vdouble_down(fp, i, j, n)                                                    \
-   ((fp)->tube->Gse_EW[n][(fp)->Cell(i, (j)-1)] +                                        \
-    (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n] +                                      \
-    (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)])
-
-/* definition for total sticky-end strength around a pair or a 2x2 chunk */
-/* -- note that if some site is empty, this still gives the correct      */
-/*    energy for dissociation                                            */
-/* Here, 0 <= i,j < 2^P if periodic, and 0 <= i,j < 2^P-1 otherwise.     */
-/* FIXME: does this work for doubles? */
-#define chunk_Gse_EW(fp, i, j, n)                                                        \
-   (Gse(fp, i, j, n) + Gse(fp, i, ((j) + 1) % size, (fp)->Cell(i, ((j) + 1) % size)) -   \
-    2 * (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][n])
-#define chunk_Gse_NS(fp, i, j, n)                                                        \
-   (Gse(fp, i, j, n) + Gse(fp, ((i) + 1) % size, j, (fp)->Cell(((i) + 1) % size, j)) -   \
-    2 * (fp)->tube->Gse_NS[n][(fp)->Cell((i) + 1, j)])
-#define chunk_Gse_2x2(fp, i, j, n)                                                       \
-   (Gse(fp, i, j, n) + Gse(fp, i, ((j) + 1) % size, (fp)->Cell(i, ((j) + 1) % size)) +   \
-    Gse(fp, ((i) + 1) % size, j, (fp)->Cell(((i) + 1) % size, j)) +                      \
-    Gse(fp, ((i) + 1) % size, ((j) + 1) % size,                                          \
-        (fp)->Cell(((i) + 1) % size, ((j) + 1) % size)) -                                \
-    2 * (fp)->tube->Gse_EW[(fp)->Cell(i, (j) + 1)][(fp)->Cell(i, j)] -                   \
-    2 * (fp)->tube->Gse_NS[(fp)->Cell(i, j)][(fp)->Cell((i) + 1, j)] -                   \
-    2 * (fp)->tube->Gse_EW[(fp)->Cell((i) + 1, (j) + 1)][(fp)->Cell((i) + 1, j)] -       \
-    2 * (fp)->tube->Gse_NS[(fp)->Cell(i, (j) + 1)][(fp)->Cell((i) + 1, (j) + 1)])
-
-/* similar definition to count the number of sides that are mismatched   */
-/* also,  n != 0   and assumes 0 <= i,j < (1<<fp->P).                    */
-/* this gives the number of mismatched bonds (not null bonds, not equal) */
-/* NOT the number of tiles with mismatches.                              */
-/* note that this counts twice: sum_i,j Mism(i,j) == 2ce # mism. bonds.  */
-/* however, *if* the sum is accumulated during assembly, exactly when    */
-/* the tile at i,j is being added, then it counts each mismatch ONCE.    */
-
+ffi.cdef(
+    """ /* CDEF copy-paste on 2021-07-06 */
 typedef struct flake_struct {
    struct tube_struct *tube; /* contains tile set, reaction conditions,     */
    /* time, event stats, scratch space...              */
    /* all flakes are the same size, 2^(tube->P)        */
-   Trep N, P; /* # non-empty tile types; 2^P active cell grid     */
+   unsigned int N, P; /* # non-empty tile types; 2^P active cell grid     */
 
-   Trep *cell; /* tile type at [i][j]; array of arrays             */
+   unsigned int *cell; /* tile type at [i][j]; array of arrays             */
    /* note 0 <= i,j <= 2^P+1, allowing for borders     */
    double ***rate; /* hierarchical rates for events in non-empty cells */
    /* rate[p][i][j] has 0 <= i,j < 2^p                 */
@@ -161,8 +30,8 @@ typedef struct flake_struct {
    /* are incorporated; if 0, then no depletion occurs */
    double G;           /* cumulative energy of tile flake                  */
    int seed_i, seed_j; /* special site which won't change                  */
-   Trep seed_n;
-   evint events;                    /* total on, off, hydrolysis events in this flake   */
+   unsigned int seed_n;
+   unsigned long long events;                    /* total on, off, hydrolysis events in this flake   */
    int tiles;                       /* total number of tiles in this flake              */
    int seed_is_double_tile;         /* If the seed is a double tile, it will be a monomer,
                                        but the number of tiles will be reported as 2.  */
@@ -233,7 +102,7 @@ typedef struct tube_struct {
    double Gse;           /* Current Gse                                      */
    double Gmc;           /* Gmc                                              */
    double next_update_t; /* Precompute next update time                   */
-   Trep N, P;            /* # non-empty tile types; 2^P active cell grid     */
+   unsigned int N, P;            /* # non-empty tile types; 2^P active cell grid     */
 
    int num_flakes;         /* how many flakes do we have here?                 */
    int total_flakes;       /* how many flakes have we made, total
@@ -246,7 +115,7 @@ typedef struct tube_struct {
                               new flakes */
        default_seed_j;
    double initial_Gfc;
-   Trep hydro; /* does this tile set use hydrolysis rules?         */
+   unsigned int hydro; /* does this tile set use hydrolysis rules?         */
    /* in this case, N must be even, and tiles          */
    /* 1...N/2 are non-hydrolized; tiles N/2+1...N are  */
    /* hydrolized, with weaker sticky end strengths     */
@@ -273,8 +142,8 @@ typedef struct tube_struct {
    /* NOTE n could be empty tile, for which Gse = 0    */
    /* coordinate system is: i+,j+ moves S,E            */
    double t;             /* cumulative time in seconds                       */
-   evint events;         /* cumulative number of events                      */
-   evint stat_a, stat_d, /* tally of number of association, dissociation,  */
+   unsigned long long events;         /* cumulative number of events                      */
+   unsigned long long stat_a, stat_d, /* tally of number of association, dissociation,  */
        stat_h, stat_f;   /* "hydrolysis", and "fission" events               */
    int stat_m;
    int ewrapped;        /* has the event counter wrapped around?            */
@@ -311,8 +180,8 @@ typedef struct tube_struct {
 } tube;
 
 void setup_tube(tube *tp);
-tube *init_tube(Trep P, Trep N, int num_bindings);
-flake *init_flake(Trep P, Trep N, int seed_i, int seed_j, int seed_n, double Gfc,
+tube *init_tube(unsigned int P, unsigned int N, int num_bindings);
+flake *init_flake(unsigned int P, unsigned int N, int seed_i, int seed_j, int seed_n, double Gfc,
                   int present_list_len, int periodic);
 flake *free_flake(flake *fp);
 void free_tube(tube *tp);
@@ -331,17 +200,154 @@ int calc_perimeter(flake *fp);
 void update_all_rates(tube *tp);
 void update_rates(flake *fp, int ii, int jj);
 void update_tube_rates(flake *fp);
-void change_cell(flake *fp, int i, int j, Trep n);
+void change_cell(flake *fp, int i, int j, unsigned int n);
 void change_seed(flake *fp, int new_i, int new_j);
 int flake_fission(flake *fp, int i, int j);
-void simulate(tube *tp, evint events, double tmax, int emax, int smax, int fsmax,
+void simulate(tube *tp, unsigned long long events, double tmax, int emax, int smax, int fsmax,
               int smin, int mmax);
 void linear_simulate(double ratek, double Gmc, double Gse, double tmax, int emax,
                      int smax, int mmax);
 int Mism(tube *tp, flake *fp, int size, int i, int j, int n);
+"""
+)
 
-#define FI_OFF 0
-#define FI_OK 1
-#define F_CHUNK 2
+grow = ffi.dlopen(_XGROW_LIB)
 
-#endif /* ifdef __GROW_H__ */
+
+class Tube:
+    def __init__(self, size, ntiles, nbonds) -> None:
+        self.sizeP = int(np.ceil(np.log2(size)))
+        self.size = 2 ** self.sizeP
+        self._inner = grow.init_tube(self.sizeP, ntiles, nbonds)
+
+        self._tileb = np.frombuffer(
+            ffi.buffer(
+                self._inner.tileb, (ntiles + 1) * 4 * ffi.sizeof("unsigned int")
+            ),
+            dtype=np.uint32,
+        ).reshape((-1, 4))
+        self._glues = np.frombuffer(
+            ffi.buffer(
+                self._inner.glue, (nbonds + 1) * (nbonds + 1) * ffi.sizeof("double")
+            ),
+            dtype=np.double,
+        ).reshape(((nbonds + 1), (nbonds + 1)))
+        self._strengths = np.frombuffer(
+            ffi.buffer(self._inner.strength, (nbonds + 1) * ffi.sizeof("double")),
+            dtype=np.double,
+        )
+        self._concs = np.frombuffer(
+            ffi.buffer(self._inner.conc, (ntiles + 1) * ffi.sizeof("double")),
+            dtype=np.double,
+        )
+
+    @property
+    def tileb(self) -> np.ndarray:
+        return self._tileb
+
+    @tileb.setter
+    def tileb(self, v: np.ndarray):
+        self._tileb[:] = v
+
+    @property
+    def concs(self) -> np.ndarray:
+        return self._concs
+
+    @concs.setter
+    def concs(self, v: np.ndarray):
+        self._concs[:] = v
+
+    @property
+    def strengths(self) -> np.ndarray:
+        return self._strengths
+
+    @strengths.setter
+    def strengths(self, v: np.ndarray):
+        self._strengths[:] = v
+
+    @property
+    def glues(self) -> np.ndarray:
+        return self._glues
+
+    @glues.setter
+    def glues(self, v: np.ndarray):
+        self._glues[:] = v
+
+    @property
+    def Gse(self) -> float:
+        return self._inner.Gse
+
+    @Gse.setter
+    def Gse(self, v: float):
+        self._inner.Gse = v
+
+    @property
+    def Gmc(self) -> float:
+        return self._inner.Gmc
+
+    @Gmc.setter
+    def Gmc(self, v: float):
+        self._inner.Gmc = v
+
+    @property
+    def k(self) -> float:
+        return self._inner.k
+
+    @k.setter
+    def k(self, v: float):
+        self._inner.k = v
+
+    @property
+    def T(self) -> int:
+        return self._inner.T
+
+    @T.setter
+    def T(self, v: int):
+        self._inner.T = v
+
+    def setup(self):
+        grow.setup_tube(self._inner)
+
+    # FIXME: events should be long long
+    def simulate(
+        self,
+        events: int,
+        tmax: float = 0.0,
+        emax: int = 0,
+        smax: int = 0,
+        fsmax: int = 0,
+        smin: int = -1,
+        mmax: int = 0,
+    ):
+        grow.simulate(self._inner, events, tmax, emax, smax, fsmax, smin, mmax)
+
+    def insert_flake(self, flake: "Flake"):
+        grow.insert_flake(flake._inner, self._inner)
+
+
+class Flake:
+    def __init__(self, size, ntiles, i, j, n) -> None:
+        self.sizeP = int(np.ceil(np.log2(size)))
+        self.size = 2 ** self.sizeP
+        self._inner = grow.init_flake(self.sizeP, ntiles, i, j, n, 0, 0, 0)
+        self._cell = np.frombuffer(
+            ffi.buffer(
+                self._inner.cell, (2 + self.size) ** 2 * ffi.sizeof("unsigned int")
+            ),
+            dtype=np.uint32,
+        ).reshape((2 + self.size), (2 + self.size))
+
+    @property
+    def cell(self) -> np.ndarray:
+        return self._cell
+
+    def change_cell(self, i: int, j: int, t: int):
+        grow.change_cell(self._inner, i, j, t)
+
+    @property
+    def tiles(self) -> int:
+        return self._inner.tiles
+
+    @tiles.setter
+    def tiles(self, v: int):
+        self._inner.tiles = v

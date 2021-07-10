@@ -1,6 +1,6 @@
 # vim: ft=yaml
 # mode: yaml
-# 
+#
 # A copy of the Sierpinski example, in STXG/YAML format.
 # Updated Dec 2014
 
@@ -17,8 +17,8 @@ bonds:
 # in a comment.
 tiles:
     - { name: corner, edges: [ B, 0, 0, B ], color: red  }
-    - { name: topboundary, edges: [B, 0, B, v1], color: magenta }
-    - { name: leftboundary, edges: [v1, B, 0, B], color: purple }
+    - { name: topboundary, edges: [B, 0, 0, B, v1, v1], color: magenta, shape: "V" }
+    - { name: leftboundary, edges: [v1, v1, B, 0, 0, B], color: purple, shape: "H" }
     - { edges: [ v0, v0, v0, v0 ], color: blue3 }
     - { edges: [ v0, v1, v1, v0 ], color: green }
     - { edges: [ v1, v0, v1, v1 ], color: yellow }
