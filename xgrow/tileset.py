@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from collections import UserList
+import itertools
 from io import StringIO
 from typing import (
     Any,
@@ -128,7 +129,7 @@ class Tile:
             ts += f" (tile #{tilenum})\n"
         return ts
 
-    def to_dict(self) -> dict[str, Any]:
+    def asdict(self) -> dict[str, Any]:
         d = {k: v for k, v in self.__dict__.items() if v}
         if self.shape == "S":
             del d["shape"]
@@ -137,6 +138,12 @@ class Tile:
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Tile:
         return cls(**d)
+
+    def ident(self) -> str:
+        if self.name:
+            return self.name
+        else:
+            raise ValueError
 
 
 @dataclass
@@ -263,6 +270,7 @@ class TileSet:
         extraparams: dict[str, Any] = {},
         *,
         return_tilenums: Literal[True],
+        double_tiles_at_end: bool = True,
     ) -> Tuple[None, dict[str, int]]:
         ...
 
@@ -273,6 +281,7 @@ class TileSet:
         extraparams: dict[str, Any] = {},
         *,
         return_tilenums: Literal[True],
+        double_tiles_at_end: bool = True,
     ) -> Tuple[str, dict[str, int]]:
         ...
 
@@ -282,6 +291,7 @@ class TileSet:
         stream: None = None,
         extraparams: dict[str, Any] = {},
         return_tilenums: Literal[False] = False,
+        double_tiles_at_end: bool = True,
     ) -> str:
         ...
 
@@ -291,6 +301,7 @@ class TileSet:
         stream: TextIO,
         extraparams: dict[str, Any] = {},
         return_tilenums: Literal[False] = False,
+        double_tiles_at_end: bool = True,
     ) -> None:
         ...
 
@@ -299,6 +310,7 @@ class TileSet:
         stream: Optional[TextIO] = None,
         extraparams: dict[str, Any] = {},
         return_tilenums: bool = False,
+        double_tiles_at_end: bool = True,
     ) -> None | str | Tuple[str, dict[str, int]] | Tuple[None, dict[str, int]]:
         if stream is None:
             stream = StringIO()
@@ -315,6 +327,8 @@ class TileSet:
         bm = 0
         hdoubles: list[tuple[int, int]] = []
         vdoubles: list[tuple[int, int]] = []
+        doubletilestrings: list[str] = []
+        double_i = len(self.tiles) + 1
 
         for b in self.bonds:
             if b.name is None:
@@ -350,7 +364,11 @@ class TileSet:
                         tile.stoic,
                         tile.color,
                     )
-                    hdoubles.append((ti, ti + 1))
+                    if double_tiles_at_end:
+                        hdoubles.append((ti, double_i))
+
+                    else:
+                        hdoubles.append((ti, ti + 1))
                 elif tile.shape == "V":
                     t1 = Tile(
                         [e[0], e[1], f"{tile.name}_db", e[5]],
@@ -366,7 +384,10 @@ class TileSet:
                         tile.stoic,
                         tile.color,
                     )
-                    vdoubles.append((ti, ti + 1))
+                    if double_tiles_at_end:
+                        vdoubles.append((ti, double_i))
+                    else:
+                        vdoubles.append((ti, ti + 1))
                 else:
                     raise ValueError
                 tstrings.append(t1._xgstring(ti))
@@ -374,13 +395,20 @@ class TileSet:
                     tile_to_i[t1.name] = ti
                 bi, bm = _updatebonds(t1.edges, bi, bm, bondnames, extrabonds)
                 ti += 1
-                tstrings.append(t2._xgstring(ti))
-                if t2.name:
-                    tile_to_i[t2.name] = ti
-                bi, bm = _updatebonds(t2.edges, bi, bm, bondnames, extrabonds)
-                ti += 1
+                if double_tiles_at_end:
+                    doubletilestrings.append(t2._xgstring(double_i))
+                    if t2.name:
+                        tile_to_i[t2.name] = double_i
+                    bi, bm = _updatebonds(t2.edges, bi, bm, bondnames, extrabonds)
+                    double_i += 1
+                else:
+                    tstrings.append(t2._xgstring(ti))
+                    if t2.name:
+                        tile_to_i[t2.name] = ti
+                    bi, bm = _updatebonds(t2.edges, bi, bm, bondnames, extrabonds)
+                    ti += 1
 
-        stream.write(f"num tile types={ti-1}\n" f"num binding types={bm}\n")  # fixme
+        stream.write(f"num tile types={double_i-1}\n" f"num binding types={bm}\n")
 
         if len(bondnames):
             stream.write(
@@ -389,7 +417,7 @@ class TileSet:
 
         stream.write("tile edges={\n")
 
-        for t in tstrings:
+        for t in itertools.chain(tstrings, doubletilestrings):
             stream.write(t)
 
         stream.write("}\n")

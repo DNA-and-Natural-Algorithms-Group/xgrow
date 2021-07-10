@@ -102,71 +102,71 @@ tiles:
 - color: white
   edges: [origami, origami, origami, origami]
   name: origami
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, in1, in1, origami]
   name: AT-16-fake
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, in1, in1, origami]
   name: AT-15-fake
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, gray1, ogreen1*, origami]
   name: AT-14
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue5, blue3*, origami]
   name: AT-13
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue2, green1*, origami]
   name: AT-12
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue5, blue3*, origami]
   name: AT-11
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue2, green1*, origami]
   name: AT-10
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue5, blue3*, origami]
   name: AT-9
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue2, green1*, origami]
   name: AT-8
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue5, blue3*, origami]
   name: AT-7
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue2, green1*, origami]
   name: AT-6
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue5, blue3*, origami]
   name: AT-5
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, blue2, green1*, origami]
   name: AT-4
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, brown5, brown3*, origami]
   name: AT-3
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, brown2, black1*, origami]
   name: AT-2
-  stoic: 1.0e-09
+  stoic: 0
 - color: white
   edges: [origami, pink1, hp2, origami]
   name: AT-1
-  stoic: 1.0e-09
+  stoic: 0
 - color: blue
   edges: [green1, blue4, blue1*, blue5*]
   name: Z9
@@ -252,4 +252,3 @@ xgrowargs:
   fission: chunk
   importfile: tallrect.seed
   size: 128
-

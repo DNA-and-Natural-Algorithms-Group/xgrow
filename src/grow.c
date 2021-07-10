@@ -275,15 +275,9 @@ tube *init_tube(Trep P, Trep N, int num_bindings) {
    tp->largest_flake_size = 0;
    tp->all_present = 0;
 
-   tp->tileb = (int **)calloc(sizeof(int *), N + 1);
-   for (i = 0; i <= N; i++) {
-      tp->tileb[i] = (int *)calloc(sizeof(int), 4);
-   }
+   tp->tileb = (int *)calloc(sizeof(int), 4 * (N + 1));
    tp->strength = (double *)calloc(sizeof(double), num_bindings + 1);
-   tp->glue = (double **)calloc(sizeof(double *), num_bindings + 1);
-   for (i = 0; i <= num_bindings; i++) {
-      tp->glue[i] = (double *)calloc(sizeof(double), num_bindings + 1);
-   }
+   tp->glue = (double *)calloc(sizeof(double), (num_bindings + 1) * (num_bindings + 1));
 
    tp->conc = (double *)calloc(sizeof(double), N + 1);
 
@@ -368,11 +362,7 @@ void free_tube(tube *tp) {
    free(tp->Fgroup);
    free(tp->Fnext);
 
-   for (n = 0; n < tp->N + 1; n++)
-      free(tp->tileb[n]);
    free(tp->tileb);
-   for (i = 0; i < tp->num_bindings + 1; i++)
-      free(tp->glue[i]);
    free(tp->glue);
    free(tp->strength);
 
@@ -391,16 +381,20 @@ void set_Gses(tube *tp, double Gse, double Gseh) {
    int n, m;
    for (n = 1; n <= tp->N; n++)
       for (m = 1; m <= tp->N; m++) {
-         tp->Gse_EW[n][m] =
-             ((((tp->tileb)[n][3] == (tp->tileb)[m][1]) *
-               (tp->strength)[(tp->tileb)[m][1]]) +
-              (tp->glue)[(tp->tileb)[n][3]][(tp->tileb)[m][1]]) *
+         tp->Gse_EW[n][m] = (tp->tileb[n * 4 + 3] == tp->tileb[m * 4 + 1]) *
+                            tp->strength[tp->tileb[m * 4 + 1]];
+         tp->Gse_EW[n][m] += tp->glue[(tp->tileb[n * 4 + 3]) * (tp->num_bindings + 1) +
+                                      tp->tileb[m * 4 + 1]];
+         tp->Gse_EW[n][m] *=
              (tp->hydro ? (((n > tp->N / 2 || m > tp->N / 2)) ? Gseh : Gse) : Gse);
-         tp->Gse_NS[n][m] =
-             (((tp->tileb)[n][2] == (tp->tileb)[m][0]) *
-                  (tp->strength)[(tp->tileb)[m][0]] +
-              (tp->glue)[(tp->tileb)[n][2]][(tp->tileb)[m][0]]) *
+
+         tp->Gse_NS[n][m] = (tp->tileb[n * 4 + 2] == tp->tileb[m * 4 + 0]) *
+                            tp->strength[tp->tileb[m * 4 + 0]];
+         tp->Gse_NS[n][m] += tp->glue[(tp->tileb[n * 4 + 2]) * (tp->num_bindings + 1) +
+                                      tp->tileb[m * 4 + 0]];
+         tp->Gse_NS[n][m] *=
              (tp->hydro ? (((n > tp->N / 2 || m > tp->N / 2)) ? Gseh : Gse) : Gse);
+
          if ((tp->dt_right[m] == n) && (tp->Gse_EW[n][m] < 1000))
             tp->Gse_EW[n][m] = 1000; // FIXME THIS IS A HACK
          if ((tp->dt_down[m] == n) && (tp->Gse_NS[m][n] < 1000))
@@ -486,7 +480,7 @@ void recalc_G(flake *fp) {
             else if ((!tp->dt_left[n]) && (!tp->dt_up[n]))
                fp->G += -log(tp->conc[n]) - Gse(fp, i, j, n) / 2.0 - tp->Gcb[n];
 
-            fp->mismatches += Mism(fp, i, j, n);
+            fp->mismatches += Mism(tp, fp, size, i, j, n);
             fp->tiles++;
             update_rates(fp, i, j);
          } else if (fp->Cell(i + 1, j) || fp->Cell(i, j + 1) || fp->Cell(i - 1, j) ||
@@ -519,6 +513,32 @@ double calc_dG_bonds(flake *fp) {
       }
    return dG; // FIXME: DOES THIS ACTUALLY WORK?
 } // calc_dG_bonds()
+
+int Mism(tube *tp, flake *fp, int size, int i, int j, int n) {
+   return (
+       (fp->tube->tileb[n * 4 + 1] != fp->tube->tileb[(fp->Cell(i, (j) + 1)) * 4 + 3] &&
+        fp->tube->tileb[n * 4 + 1] * fp->tube->tileb[(fp->Cell(i, (j) + 1)) * 4 + 3] >
+            0 &&
+        fp->tube->glue[(fp->tube->tileb[n * 4 + 1]) * tp->num_bindings +
+                       fp->tube->tileb[(fp->Cell(i, (j) + 1)) * 4 + 3]] <
+            tp->min_strength) +
+       (fp->tube->tileb[n * 4 + 3] != fp->tube->tileb[(fp->Cell(i, (j)-1)) * 4 + 1] &&
+        fp->tube->tileb[n * 4 + 3] * fp->tube->tileb[(fp->Cell(i, (j)-1)) * 4 + 1] > 0 &&
+        fp->tube->glue[(fp->tube->tileb[n * 4 + 3]) * tp->num_bindings +
+                       fp->tube->tileb[(fp->Cell(i, (j)-1)) * 4 + 1]] <
+            tp->min_strength) +
+       (fp->tube->tileb[n * 4 + 2] != fp->tube->tileb[(fp->Cell((i) + 1, j)) * 4 + 0] &&
+        fp->tube->tileb[n * 4 + 2] * fp->tube->tileb[(fp->Cell((i) + 1, j)) * 4 + 0] >
+            0 &&
+        fp->tube->glue[(fp->tube->tileb[n * 4 + 2]) * tp->num_bindings +
+                       fp->tube->tileb[(fp->Cell((i) + 1, j)) * 4 + 0]] <
+            tp->min_strength) +
+       (fp->tube->tileb[n * 4 + 0] != fp->tube->tileb[(fp->Cell((i)-1, j)) * 4 + 2] &&
+        fp->tube->tileb[n * 4 + 0] * fp->tube->tileb[(fp->Cell((i)-1, j)) * 4 + 2] > 0 &&
+        fp->tube->glue[(fp->tube->tileb[n * 4 + 0]) * tp->num_bindings +
+                       fp->tube->tileb[(fp->Cell((i)-1, j)) * 4 + 2]] <
+            tp->min_strength));
+}
 
 /* calculate the perimeter of the flake */
 int calc_perimeter(flake *fp) {
@@ -882,23 +902,23 @@ double calc_rates(flake *fp, int i, int j, double *rv) {
       /* empty and mismatched inputs */
       nS = fp->Cell(i + 1, j);
       nE = fp->Cell(i, j + 1);
-      ei = ((tp->tileb)[n][2] != 0 && (tp->tileb)[nS][0] == 0) +
-           ((tp->tileb)[n][1] != 0 && (tp->tileb)[nE][3] == 0);
-      mi = ((tp->tileb)[n][2] != (tp->tileb)[nS][0] &&
-            (tp->tileb)[n][2] * (tp->tileb)[nS][0] != 0) +
-           ((tp->tileb)[n][1] != (tp->tileb)[nE][3] &&
-            (tp->tileb)[n][1] * (tp->tileb)[nE][3] != 0);
+      ei = (tp->tileb[n * 4 + 2] != 0 && tp->tileb[nS * 4 + 0] == 0) +
+           (tp->tileb[n * 4 + 1] != 0 && tp->tileb[nE * 4 + 3] == 0);
+      mi = (tp->tileb[n * 4 + 2] != tp->tileb[nS * 4 + 0] &&
+            tp->tileb[n * 4 + 2] * tp->tileb[nS * 4 + 0] != 0) +
+           (tp->tileb[n * 4 + 1] != tp->tileb[nE * 4 + 3] &&
+            tp->tileb[n * 4 + 1] * tp->tileb[nE * 4 + 3] != 0);
       hi = (nE > N / 2) + (nS > N / 2);
 
       /* empty and mismatched outputs */
       nN = fp->Cell(i - 1, j);
       nW = fp->Cell(i, j - 1);
-      eo = ((tp->tileb)[n][0] != 0 && (tp->tileb)[nN][2] == 0) +
-           ((tp->tileb)[n][3] != 0 && (tp->tileb)[nW][1] == 0);
-      mo = ((tp->tileb)[n][0] != (tp->tileb)[nN][2] &&
-            (tp->tileb)[n][0] * (tp->tileb)[nN][2] != 0) +
-           ((tp->tileb)[n][3] != (tp->tileb)[nW][1] &&
-            (tp->tileb)[n][3] * (tp->tileb)[nW][1] != 0);
+      eo = (tp->tileb[n * 4 + 0] != 0 && tp->tileb[nN * 4 + 2] == 0) +
+           (tp->tileb[n * 4 + 3] != 0 && tp->tileb[nW * 4 + 1] == 0);
+      mo = (tp->tileb[n * 4 + 0] != tp->tileb[nN * 4 + 2] &&
+            tp->tileb[n * 4 + 0] * tp->tileb[nN * 4 + 2] != 0) +
+           (tp->tileb[n * 4 + 3] != tp->tileb[nW * 4 + 1] &&
+            tp->tileb[n * 4 + 3] * tp->tileb[nW * 4 + 1] != 0);
       ho = (nN > N / 2) + (nW > N / 2);
 
       r = tp->k * (tp->kas + mi * tp->kam + ei * tp->kae + hi * tp->kah +
@@ -1087,8 +1107,8 @@ void change_cell(flake *fp, int i, int j, Trep n) {
             tp->largest_flake = fp->flake_ID;
             tp->largest_flake_size = fp->tiles;
          }
-         fp->mismatches += Mism(fp, i, j, n);
-         tp->stat_m += Mism(fp, i, j, n);
+         fp->mismatches += Mism(tp, fp, size, i, j, n);
+         tp->stat_m += Mism(tp, fp, size, i, j, n);
       } else if (n == 0) { /* tile loss */
          tp->conc[0] += fp->flake_conc;
          tp->conc[fp->Cell(i, j)] += fp->flake_conc;
@@ -1132,8 +1152,8 @@ void change_cell(flake *fp, int i, int j, Trep n) {
          }
          tp->stat_d++;
          fp->tiles--;
-         fp->mismatches -= Mism(fp, i, j, fp->Cell(i, j));
-         tp->stat_m -= Mism(fp, i, j, fp->Cell(i, j));
+         fp->mismatches -= Mism(tp, fp, size, i, j, fp->Cell(i, j));
+         tp->stat_m -= Mism(tp, fp, size, i, j, fp->Cell(i, j));
       } else { /* tile hydrolysis or replacement */
          fp->G += Gse(fp, i, j, fp->Cell(i, j)) - Gse(fp, i, j, n) +
                   log(tp->conc[fp->Cell(i, j)]) - log(tp->conc[n]) +
@@ -1945,7 +1965,7 @@ void repair_flake(flake *fp, double T, double Gse) {
    // first, remove all tiles involved with mismatches -- identify, then remove
    for (i = 0; i < size; i++)
       for (j = 0; j < size; j++)
-         if ((n = fp->Cell(i, j)) > 0 && Mism(fp, i, j, n))
+         if ((n = fp->Cell(i, j)) > 0 && Mism(tp, fp, size, i, j, n))
             F[i + size * j] = 1;
    for (i = 0; i < size; i++)
       for (j = 0; j < size; j++)
@@ -2071,7 +2091,7 @@ void error_radius_flake(flake *fp, double rad) {
    fp->mismatches = 0;
    for (i = 0; i < size; i++)
       for (j = 0; j < size; j++) {
-         if ((n = fp->Cell(i, j)) > 0 && Mism(fp, i, j, n)) {
+         if ((n = fp->Cell(i, j)) > 0 && Mism(tp, fp, size, i, j, n)) {
             solid = 1;
             for (ii = MAX(0, floor(i - rad)); ii <= MIN(size - 1, ceil(i + rad)); ii++)
                for (jj = MAX(0, floor(j - rad)); jj <= MIN(size - 1, ceil(j + rad)); jj++)
