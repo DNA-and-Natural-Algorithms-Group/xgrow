@@ -1,13 +1,18 @@
+from dataclasses import dataclass
 import re
-from typing import Any, Union
+from typing import Any, Optional, Union
 import numpy as np
 from io import BytesIO
 import pandas as pd
 
 
-def load_array_file(
-    fn: str, onlytiles: bool = False
-) -> dict[str, Union[np.ndarray, pd.Series]]:
+@dataclass
+class XgrowOutput:
+    data: Optional[pd.Series] = None
+    tiles: Optional[np.ndarray] = None
+
+
+def load_array_file(fn: str, onlytiles: bool = False) -> XgrowOutput:
 
     s = open(fn, "rb").read()
     s = re.sub(
@@ -25,7 +30,7 @@ def load_array_file(
     if onlytiles:
         return tiles
     data = pd.Series(
-        np.genfromtxt(BytesIO((s.split(b"\n")[2])))[1:-1],
+        np.genfromtxt(BytesIO((s.split(b"\n")[2])))[:-1],
         index=[
             "gmc",
             "gse",
@@ -39,7 +44,7 @@ def load_array_file(
             "dgbonds",
         ],
     )
-    return {"data": data, "tiles": tiles}
+    return XgrowOutput(data, tiles)
 
 
 def load_trace_file(fn: str) -> pd.DataFrame:

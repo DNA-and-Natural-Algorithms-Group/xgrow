@@ -5,7 +5,7 @@ import tempfile
 import subprocess
 from subprocess import CompletedProcess
 import re
-from .tileset import TileSet
+from .tileset import TileSet, XgrowArgs
 
 _DEFAULT_SIZE = 64
 
@@ -72,7 +72,7 @@ def run_old(
     *,
     outputopts: OutputOpts,
     process_info: Literal[True],
-) -> Tuple[Any, CompletedProcess[str]]:
+) -> Tuple[XgrowArgs, CompletedProcess[str]]:
     ...
 
 
@@ -243,7 +243,7 @@ def run(
     outputopts: OutputOpts,
     process_info: Literal[True],
     **kwargs: dict[str, Any],
-) -> Tuple[Any, subprocess.CompletedProcess[str]]:
+) -> Tuple[XgrowArgs, subprocess.CompletedProcess[str]]:
     ...
 
 
