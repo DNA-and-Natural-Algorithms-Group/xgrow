@@ -64,11 +64,11 @@ class develop_xgrow(develop):
 
 setup(
     name="xgrow",
-    version="20181022.dev0",
+    version="20210710.dev0",
     packages=["xgrow"],
     install_requires=["pyyaml"],
     include_package_data=True,
-    package_data={"xgrow": ["_xgrow", "_xgrow.so"]},
+    package_data={"xgrow": ["_xgrow", "_xgrow.so", "py.typed"]},
     cmdclass={"build": build_xgrow, "develop": develop_xgrow},
     entry_points={"console_scripts": ["xgrow = xgrow._script_xgrow:main"]},
     author="Constantine Evans et al (this version)",
