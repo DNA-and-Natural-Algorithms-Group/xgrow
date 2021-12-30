@@ -1,11 +1,28 @@
 from __future__ import annotations
 import os
-from typing import Any, Literal, Sequence, SupportsIndex, Tuple, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    Sequence,
+    SupportsIndex,
+    Tuple,
+    cast,
+    overload,
+)
 import tempfile
 import subprocess
 from subprocess import CompletedProcess
 import re
+
+from xgrow.parseoutput import XgrowOutput
 from .tileset import TileSet, XgrowArgs
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+    PossibleXgrowOutputs = XgrowOutput | pd.Series | pd.DataFrame
+    OutputOpts = Literal["data", "array", "trace"]
 
 _DEFAULT_SIZE = 64
 
@@ -27,7 +44,7 @@ def _process_outputs(output_files: dict[OutputOpts, str]) -> dict[OutputOpts, An
         elif key == "data":
             outputs[key] = parseoutput.load_data_file(output_files[key])
         else:
-            raise ValueError("Output type {} is unknown.".format(key), key)
+            raise ValueError(f"Output type {key} is unknown.", key)
     return outputs
 
 
@@ -57,18 +74,17 @@ def run_raw(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             encoding="utf-8",
+            check=True,
         )
-    else:
-        return subprocess.run([_XGROW_BINARY] + args, shell=False, encoding="utf-8")
-
-
-OutputOpts = Literal["data", "array", "trace"]
+    return subprocess.run(
+        [_XGROW_BINARY] + args, shell=False, encoding="utf-8", check=True
+    )
 
 
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     *,
     outputopts: OutputOpts,
     process_info: Literal[True],
@@ -79,18 +95,18 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     *,
     outputopts: Sequence[OutputOpts],
     process_info: Literal[True],
-) -> Tuple[dict[str, Any], CompletedProcess[str]]:
+) -> Tuple[dict[str, PossibleXgrowOutputs], CompletedProcess[str]]:
     ...
 
 
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     outputopts: None = None,
     *,
     process_info: Literal[True],
@@ -101,18 +117,18 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     *,
     outputopts: OutputOpts,
     process_info: Literal[False] = False,
-) -> Any:
+) -> PossibleXgrowOutputs:
     ...
 
 
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     *,
     outputopts: Sequence[OutputOpts],
     process_info: Literal[False] = False,
@@ -123,7 +139,7 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     outputopts: None = None,
     process_info: Literal[False] = False,
 ) -> None:
@@ -133,19 +149,19 @@ def run_old(
 @overload
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
     process_info: bool = False,
-) -> Any:
+) -> None:
     ...
 
 
 def run_old(
     tilestring: str,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
     process_info: bool = False,
-) -> Any:
+) -> PossibleXgrowOutputs | dict[str, PossibleXgrowOutputs]:
     """
     Given an old xgrow tileset definition (as a string), a dict of parameters,
     and possible output options, run xgrow, handling file creation.
@@ -171,37 +187,41 @@ def run_old(
     includes the stdout and stderr, and so on.
     """
 
+    if extraparams is None:
+        extraparams = {}
+
     # Create necessary temp files:
-    tileset_file = tempfile.NamedTemporaryFile(delete=False, mode="w", newline="\n")
+    with tempfile.NamedTemporaryFile(
+        delete=False, mode="w", newline="\n"
+    ) as tileset_file:
 
-    if isinstance(outputopts, str):
-        outputopts = [outputopts]  # type: ignore
-    if outputopts is None:
-        outputopts = []
-    output_files: dict[OutputOpts, str] = {
-        output_type: tempfile.mktemp(prefix=f"tmp_xgrow_{output_type}")
-        for output_type in outputopts
-    }  # type: ignore
+        if isinstance(outputopts, str):
+            outputopts = [outputopts]  # type: ignore
+        if outputopts is None:
+            outputopts = []
+        output_files: dict[OutputOpts, str] = {
+            output_type: tempfile.mktemp(prefix=f"tmp_xgrow_{output_type}")
+            for output_type in outputopts
+        }  # type: ignore
 
-    tileset_file.write(tilestring)
-    tileset_file.close()
+        tileset_file.write(tilestring)
 
     args = [tileset_file.name]
     for param, val in extraparams.items():
         if val is True:
-            args.append("{}".format(param))
+            args.append(f"{param}")
         else:
-            args.append("{}={}".format(param, val))
+            args.append(f"{param}={val}")
 
     args += [
-        "{}file={}".format(output_type, output_file)
+        f"{output_type}file={output_file}"
         for output_type, output_file in output_files.items()
     ]
 
     ret = run_raw(args, process_info=process_info)
     if ret.returncode != 0:
         raise Exception(
-            "Xgrow failed with return code {}.".format(ret.returncode),
+            f"Xgrow failed with return code {ret.returncode}.",
             ret,
             args,
             tileset_file.name,
@@ -218,15 +238,14 @@ def run_old(
         output = output[outputopts[0]]  # type: ignore
 
     if not process_info:
-        return output if output else None
-    else:
-        return (output if output else None), ret
+        return output if output is not None else None
+    return (output if output is not None else None), ret
 
 
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     outputopts: None = None,
     *,
     process_info: Literal[True],
@@ -238,12 +257,12 @@ def run(
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     *,
     outputopts: OutputOpts,
     process_info: Literal[True],
     **kwargs: dict[str, Any],
-) -> Tuple[XgrowArgs, subprocess.CompletedProcess[str]]:
+) -> Tuple[PossibleXgrowOutputs, subprocess.CompletedProcess[str]]:
     ...
 
 
@@ -255,14 +274,14 @@ def run(
     outputopts: Sequence[OutputOpts],
     process_info: Literal[True],
     **kwargs: dict[str, Any],
-) -> Tuple[dict[str, Any], subprocess.CompletedProcess[str]]:
+) -> Tuple[dict[str, PossibleXgrowOutputs], subprocess.CompletedProcess[str]]:
     ...
 
 
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     outputopts: None = None,
     process_info: Literal[False] = False,
     **kwargs: dict[str, Any],
@@ -273,30 +292,66 @@ def run(
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     *,
-    outputopts: OutputOpts,
+    outputopts: Literal["data"],
     process_info: Literal[False] = False,
     **kwargs: dict[str, Any],
-) -> Any:
+) -> pd.Series:
     ...
 
 
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
+    *,
+    outputopts: Literal["array"],
+    process_info: Literal[False] = False,
+    **kwargs: dict[str, Any],
+) -> XgrowOutput:
+    ...
+
+
+@overload
+def run(
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any] | None = None,
+    *,
+    outputopts: Literal["trace"],
+    process_info: Literal[False] = False,
+    **kwargs: dict[str, Any],
+) -> pd.DataFrame:
+    ...
+
+
+@overload
+def run(
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any] | None = None,
+    *,
+    outputopts: OutputOpts,
+    process_info: Literal[False] = False,
+    **kwargs: dict[str, Any],
+) -> PossibleXgrowOutputs:
+    ...
+
+
+@overload
+def run(
+    tileset: dict[str, Any] | TileSet,
+    extraparams: dict[str, Any] | None = None,
     *,
     outputopts: Sequence[OutputOpts],
     process_info: Literal[False] = False,
     **kwargs: dict[str, Any],
-) -> dict[str, Any]:
+) -> dict[str, PossibleXgrowOutputs]:
     ...
 
 
 def run(
     tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] = {},
+    extraparams: dict[str, Any] | None = None,
     outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
     process_info: bool = False,
     **kwargs: dict[str, Any],
@@ -333,6 +388,12 @@ def run(
     If outputopt is a list of strings, then the function returns a dict of
     outputs with keys of the same name.
     """
+
+    if outputopts is None:
+        outputopts = {}
+
+    if extraparams is None:
+        extraparams = {}
 
     if not isinstance(tileset, TileSet):
         tileset = TileSet.from_dict(tileset)

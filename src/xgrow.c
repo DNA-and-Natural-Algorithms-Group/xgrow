@@ -703,23 +703,23 @@ int parse_arg_line(char *arg, tube_params *params) {
    else if (IS_ARG_MATCH(arg, "untiltiles=")) {
       int i = 0;
       char *pos;
-      pos = arg;
+      pos = &arg[5];
       while (pos != NULL) {
          pos = strchr(pos + 1, ',');
          params->present_list_len++;
       }
       params->present_list = (int *)malloc(params->present_list_len * sizeof(int));
       pos = &arg[11];
-      while ((pos - 1) != NULL) {
-         params->present_list[i++] = atoi(pos);
-         pos = strchr(pos, ',') + 1;
+      while (pos != NULL) {
+         params->present_list[i++] = atoi(pos + 1);
+         pos = strchr(pos + 1, ',');
       }
       params->untiltiles = 1;
    } else if (IS_ARG_MATCH(arg, "untiltilescount=")) {
       int i = 0;
       char *pos;
       params->untiltilescount = 1;
-      pos = arg;
+      pos = &arg[5];
       while (pos != NULL) {
          pos = strchr(pos + 1, ',');
          params->present_list_len++;
