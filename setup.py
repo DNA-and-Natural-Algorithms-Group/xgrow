@@ -7,9 +7,7 @@ from setuptools.command.develop import develop
 BUILD_STRING = (
     "{} -Wall -Wno-unused-result -g -O2 src/xgrow.c src/grow.c -o xgrow/_xgrow -lm {}"
 )
-BUILD_STRING_LIB = (
-    "{} -Wall -Wno-unused-result -g -O2 src/grow.c -fPIC -shared -o xgrow/_xgrow.so -lm"
-)
+BUILD_STRING_LIB = "{} -Wall -Wno-unused-result -g -O2 src/grow.c -fPIC -shared -o xgrow/libxgrow.so -lm"
 
 
 def find_x11():

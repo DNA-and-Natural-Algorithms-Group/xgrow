@@ -782,3 +782,5 @@ xcolors = {
     "silver": "rgb(192,192,192)",
     "teal": "rgb(0,128,128)",
 }
+
+mcolors = {n: tuple(z / 255.0 for z in eval(x[3:])) for n, x in xcolors.items()}
