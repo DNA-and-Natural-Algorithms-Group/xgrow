@@ -64,7 +64,7 @@ setup(
     name="xgrow",
     version="20210710.dev0",
     packages=["xgrow"],
-    install_requires=["pyyaml"],
+    install_requires=["pyyaml", "typing_extensions"],
     include_package_data=True,
     package_data={"xgrow": ["_xgrow", "_xgrow.so", "py.typed"]},
     cmdclass={"build": build_xgrow, "develop": develop_xgrow},
