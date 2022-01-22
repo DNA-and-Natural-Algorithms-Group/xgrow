@@ -12,6 +12,7 @@ from typing import (
     Optional,
     Sequence,
     TextIO,
+    Dict,
     Tuple,
     TypeVar,
     Union,
@@ -106,13 +107,13 @@ class XgrowArgs:
     font: Optional[str] = None
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> XgrowArgs:
+    def from_dict(cls, d: Dict[str, Any]) -> XgrowArgs:
         return cls(**d)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
-    def __init__(self, **kwargs: dict[str, Any]):
+    def __init__(self, **kwargs: Dict[str, Any]):
         for k, v in kwargs.items():
             if k in self.__dataclass_fields__:  # type: ignore
                 setattr(self, k, v)
@@ -130,13 +131,13 @@ class XgrowArgs:
             + ")"
         )
 
-    def update(self, other: dict[str, Any] | XgrowArgs):
+    def update(self, other: Dict[str, Any] | XgrowArgs):
         if isinstance(other, dict):
             self.__dict__.update(other)
         else:
             self.__dict__.update(other.__dict__)
 
-    def merge(self, other: dict[str, Any] | XgrowArgs) -> XgrowArgs:
+    def merge(self, other: Dict[str, Any] | XgrowArgs) -> XgrowArgs:
         d = deepcopy(self)
         d.update(other)
         return d
@@ -177,10 +178,10 @@ class Tile:
         return ts
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Tile:
+    def from_dict(cls, d: Dict[str, Any]) -> Tile:
         return cls(**d)
 
-    def to_dict(self) -> dict[str, str | int]:
+    def to_dict(self) -> Dict[str, str | int]:
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
     def ident(self) -> str:
@@ -204,7 +205,7 @@ class Bond:
     def from_dict(cls, d: Mapping[str, str | int]) -> Bond:
         return cls(**d)
 
-    def to_dict(self) -> dict[str, str | int]:
+    def to_dict(self) -> Dict[str, str | int]:
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
 
@@ -219,7 +220,7 @@ class Glue:
     def from_dict(cls, d: Sequence[int | str | float]) -> Glue:
         return cls(*d)  # type: ignore
 
-    def to_dict(self) -> tuple[int | str, int | str, float]:
+    def to_dict(self) -> Tuple[int | str, int | str, float]:
         return (self.bond1, self.bond2, self.strength)
 
 
@@ -227,9 +228,9 @@ def _updatebonds(
     edges: List[str | int],
     bi: int,
     bm: int,
-    bondnames: dict[str, int],
+    bondnames: Dict[str, int],
     extrabonds: List[Bond],
-) -> tuple[int, int]:
+) -> Tuple[int, int]:
     for e in edges:
         if isinstance(e, int):
             bm = max(e, bm)
@@ -288,7 +289,7 @@ class TileSet:
     initstate: Optional[InitState] = None
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> TileSet:
+    def from_dict(cls, d: Dict[str, Any]) -> TileSet:
         if "xgrowargs" in d.keys():
             xga = XgrowArgs.from_dict(d["xgrowargs"])
         else:
@@ -301,8 +302,8 @@ class TileSet:
             initstate=d.get("initstate", None),
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        d: dict[str, Any] = {}
+    def to_dict(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {}
         for k, v in self.__dict__.items():
             if v not in [[], None]:
                 if isinstance(v, InitState):
@@ -343,29 +344,29 @@ class TileSet:
     def to_xgrow(
         self,
         stream: TextIO,
-        extraparams: dict[str, Any] = {},
+        extraparams: Dict[str, Any] = {},
         *,
         return_tilenums: Literal[True],
         double_tiles_at_end: bool = True,
-    ) -> Tuple[None, dict[str, int]]:
+    ) -> Tuple[None, Dict[str, int]]:
         ...
 
     @overload
     def to_xgrow(
         self,
         stream: None = None,
-        extraparams: dict[str, Any] = {},
+        extraparams: Dict[str, Any] = {},
         *,
         return_tilenums: Literal[True],
         double_tiles_at_end: bool = True,
-    ) -> Tuple[str, dict[str, int]]:
+    ) -> Tuple[str, Dict[str, int]]:
         ...
 
     @overload
     def to_xgrow(
         self,
         stream: None = None,
-        extraparams: dict[str, Any] = {},
+        extraparams: Dict[str, Any] = {},
         return_tilenums: Literal[False] = False,
         double_tiles_at_end: bool = True,
     ) -> str:
@@ -375,7 +376,7 @@ class TileSet:
     def to_xgrow(
         self,
         stream: TextIO,
-        extraparams: dict[str, Any] = {},
+        extraparams: Dict[str, Any] = {},
         return_tilenums: Literal[False] = False,
         double_tiles_at_end: bool = True,
     ) -> None:
@@ -384,10 +385,10 @@ class TileSet:
     def to_xgrow(
         self,
         stream: Optional[TextIO] = None,
-        extraparams: dict[str, Any] = {},
+        extraparams: Dict[str, Any] = {},
         return_tilenums: bool = False,
         double_tiles_at_end: bool = True,
-    ) -> None | str | Tuple[str, dict[str, int]] | Tuple[None, dict[str, int]]:
+    ) -> None | str | Tuple[str, Dict[str, int]] | Tuple[None, Dict[str, int]]:
         if stream is None:
             stream = StringIO()
             writing = False
@@ -396,13 +397,13 @@ class TileSet:
 
         tstrings: list[str] = []
         ti = 1
-        tile_to_i: dict[str, int] = dict()
-        bondnames: dict[str, int] = dict()
+        tile_to_i: Dict[str, int] = dict()
+        bondnames: Dict[str, int] = dict()
         extrabonds: list[Bond] = []
         bi = 1
         bm = 0
-        hdoubles: list[tuple[int, int]] = []
-        vdoubles: list[tuple[int, int]] = []
+        hdoubles: list[Tuple[int, int]] = []
+        vdoubles: list[Tuple[int, int]] = []
         doubletilestrings: list[str] = []
         double_i = len(self.tiles) + 1
 

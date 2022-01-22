@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import re
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union, Dict
 import numpy as np
 from io import BytesIO, StringIO
 import pandas as pd
@@ -14,7 +14,7 @@ class XgrowOutput:
     data: Optional[pd.Series] = None
     tiles: Optional[np.ndarray] = None
 
-    def show_array(self, ts: "TileSet", **kwargs: dict[str, Any]):
+    def show_array(self, ts: "TileSet", **kwargs: Dict[str, Any]):
         import matplotlib.pyplot as plt
         import matplotlib.colors as colors
         from .xcolors import mcolors  # FIXME:  put in here!
