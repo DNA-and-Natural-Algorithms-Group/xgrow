@@ -14,14 +14,15 @@ import tempfile
 import subprocess
 from subprocess import CompletedProcess
 import re
+from typing_extensions import TypeAlias
 
 from xgrow.parseoutput import XgrowOutput
 from .tileset import TileSet, XgrowArgs
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     import pandas as pd
 
-    PossibleXgrowOutputs = XgrowOutput | pd.Series | pd.DataFrame
+    PossibleXgrowOutputs: TypeAlias = "XgrowOutput | pd.Series | pd.DataFrame"
     OutputOpts = Literal["data", "array", "trace"]
 
 _DEFAULT_SIZE = 64
@@ -92,15 +93,15 @@ def run_old(
     ...
 
 
-@overload
-def run_old(
-    tilestring: str,
-    extraparams: dict[str, Any] | None = None,
-    *,
-    outputopts: Sequence[OutputOpts],
-    process_info: Literal[True],
-) -> Tuple[dict[str, PossibleXgrowOutputs], CompletedProcess[str]]:
-    ...
+# @overload
+# def run_old(
+#     tilestring: str,
+#     extraparams: dict[str, Any] | None = None,
+#     *,
+#     outputopts: Sequence[OutputOpts],
+#     process_info: Literal[True],
+# ) -> Tuple[dict[str, PossibleXgrowOutputs], CompletedProcess[str]]:
+#     ...
 
 
 @overload
@@ -125,15 +126,15 @@ def run_old(
     ...
 
 
-@overload
-def run_old(
-    tilestring: str,
-    extraparams: dict[str, Any] | None = None,
-    *,
-    outputopts: Sequence[OutputOpts],
-    process_info: Literal[False] = False,
-) -> dict[str, Any]:
-    ...
+# @overload
+# def run_old(
+#     tilestring: str,
+#     extraparams: dict[str, Any] | None = None,
+#     *,
+#     outputopts: Sequence[OutputOpts],
+#     process_info: Literal[False] = False,
+# ) -> dict[str, Any]:
+#     ...
 
 
 @overload
@@ -152,7 +153,7 @@ def run_old(
     extraparams: dict[str, Any] | None = None,
     outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
     process_info: bool = False,
-) -> None:
+) -> PossibleXgrowOutputs | dict[str, PossibleXgrowOutputs]:
     ...
 
 
@@ -242,6 +243,29 @@ def run_old(
     return (output if output is not None else None), ret
 
 
+# @overload
+# def run(
+#     tileset: dict[str, Any] | TileSet,
+#     extraparams: dict[str, Any],
+#     *,
+#     outputopts: Sequence[OutputOpts],
+#     process_info: Literal[True],
+#     **kwargs: dict[str, Any],
+# ) -> Tuple[dict[str, PossibleXgrowOutputs], subprocess.CompletedProcess[str]]:
+#     ...
+
+# @overload
+# def run(
+#     tileset: dict[str, Any] | TileSet,
+#     extraparams: dict[str, Any] | None = None,
+#     *,
+#     outputopts: Sequence[OutputOpts],
+#     process_info: Literal[False] = False,
+#     **kwargs: dict[str, Any],
+# ) -> dict[str, PossibleXgrowOutputs]:
+#     ...
+
+
 @overload
 def run(
     tileset: dict[str, Any] | TileSet,
@@ -263,18 +287,6 @@ def run(
     process_info: Literal[True],
     **kwargs: dict[str, Any],
 ) -> Tuple[PossibleXgrowOutputs, subprocess.CompletedProcess[str]]:
-    ...
-
-
-@overload
-def run(
-    tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any],
-    *,
-    outputopts: Sequence[OutputOpts],
-    process_info: Literal[True],
-    **kwargs: dict[str, Any],
-) -> Tuple[dict[str, PossibleXgrowOutputs], subprocess.CompletedProcess[str]]:
     ...
 
 
@@ -337,18 +349,6 @@ def run(
     ...
 
 
-@overload
-def run(
-    tileset: dict[str, Any] | TileSet,
-    extraparams: dict[str, Any] | None = None,
-    *,
-    outputopts: Sequence[OutputOpts],
-    process_info: Literal[False] = False,
-    **kwargs: dict[str, Any],
-) -> dict[str, PossibleXgrowOutputs]:
-    ...
-
-
 def run(
     tileset: dict[str, Any] | TileSet,
     extraparams: dict[str, Any] | None = None,
@@ -390,7 +390,7 @@ def run(
     """
 
     if outputopts is None:
-        outputopts = {}
+        outputopts = tuple()
 
     if extraparams is None:
         extraparams = {}

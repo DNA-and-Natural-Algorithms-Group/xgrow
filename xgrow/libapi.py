@@ -2,7 +2,7 @@ import cffi
 import numpy as np
 import os, re
 
-_XGROW_LIB = re.sub(r" ", r"\ ", os.path.join(os.path.dirname(__file__), "_xgrow.so"))
+_XGROW_LIB = re.sub(r" ", r"\ ", os.path.join(os.path.dirname(__file__), "libxgrow.so"))
 
 ffi = cffi.FFI()
 

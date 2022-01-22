@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 import re
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 import numpy as np
-from io import BytesIO
+from io import BytesIO, StringIO
 import pandas as pd
+
+if TYPE_CHECKING:
+    from .tileset import TileSet
 
 
 @dataclass
@@ -11,8 +14,26 @@ class XgrowOutput:
     data: Optional[pd.Series] = None
     tiles: Optional[np.ndarray] = None
 
+    def show_array(self, ts: "TileSet", **kwargs: dict[str, Any]):
+        import matplotlib.pyplot as plt
+        import matplotlib.colors as colors
+        from .xcolors import mcolors  # FIXME:  put in here!
 
-def load_array_file(fn: str, onlytiles: bool = False) -> XgrowOutput:
+        out = StringIO()
+
+        _, tilenums = ts.to_xgrow(out, return_tilenums=True)
+        back = {v: k for k, v in tilenums.items()}
+        vmax = max(back.keys())
+
+        tilecolors = {t.name: t.color for t in ts.tiles}
+
+        cmap = colors.ListedColormap(
+            ["black"] + [mcolors.get(tilecolors.get(t, None), "gray") for i, t in back.items()]  # type: ignore
+        )
+        return plt.imshow(self.tiles, cmap=cmap, vmin=0, vmax=vmax, **kwargs)
+
+
+def load_array_file(fn: str) -> XgrowOutput:
 
     s = open(fn, "rb").read()
     s = re.sub(
@@ -27,8 +48,6 @@ def load_array_file(fn: str, onlytiles: bool = False) -> XgrowOutput:
         skip_footer=1,  # remove end junk
         dtype="uint",
     )
-    if onlytiles:
-        return tiles
     data = pd.Series(
         np.genfromtxt(BytesIO((s.split(b"\n")[2])))[:-1],
         index=[
@@ -83,18 +102,3 @@ def load_data_file(fn: str) -> pd.Series:
         ],
     )
     return data
-
-
-def show_array(a: np.ndarray, ts: dict[str, Any], **kwargs: dict[str, Any]):
-    import matplotlib.pyplot as plt
-    import matplotlib.colors as colors
-    from .xcolors import xcolors  # FIXME:  put in here!
-
-    mcolors = {n: tuple(z / 255.0 for z in eval(x[3:])) for n, x in xcolors.items()}
-    cmap = colors.ListedColormap(
-        ["black"] + [mcolors[x["color"]] for x in ts["tiles"]]  # type: ignore
-    )
-    try:
-        plt.imshow(a["tiles"], cmap=cmap, vmin=0, vmax=len(ts["tiles"]), **kwargs)
-    except KeyError:
-        plt.imshow(a, cmap=cmap, vmin=0, vmax=len(ts["tiles"]), **kwargs)

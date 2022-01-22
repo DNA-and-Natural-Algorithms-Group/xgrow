@@ -23,15 +23,55 @@ from copy import deepcopy
 
 __all__ = ["XgrowArgs", "Bond", "Tile", "Glue", "TileSet", "InitState"]
 
+import yaml
+
+# Classes for controlling flow/block style of various yaml elements. These are
+# used in dump()
+class blockseq(dict):
+    pass
+
+
+def blockseq_rep(dumper, data):
+    return dumper.represent_mapping("tag:yaml.org,2002:seq", data, flow_style=False)
+
+
+class blockmap(dict):
+    pass
+
+
+def blockmap_rep(dumper, data):
+    return dumper.represent_mapping("tag:yaml.org,2002:map", data, flow_style=False)
+
+
+class flowmap(dict):
+    pass
+
+
+def flowmap_rep(dumper, data):
+    return dumper.represent_mapping("tag:yaml.org,2002:map", data, flow_style=True)
+
+
+yaml.add_representer(blockseq, blockseq_rep)
+yaml.add_representer(flowmap, flowmap_rep)
+yaml.add_representer(blockmap, blockmap_rep)
+
 
 @dataclass(init=False)
 class XgrowArgs:
+    """Xgrow arguments."""
+
     block: Optional[int] = None
+    "display block size, in pixels"
     size: Optional[int] = None
+    "field side length (power-of-two) [default 256]"
     rand: Optional[str] = None
+    "random number seed"
     k: Optional[float] = None
+    "hybridization rate constant (/sec)"
     Gmc: Optional[float] = None
+    "initiation free energy  (units kT)"
     Gse: Optional[float] = None
+    "interaction free energy per binding"
     Gas: Optional[float] = None
     Gam: Optional[float] = None
     Gae: Optional[float] = None
@@ -70,7 +110,7 @@ class XgrowArgs:
         return cls(**d)
 
     def to_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in self.__dict__.items() if v}
+        return {k: v for k, v in self.__dict__.items() if v is not None}
 
     def __init__(self, **kwargs: dict[str, Any]):
         for k, v in kwargs.items():
@@ -109,11 +149,18 @@ class XgrowArgs:
 
 @dataclass
 class Tile:
+    "An xgrow tile, either single or double."
     edges: List[str | int]
+    """A lists of either string bond names, or integer bond references.  0 is a null bond.
+    Edges proceed clockwise, starting from the North (or Northwest for horizontal double tiles)."""
     name: Optional[str] = None
+    "The tile name."
     shape: Literal["S", "H", "V"] = "S"
+    "Whether the tile is a Single, Horizontal Double Tile, or Vertical Double Tile"
     stoic: Optional[float] = None
+    "Stoichiometric ratio of the tile to base tile concentration (default 1.0)"
     color: Optional[str] = None
+    "Color of the tile, as an X11 color name or reference"
 
     def _xgstring(self, tilenum: int | None = None) -> str:
         assert self.shape == "S"
@@ -129,15 +176,12 @@ class Tile:
             ts += f" (tile #{tilenum})\n"
         return ts
 
-    def asdict(self) -> dict[str, Any]:
-        d = {k: v for k, v in self.__dict__.items() if v}
-        if self.shape == "S":
-            del d["shape"]
-        return d
-
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Tile:
         return cls(**d)
+
+    def to_dict(self) -> dict[str, str | int]:
+        return {k: v for k, v in self.__dict__.items() if v is not None}
 
     def ident(self) -> str:
         if self.name:
@@ -148,6 +192,7 @@ class Tile:
 
 @dataclass
 class Bond:
+    "An xgrow bond type"
     name: Optional[str] = None
     strength: int = 1
 
@@ -160,11 +205,12 @@ class Bond:
         return cls(**d)
 
     def to_dict(self) -> dict[str, str | int]:
-        return {k: v for k, v in self.__dict__.items() if v}
+        return {k: v for k, v in self.__dict__.items() if v is not None}
 
 
 @dataclass
 class Glue:
+    "An xgrow glue declaration, setting the interaction strength between two bond types."
     bond1: int | str
     bond2: int | str
     strength: float
@@ -196,6 +242,8 @@ def _updatebonds(
 
 
 class InitState(UserList[Tuple[int, int, Union[str, int]]]):
+    """An initial state for xgrow.  This consists of a list of (x, y, tile_name_or_int) tuples."""
+
     def to_importfile(
         self, size: int, tilenums: Mapping[str, int], stream: Optional[IO[str]] = None
     ) -> Optional[str]:
@@ -231,6 +279,8 @@ class InitState(UserList[Tuple[int, int, Union[str, int]]]):
 
 @dataclass
 class TileSet:
+    """An xgrow tileset."""
+
     tiles: List[Tile]
     bonds: List[Bond] = field(default_factory=list)
     glues: List[Glue] = field(default_factory=list)
@@ -254,14 +304,40 @@ class TileSet:
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {}
         for k, v in self.__dict__.items():
-            if v:
+            if v not in [[], None]:
                 if isinstance(v, InitState):
                     d[k] = [x for x in v]
                 elif isinstance(v, Sequence):
                     d[k] = [x.to_dict() for x in v]  # type: ignore
                 else:
                     d[k] = v.to_dict()
+
         return d
+
+    @classmethod
+    def from_yaml(cls, file_or_handle) -> TileSet:
+        import yaml
+
+        if isinstance(file_or_handle, str):
+            try:
+                file_or_handle = open(file_or_handle, "r")
+            except FileNotFoundError:
+                pass
+        return cls.from_dict(yaml.safe_load(file_or_handle))
+
+    def to_yaml(self, file_or_stream=None) -> None:
+        import yaml
+
+        tileset = self.to_dict()
+
+        # Make tile and bond sections flow-style
+        tileset["tiles"] = [flowmap(x) for x in tileset["tiles"]]
+        tileset["bonds"] = [flowmap(x) for x in tileset["bonds"]]
+
+        # If xgrowargs is there, make it block-style
+        if "xgrowargs" in tileset.keys():
+            tileset["xgrowargs"] = blockmap(tileset["xgrowargs"])
+        return yaml.dump(tileset, file_or_stream)
 
     @overload
     def to_xgrow(
