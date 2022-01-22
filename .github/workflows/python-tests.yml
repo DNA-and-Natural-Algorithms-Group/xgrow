@@ -28,8 +28,9 @@ jobs:
       run: |
         sudo apt install -y build-essential libx11-dev
         python -m pip install --upgrade pip
-        python -m pip install flake8 pytest pytest-cov
+        python -m pip install flake8 pytest pytest-cov typing_extensions
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        python -m pip install .
     - name: Test with pytest
       run: |
         pytest
