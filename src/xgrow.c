@@ -326,7 +326,8 @@ char *tile_colors[MAXTILETYPES] = {"black",     "blue",     "red",        "green
 
 int first_tile, second_tile;
 
-int NROWS, NCOLS, VOLUME, WINDOWWIDTH, WINDOWHEIGHT;
+int NROWS, NCOLS, VOLUME, WINDOWWIDTH, WINDOWHEIGHT, BUTTON_WIDTH, BUTTON_BORDER;
+int BUTTON_HEIGHT, BUTTON_BORDER, BUTTON_SEP, BOTTOM_MARGIN;
 int block = 1; /* default to small blocks; calling with argument changes this */
 int linear;
 FILE *tracefp, *datafp, *arrayfp, *tilefp, *largeflakefp;
@@ -1788,21 +1789,21 @@ int errortile(tube *tp, flake *fp, int size, int i, int j) {
        ((tp->tileb[fp->Cell(i, j) * 4 + 1] != tp->tileb[fp->Cell(i, (j) + 1) * 4 + 3] &&
          tp->tileb[fp->Cell(i, j) * 4 + 1] * tp->tileb[fp->Cell(i, (j) + 1) * 4 + 3] >
              0 &&
-         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 1]) * tp->num_bindings +
+         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 1]) * (tp->num_bindings + 1) +
                           tp->tileb[fp->Cell(i, (j) + 1) * 4 + 3]] < tp->min_strength) ||
         (tp->tileb[fp->Cell(i, j) * 4 + 3] != tp->tileb[fp->Cell(i, (j)-1) * 4 + 1] &&
          tp->tileb[fp->Cell(i, j) * 4 + 3] * tp->tileb[fp->Cell(i, (j)-1) * 4 + 1] > 0 &&
-         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 3]) * tp->num_bindings +
+         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 3]) * (tp->num_bindings + 1) +
                           tp->tileb[fp->Cell(i, (j)-1) * 4 + 1]] < tp->min_strength) ||
         (tp->tileb[fp->Cell(i, j) * 4 + 2] != tp->tileb[fp->Cell((i) + 1, j) * 4 + 0] &&
          tp->tileb[fp->Cell(i, j) * 4 + 2] * tp->tileb[fp->Cell((i) + 1, (j)) * 4 + 0] >
              0 && /* This one works!? */
-         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 2]) * tp->num_bindings +
+         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 2]) * (tp->num_bindings + 1) +
                           tp->tileb[fp->Cell((i) + 1, j) * 4 + 0]] < tp->min_strength) ||
         (tp->tileb[fp->Cell(i, j) * 4 + 0] != tp->tileb[fp->Cell((i)-1, j) * 4 + 2] &&
          tp->tileb[fp->Cell(i, j) * 4 + 0] * tp->tileb[fp->Cell((i)-1, (j)) * 4 + 2] >
              0 &&
-         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 0]) * tp->num_bindings +
+         (fp->tube->glue)[(tp->tileb[fp->Cell(i, j) * 4 + 0]) * (tp->num_bindings + 1) +
                           tp->tileb[fp->Cell((i)-1, j) * 4 + 2]] < tp->min_strength))
            ? 1
            : 0);
@@ -2304,12 +2305,12 @@ void openwindow(int argc, char **argv) {
 
    font_height = font->ascent + font->descent;
 
-// 4 is 2*BUTTON_BORDER
-#define BUTTON_SEP (4 + (font_height / 3))
-#define BUTTON_WIDTH (maxchar.width + 2)
-#define BUTTON_HEIGHT (font_height + 4)
-#define BOTTOM_MARGIN (font_height + 4)
-#define BUTTON_BORDER 2
+   // 4 is 2*BUTTON_BORDER
+   BUTTON_SEP = (4 + (font_height / 3));
+   BUTTON_WIDTH = (  maxchar.width + 2);
+   BUTTON_HEIGHT = (font_height + 4);
+   BOTTOM_MARGIN = (font_height + 4);
+   BUTTON_BORDER = 2;
 
    WINDOWWIDTH = (MAX(block * NCOLS, 256) + 3 * PLAY_MARGIN + BUTTON_WIDTH);
    WINDOWHEIGHT = (3 * PLAY_MARGIN + font_height * NUM_INFO_LINES + BOTTOM_MARGIN +
@@ -2798,6 +2799,9 @@ int handle_xevent(Display *display, tube *tp, flake *fp, int size, tube_params *
       mousing = 0;
       break;
    case ButtonPress:
+      x = report.xbutton.x;
+      y = report.xbutton.y;
+      b = report.xbutton.button;
       if (report.xbutton.window == quitbutton) {
          closeargs(tp,
                    params); // This cleans up and exports things if instructed.
@@ -2853,10 +2857,10 @@ int handle_xevent(Display *display, tube *tp, flake *fp, int size, tube_params *
          update_all_rates(tp);
          repaint(params, tp, fp);
       } else if (report.xbutton.window == cleanbutton) {
-         if (x < 50) { // do a clean_flake cycle
+         if (x < BUTTON_WIDTH/3) { // do a clean_flake cycle
             fprintf(stderr, "Cleaning 1 cycle, clean_X=%f\n", clean_X);
             clean_flake(fp, clean_X, 1);
-         } else if (x < 90) { // do a fill_flake cycle
+         } else if (x < 2*BUTTON_WIDTH/3) { // do a fill_flake cycle
             fprintf(stderr, "Filling 1 cycle, fill_X=%f\n", fill_X);
             fill_flake(fp, fill_X, 1);
          } else {
@@ -2865,7 +2869,7 @@ int handle_xevent(Display *display, tube *tp, flake *fp, int size, tube_params *
          }
          repaint(params, tp, fp);
       } else if (report.xbutton.window == exportbutton) {
-         if (x > 70) { // change from ONE to ALL to MOVIE
+         if (x > BUTTON_WIDTH * 2/3) { // change from ONE to ALL to MOVIE
             setexport((export_mode + 1) % 3);
          } else if (export_mode == 0) {
             // output to file (unless MOVIE mode already)
@@ -2908,11 +2912,11 @@ int handle_xevent(Display *display, tube *tp, flake *fp, int size, tube_params *
       } else if (report.xbutton.window == flakebutton) {
          flake *tfp = tp->flake_list;
          // cycle through flakes.
-         if (x > 80) {
+         if (x > 2*BUTTON_WIDTH/3) {
             fp = fp->next_flake;
             if (fp == NULL)
                fp = tp->flake_list;
-         } else if (x < 40) {
+         } else if (x < BUTTON_WIDTH/3) {
             while (tfp && tfp->next_flake != NULL && tfp->next_flake != fp)
                tfp = tfp->next_flake;
             if (tfp == NULL)
@@ -2935,7 +2939,8 @@ int handle_xevent(Display *display, tube *tp, flake *fp, int size, tube_params *
       } else if (report.xbutton.window == tempbutton) { // change Gse w/ button
          if (tp->hydro)
             break; /* don't know how to reset params */
-         if (x > 60)
+         printf("%d / %d / %d\n", x, y, BUTTON_WIDTH);
+         if (x > BUTTON_WIDTH / 2)
             *new_Gse = tp->Gse - 0.1;
          else
             *new_Gse = tp->Gse + 0.1;
@@ -2944,6 +2949,8 @@ int handle_xevent(Display *display, tube *tp, flake *fp, int size, tube_params *
          repaint(params, tp, fp);
       } else if (report.xbutton.window == playground) // we're in ButtonPress
       {
+         x = report.xbutton.x / block;
+         y = report.xbutton.y / block;
          if (b == 3) {
             if (tp->hydro)
                break; /* don't know how to reset params */

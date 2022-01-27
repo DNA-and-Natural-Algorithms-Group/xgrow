@@ -519,23 +519,23 @@ int Mism(tube *tp, flake *fp, int size, int i, int j, int n) {
        (fp->tube->tileb[n * 4 + 1] != fp->tube->tileb[(fp->Cell(i, (j) + 1)) * 4 + 3] &&
         fp->tube->tileb[n * 4 + 1] * fp->tube->tileb[(fp->Cell(i, (j) + 1)) * 4 + 3] >
             0 &&
-        fp->tube->glue[(fp->tube->tileb[n * 4 + 1]) * tp->num_bindings +
+        fp->tube->glue[(fp->tube->tileb[n * 4 + 1]) * (tp->num_bindings + 1) +
                        fp->tube->tileb[(fp->Cell(i, (j) + 1)) * 4 + 3]] <
             tp->min_strength) +
        (fp->tube->tileb[n * 4 + 3] != fp->tube->tileb[(fp->Cell(i, (j)-1)) * 4 + 1] &&
         fp->tube->tileb[n * 4 + 3] * fp->tube->tileb[(fp->Cell(i, (j)-1)) * 4 + 1] > 0 &&
-        fp->tube->glue[(fp->tube->tileb[n * 4 + 3]) * tp->num_bindings +
+        fp->tube->glue[(fp->tube->tileb[n * 4 + 3]) * (tp->num_bindings + 1) +
                        fp->tube->tileb[(fp->Cell(i, (j)-1)) * 4 + 1]] <
             tp->min_strength) +
        (fp->tube->tileb[n * 4 + 2] != fp->tube->tileb[(fp->Cell((i) + 1, j)) * 4 + 0] &&
         fp->tube->tileb[n * 4 + 2] * fp->tube->tileb[(fp->Cell((i) + 1, j)) * 4 + 0] >
             0 &&
-        fp->tube->glue[(fp->tube->tileb[n * 4 + 2]) * tp->num_bindings +
+        fp->tube->glue[(fp->tube->tileb[n * 4 + 2]) * (tp->num_bindings + 1) +
                        fp->tube->tileb[(fp->Cell((i) + 1, j)) * 4 + 0]] <
             tp->min_strength) +
        (fp->tube->tileb[n * 4 + 0] != fp->tube->tileb[(fp->Cell((i)-1, j)) * 4 + 2] &&
         fp->tube->tileb[n * 4 + 0] * fp->tube->tileb[(fp->Cell((i)-1, j)) * 4 + 2] > 0 &&
-        fp->tube->glue[(fp->tube->tileb[n * 4 + 0]) * tp->num_bindings +
+        fp->tube->glue[(fp->tube->tileb[n * 4 + 0]) * (tp->num_bindings + 1) +
                        fp->tube->tileb[(fp->Cell((i)-1, j)) * 4 + 2]] <
             tp->min_strength));
 }
