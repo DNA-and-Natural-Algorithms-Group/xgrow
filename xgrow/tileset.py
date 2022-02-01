@@ -84,7 +84,8 @@ class XgrowArgs:
     seed: Optional[str] = None
     update_rate: Optional[int] = None
     tracefile: Optional[str] = None
-    untiltiles: Optional[str] = None
+    untiltiles: Optional[Sequence[Union[str, int]]] = None
+    "Run until the named or numbered tiles are present."
     tmax: Optional[float] = None
     emax: Optional[int] = None
     smax: Optional[int] = None
