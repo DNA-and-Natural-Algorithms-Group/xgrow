@@ -84,7 +84,8 @@ class XgrowArgs:
     seed: Optional[str] = None
     update_rate: Optional[int] = None
     tracefile: Optional[str] = None
-    untiltiles: Optional[str] = None
+    untiltiles: Optional[Sequence[Union[str, int]]] = None
+    "Run until the named or numbered tiles are present."
     tmax: Optional[float] = None
     emax: Optional[int] = None
     smax: Optional[int] = None
@@ -528,6 +529,9 @@ class TileSet:
                     i1 = _get_or_int(tile_to_i, i1)
                     i2 = _get_or_int(tile_to_i, i2)
                     stream.write(f"vdoubletile={i1},{i2}\n")
+            elif isinstance(v, (list, tuple)):
+                v = ",".join(str(x) for x in v)
+                stream.write(f"{f}={v}\n")
             else:
                 stream.write(f"{f}={v}\n")
 

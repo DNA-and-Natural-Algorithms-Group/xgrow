@@ -703,17 +703,41 @@ int parse_arg_line(char *arg, tube_params *params) {
       fsmax = atoi(&arg[6]);
    else if (IS_ARG_MATCH(arg, "untiltiles=")) {
       int i = 0;
+      int j = 0;
       char *pos;
-      pos = &arg[5];
+      char *name;
+
+      // Determine how many tiles are listed.
+      pos = &arg[10];
       while (pos != NULL) {
          pos = strchr(pos + 1, ',');
          params->present_list_len++;
       }
+
       params->present_list = (int *)malloc(params->present_list_len * sizeof(int));
-      pos = &arg[11];
-      while (pos != NULL) {
-         params->present_list[i++] = atoi(pos + 1);
-         pos = strchr(pos + 1, ',');
+
+      // Now get the tiles
+      name = strtok(&arg[11], ",\n\0");
+      while (name != NULL) {
+         params->present_list[i] = atoi(name);
+
+         if (params->present_list[i] == 0) {
+            // atoi returns a 0 if there was no number, and if the number was 0, that
+            // isn't a valid tile, so in that case, we'll try for a string tile name instead.
+            for (j=1; j<=N; j++) {
+               if (params->tile_names[j] == NULL) continue;
+               if (strcmp(name, params->tile_names[j]) == 0) {
+                  params->present_list[i] = j;
+                  break;
+               }
+            }
+            if (j == N + 1) {
+               fprintf(stderr, "Did not find tile %s for untiltiles.\n", name);
+               exit(-1);
+            }
+         }
+         i++;
+         name = strtok(NULL, ",\n\0");
       }
       params->untiltiles = 1;
    } else if (IS_ARG_MATCH(arg, "untiltilescount=")) {
