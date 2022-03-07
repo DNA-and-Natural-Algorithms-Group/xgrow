@@ -243,7 +243,7 @@ def _updatebonds(
     return bi, bm
 
 
-class InitState("UserList[Tuple[int, int, Union[str, int]]]"):
+class InitState(UserList):  # [Tuple[int, int, Union[str, int]]]
     """An initial state for xgrow.  This consists of a list of (x, y, tile_name_or_int) tuples."""
 
     def to_importfile(
