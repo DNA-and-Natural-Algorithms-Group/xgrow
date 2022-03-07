@@ -132,7 +132,7 @@ class XgrowArgs:
             + ")"
         )
 
-    def update(self, other: Dict[str, Any] | XgrowArgs):
+    def update(self, other: Dict[str, Any] | XgrowArgs) -> None:
         if isinstance(other, dict):
             self.__dict__.update(other)
         else:
@@ -243,7 +243,7 @@ def _updatebonds(
     return bi, bm
 
 
-class InitState(UserList[Tuple[int, int, Union[str, int]]]):
+class InitState("UserList[Tuple[int, int, Union[str, int]]]"):
     """An initial state for xgrow.  This consists of a list of (x, y, tile_name_or_int) tuples."""
 
     def to_importfile(
