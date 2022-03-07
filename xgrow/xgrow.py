@@ -407,7 +407,7 @@ def run(
 
     if tileset.initstate is not None:
         size = (
-            int(cast(SupportsIndex, ep.get("size", None)))
+            int(cast(SupportsIndex, ep.get("size", 0)))
             or tileset.xgrowargs.size
             or _DEFAULT_SIZE
         )
