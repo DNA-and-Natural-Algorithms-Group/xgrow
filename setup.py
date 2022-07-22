@@ -62,7 +62,7 @@ class develop_xgrow(develop):
 
 setup(
     name="xgrow",
-    version="20220303.dev0",
+    version="20220722",
     packages=["xgrow"],
     install_requires=["pyyaml", "typing_extensions", "numpy", "pandas", "matplotlib"],
     include_package_data=True,

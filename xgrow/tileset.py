@@ -204,7 +204,7 @@ class Bond:
 
     @classmethod
     def from_dict(cls, d: Mapping[str, str | int]) -> Bond:
-        return cls(**d)
+        return cls(**d) # type: ignore
 
     def to_dict(self) -> Dict[str, str | int]:
         return {k: v for k, v in self.__dict__.items() if v is not None}
@@ -286,7 +286,7 @@ class TileSet:
     tiles: List[Tile]
     bonds: List[Bond] = field(default_factory=list)
     glues: List[Glue] = field(default_factory=list)
-    xgrowargs: XgrowArgs = XgrowArgs()
+    xgrowargs: XgrowArgs = field(default_factory=XgrowArgs)
     initstate: Optional[InitState] = None
 
     @classmethod

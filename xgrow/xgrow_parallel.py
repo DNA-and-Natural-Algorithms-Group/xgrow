@@ -4,7 +4,7 @@ import logging as log
 import pandas as pd
 import numpy as np
 from io import StringIO
-from . import xgrowoutput as xgo
+from . import parseoutput as xgo
 
 
 def _run_xgrow(params):
@@ -181,5 +181,5 @@ class SimRunSingleMismatch:
 
     def map(self, function):
         return dict(
-            (n, array([[k, function(x)] for k, x in s.items()])) for n in self.res
+            (n, np.array([[k, function(x)] for k, x in self.items()])) for n in self.res
         )
