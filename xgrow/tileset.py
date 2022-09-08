@@ -19,6 +19,7 @@ from typing import (
     TextIO,
     Dict,
     Tuple,
+    TypeAlias,
     TypeVar,
     Union,
     cast,
