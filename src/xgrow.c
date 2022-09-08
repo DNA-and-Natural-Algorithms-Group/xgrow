@@ -331,7 +331,6 @@ int BUTTON_HEIGHT, BUTTON_BORDER, BUTTON_SEP, BOTTOM_MARGIN;
 int block = 1; /* default to small blocks; calling with argument changes this */
 int linear;
 FILE *tracefp, *datafp, *arrayfp, *tilefp, *largeflakefp;
-FILE *untiltilescountfp;
 int tthresh = 0;
 int N, num_bindings, tileb_length;
 int clean_cycles = 0;
@@ -376,7 +375,6 @@ typedef struct tube_params_struct {
    int *present_list;    //  =NULL;
    int present_list_len; //  =0;
    int untiltiles;       //  =0,
-   int untiltilescount;  //=0;
    int **tileb;
    double *strength;
    double **glue;
@@ -435,7 +433,6 @@ tube_params *new_params() {
    params->present_list = NULL;
    params->present_list_len = 0;
    params->untiltiles = 0;
-   params->untiltilescount = 0;
    params->double_tiles = 0;
    params->Gmc = 17;
    params->Gse = 8.6;
@@ -740,23 +737,8 @@ int parse_arg_line(char *arg, tube_params *params) {
          name = strtok(NULL, ",\n\0");
       }
       params->untiltiles = 1;
-   } else if (IS_ARG_MATCH(arg, "untiltilescount=")) {
-      int i = 0;
-      char *pos;
-      params->untiltilescount = 1;
-      pos = &arg[5];
-      while (pos != NULL) {
-         pos = strchr(pos + 1, ',');
-         params->present_list_len++;
-      }
-      params->present_list = (int *)malloc(params->present_list_len * sizeof(int));
-      pos = &arg[16];
-      while ((pos - 1) != NULL) {
-         params->present_list[i++] = atoi(pos);
-         pos = strchr(pos, ',') + 1;
-      }
-      params->untiltilescount = 1;
-   } else if (IS_ARG_MATCH(arg, "clean_cycles="))
+   }
+   else if (IS_ARG_MATCH(arg, "clean_cycles="))
       clean_cycles = atoi(&arg[13]);
    else if (IS_ARG_MATCH(arg, "clean_X="))
       clean_X = atof(&arg[8]);
@@ -776,8 +758,6 @@ int parse_arg_line(char *arg, tube_params *params) {
       c = strchr(arg, ',') + 1;
       tthresh = atoi(&arg[19]);
       largeflakefp = fopen(c, "a");
-   } else if (IS_ARG_MATCH(arg, "untiltilescountfile=")) {
-      untiltilescountfp = fopen(&arg[20], "a");
    } else if (IS_ARG_MATCH(arg, "arrayfile="))
       arrayfp = fopen(strtok(&arg[10], NEWLINE), "w");
    else if (IS_ARG_MATCH(arg, "exportfile="))
@@ -1276,7 +1256,6 @@ void getargs(int argc, char **argv, tube_params *params) {
    datafp = NULL;
    arrayfp = NULL;
    largeflakefp = NULL;
-   untiltilescountfp = NULL;
 
    // reset tile colors and names that haven't been assigned
    for (i = 15; i < MAXTILETYPES; i++)
@@ -1417,10 +1396,6 @@ void write_largeflakedata(tube *tp, FILE *filep) {
       }
    }
    fprintf(filep, "%d\n", large_flakes);
-}
-
-void write_untiltilescountdata(tube *tp, FILE *filep) {
-   fprintf(filep, "%d\n", tp->untiltilescount);
 }
 
 void write_flake(tube_params *params, tube *tp, FILE *filep, char *mode, flake *fp) {
@@ -1780,10 +1755,6 @@ void closeargs(tube *tp, tube_params *params) {
       fclose(largeflakefp);
    }
 
-   if (untiltilescountfp != NULL) {
-      write_untiltilescountdata(tp, untiltilescountfp);
-      fclose(untiltilescountfp);
-   }
    if (arrayfp != NULL) {
       export_flake_n = 1;
       for (fpp = tp->flake_list; fpp != NULL; fpp = fpp->next_flake) {
@@ -2648,7 +2619,6 @@ void set_params(tube *tp, tube_params *params) {
    tp->present_list = params->present_list;
    tp->present_list_len = params->present_list_len;
    tp->untiltiles = params->untiltiles;
-   tp->untiltilescount = params->untiltilescount;
    tp->hydro = params->hydro;
    tp->T = params->T;
    tp->k = params->k;

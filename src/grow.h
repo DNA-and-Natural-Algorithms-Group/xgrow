@@ -281,7 +281,6 @@ typedef struct tube_struct {
    double *rv;          /* scratch space, size fp->1+N+4 (for chunk_fission)*/
    int *Fnext, *Fgroup; /* size x size array for fill scratch space         */
    int all_present;     /* True if all the tiles in untiltiles are in the assembly */
-   int untiltilescount;
    /* Testing variables */
    int watching_states;      /* true if we are testing xgrow, false otherwise */
    int chains;               /* Number of chains that we are going to follow for
