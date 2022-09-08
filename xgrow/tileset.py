@@ -19,12 +19,12 @@ from typing import (
     TextIO,
     Dict,
     Tuple,
-    TypeAlias,
     TypeVar,
     Union,
     cast,
     overload,
 )
+from typing_extensions import TypeAlias
 from warnings import warn
 from copy import deepcopy
 from .parseoutput import XgrowOutput

@@ -3,7 +3,8 @@ import os
 import tempfile
 from .xgrow_subprocess import _DEFAULT_SIZE, run_old, Literal, OutputOpts, XgrowOutput
 from .tileset import TileSet
-from typing import TYPE_CHECKING, Sequence, SupportsIndex, TypeAlias, cast, overload, Tuple, Dict, Any
+from typing import TYPE_CHECKING, Sequence, overload, Tuple, Dict, Any
+from typing_extensions import TypeAlias
 import subprocess
 
 if TYPE_CHECKING:
