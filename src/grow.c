@@ -229,7 +229,6 @@ tube *init_tube(Trep P, Trep N, int num_bindings) {
    tp->present_list = NULL;
    tp->present_list_len = 0;
    tp->untiltiles = 0;
-   tp->untiltilescount = 0;
    tp->Gmc = 17;
    tp->Gse = 8.6;
    tp->k = 1000000.0;
@@ -306,7 +305,6 @@ tube *init_tube(Trep P, Trep N, int num_bindings) {
    tp->t = 0;
    tp->ewrapped = 0;
    tp->stat_a = tp->stat_d = tp->stat_h = tp->stat_f = tp->stat_m = 0;
-   tp->untiltilescount = 0;
 
    tp->rv = (double *)calloc(sizeof(double), 1 + N + 4);
    tp->Fnext = (int *)calloc(sizeof(int), size * size);
@@ -1185,9 +1183,6 @@ void change_cell(flake *fp, int i, int j, Trep n) {
             if (!fp->is_present[y]) {
                tp->all_present = 0;
             }
-         }
-         if (tp->untiltilescount && not_all_yet && tp->all_present) {
-            tp->untiltilescount++;
          }
       } else {
          for (z = 0; z < tp->present_list_len; z++) {
