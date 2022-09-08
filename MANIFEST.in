@@ -1,0 +1,2 @@
+exclude xgrow/_xgrow xgrow/libxgrow.so
+exclude .github .gitignore meson.build

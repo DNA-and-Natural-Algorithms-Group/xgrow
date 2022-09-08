@@ -37,7 +37,6 @@ keyvaloptions = [
     ("emax", int),
     ("smax", int),
     ("smin", int),
-    ("untiltilescount", str),
     ("clean_cycles", int),
     ("error_radius", float),
     ("datafile", str),

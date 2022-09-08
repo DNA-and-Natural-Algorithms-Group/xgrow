@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 from distutils.command.build import build
 from setuptools.command.develop import develop
+
+#import sys
+#sys.argv.extend(['plat-name', 'x86_64'])
 
 BUILD_STRING = (
     "{} -Wall -Wno-unused-result -g -O2 src/xgrow.c src/grow.c -o xgrow/_xgrow -lm {}"
@@ -62,7 +65,7 @@ class develop_xgrow(develop):
 
 setup(
     name="xgrow",
-    version="20220722",
+    version="20220725",
     packages=["xgrow"],
     install_requires=["pyyaml", "typing_extensions", "numpy", "pandas", "matplotlib"],
     include_package_data=True,
@@ -72,4 +75,6 @@ setup(
     author="Constantine Evans et al (this version)",
     author_email="const@costi.eu",
     description="Xgrow in pythonic form",
+    zip_safe=False,
+    has_ext_modules=lambda: True
 )

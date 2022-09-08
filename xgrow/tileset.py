@@ -3,7 +3,11 @@ from dataclasses import dataclass, field
 from collections import UserList
 import itertools
 from io import StringIO
+import os
+import subprocess
+import tempfile
 from typing import (
+    TYPE_CHECKING,
     Any,
     IO,
     List,
@@ -11,9 +15,11 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    SupportsIndex,
     TextIO,
     Dict,
     Tuple,
+    TypeAlias,
     TypeVar,
     Union,
     cast,
@@ -21,6 +27,13 @@ from typing import (
 )
 from warnings import warn
 from copy import deepcopy
+from .parseoutput import XgrowOutput
+
+from .xgrow_subprocess import _DEFAULT_SIZE, OutputOpts, run_old
+
+if TYPE_CHECKING:
+    import pandas as pd
+    PossibleXgrowOutputs: TypeAlias = "XgrowOutput | pd.Series | pd.DataFrame"
 
 __all__ = ["XgrowArgs", "Bond", "Tile", "Glue", "TileSet", "InitState"]
 
@@ -90,7 +103,6 @@ class XgrowArgs:
     emax: Optional[int] = None
     smax: Optional[int] = None
     smin: Optional[int] = None
-    untiltilescount: Optional[str] = None
     clean_cycles: Optional[int] = None
     error_radius: Optional[float] = None
     datafile: Optional[str] = None
@@ -550,6 +562,134 @@ class TileSet:
                 return cast(StringIO, stream).getvalue(), tile_to_i
             else:
                 return cast(StringIO, stream).getvalue()
+
+    @overload
+    def run(
+        tileset: TileSet,
+        extraparams: Dict[str, Any] | None = None,
+        outputopts: None = None,
+        *,
+        process_info: Literal[True],
+        quiet: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[None, subprocess.CompletedProcess[str]]:
+        ...
+
+
+    @overload
+    def run(
+        tileset: TileSet,
+        extraparams: Dict[str, Any] | None = None,
+        *,
+        outputopts: OutputOpts,
+        process_info: Literal[True],
+        quiet: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[PossibleXgrowOutputs, subprocess.CompletedProcess[str]]:
+        ...
+
+
+    @overload
+    def run(
+        tileset: TileSet,
+        extraparams: Dict[str, Any] | None = None,
+        outputopts: None = None,
+        process_info: Literal[False] = False,
+        quiet: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> None:
+        ...
+
+
+    @overload
+    def run(
+        tileset: TileSet,
+        extraparams: Dict[str, Any] | None = None,
+        *,
+        outputopts: Literal["data"],
+        process_info: Literal[False] = False,
+        quiet: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> pd.Series:
+        ...
+
+
+    @overload
+    def run(
+        tileset: TileSet,
+        extraparams: Dict[str, Any] | None = None,
+        *,
+        outputopts: Literal["array"],
+        process_info: Literal[False] = False,
+        quiet: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> XgrowOutput:
+        ...
+
+
+    @overload
+    def run(
+        tileset: TileSet,
+        extraparams: Dict[str, Any] | None = None,
+        *,
+        outputopts: Literal["trace"],
+        process_info: Literal[False] = False,
+        quiet: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> pd.DataFrame:
+        ...
+
+
+    @overload
+    def run(
+        tileset: TileSet,
+        extraparams: Dict[str, Any] | None = None,
+        *,
+        outputopts: OutputOpts,
+        process_info: Literal[False] = False,
+        quiet: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> PossibleXgrowOutputs:
+        ...
+
+
+    def run(
+        tileset: TileSet,
+        extraparams: Dict[str, Any] | None = None,
+        outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
+        process_info: bool = False,
+        quiet: bool = False,
+        **kwargs: Dict[str, Any],
+    ) -> Any:
+        ep: Dict[str, Any] = dict(**extraparams, **kwargs)
+
+        xgs, tilenums = tileset.to_xgrow(extraparams=ep, return_tilenums=True)
+
+        importfile = None
+
+        if tileset.initstate is not None:
+            size = (
+                int(cast(SupportsIndex, ep.get("size", 0)))
+                or tileset.xgrowargs.size
+                or _DEFAULT_SIZE
+            )
+
+            assert tileset.xgrowargs.importfile is None
+
+            importfile = tempfile.NamedTemporaryFile("w", delete=False, newline="\n")
+
+            tileset.initstate.to_importfile(size, tilenums, importfile.file)  # type: ignore
+            importfile.close()
+
+            xgs += f"\nimportfile={importfile.name}\n"
+
+        r = run_old(xgs, outputopts=outputopts, process_info=process_info)
+
+        if importfile:
+            os.unlink(importfile.name)
+
+        return r
+
 
 
 def _get_or_int(d: Mapping[str, int], v: int | str):
