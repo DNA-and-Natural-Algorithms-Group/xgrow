@@ -155,6 +155,7 @@ def run_old(
     extraparams: Dict[str, Any] | None = None,
     outputopts: None = None,
     process_info: Literal[False] = False,
+    quiet: bool = False
 ) -> None:
     ...
 
@@ -165,6 +166,7 @@ def run_old(
     extraparams: Dict[str, Any] | None = None,
     outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
     process_info: bool = False,
+    quiet: bool = False
 ) -> PossibleXgrowOutputs | Dict[str, PossibleXgrowOutputs]:
     ...
 
@@ -174,6 +176,7 @@ def run_old(
     extraparams: Dict[str, Any] | None = None,
     outputopts: OutputOpts | Sequence[OutputOpts] | None = None,
     process_info: bool = False,
+    quiet: bool = False
 ) -> PossibleXgrowOutputs | Dict[str, PossibleXgrowOutputs]:
     """
     Given an old xgrow tileset definition (as a string), a dict of parameters,
@@ -231,7 +234,7 @@ def run_old(
         for output_type, output_file in output_files.items()
     ]
 
-    ret = run_raw(args, process_info=process_info)
+    ret = run_raw(args, process_info=process_info, quiet=quiet)
     if ret.returncode != 0:
         raise Exception(
             f"Xgrow failed with return code {ret.returncode}.",
