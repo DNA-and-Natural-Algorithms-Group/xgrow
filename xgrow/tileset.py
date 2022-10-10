@@ -680,7 +680,7 @@ class TileSet:
 
             xgs += f"\nimportfile={importfile.name}\n"
 
-        r = run_old(xgs, outputopts=outputopts, process_info=process_info)
+        r = run_old(xgs, outputopts=outputopts, process_info=process_info, quiet=quiet)
 
         if importfile:
             os.unlink(importfile.name)
