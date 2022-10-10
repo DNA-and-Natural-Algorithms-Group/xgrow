@@ -33,6 +33,7 @@ from .xgrow_subprocess import _DEFAULT_SIZE, OutputOpts, run_old
 
 if TYPE_CHECKING:
     import pandas as pd
+
     PossibleXgrowOutputs: TypeAlias = "XgrowOutput | pd.Series | pd.DataFrame"
 
 __all__ = ["XgrowArgs", "Bond", "Tile", "Glue", "TileSet", "InitState"]
@@ -216,7 +217,7 @@ class Bond:
 
     @classmethod
     def from_dict(cls, d: Mapping[str, str | int]) -> Bond:
-        return cls(**d) # type: ignore
+        return cls(**d)  # type: ignore
 
     def to_dict(self) -> Dict[str, str | int]:
         return {k: v for k, v in self.__dict__.items() if v is not None}
@@ -575,7 +576,6 @@ class TileSet:
     ) -> Tuple[None, subprocess.CompletedProcess[str]]:
         ...
 
-
     @overload
     def run(
         tileset: TileSet,
@@ -588,7 +588,6 @@ class TileSet:
     ) -> Tuple[PossibleXgrowOutputs, subprocess.CompletedProcess[str]]:
         ...
 
-
     @overload
     def run(
         tileset: TileSet,
@@ -599,7 +598,6 @@ class TileSet:
         **kwargs: Dict[str, Any],
     ) -> None:
         ...
-
 
     @overload
     def run(
@@ -613,7 +611,6 @@ class TileSet:
     ) -> pd.Series:
         ...
 
-
     @overload
     def run(
         tileset: TileSet,
@@ -625,7 +622,6 @@ class TileSet:
         **kwargs: Dict[str, Any],
     ) -> XgrowOutput:
         ...
-
 
     @overload
     def run(
@@ -639,7 +635,6 @@ class TileSet:
     ) -> pd.DataFrame:
         ...
 
-
     @overload
     def run(
         tileset: TileSet,
@@ -652,7 +647,6 @@ class TileSet:
     ) -> PossibleXgrowOutputs:
         ...
 
-
     def run(
         tileset: TileSet,
         extraparams: Dict[str, Any] | None = None,
@@ -661,6 +655,9 @@ class TileSet:
         quiet: bool = False,
         **kwargs: Dict[str, Any],
     ) -> Any:
+
+        if extraparams is None:
+            extraparams = {}
         ep: Dict[str, Any] = dict(**extraparams, **kwargs)
 
         xgs, tilenums = tileset.to_xgrow(extraparams=ep, return_tilenums=True)
@@ -689,7 +686,6 @@ class TileSet:
             os.unlink(importfile.name)
 
         return r
-
 
 
 def _get_or_int(d: Mapping[str, int], v: int | str):
