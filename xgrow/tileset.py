@@ -110,6 +110,7 @@ class XgrowArgs:
     arrayfile: Optional[str] = None
     exportfile: Optional[str] = None
     importfile: Optional[str] = None
+    movie: Optional[bool] = None
     min_strength: Optional[float] = None
     window: Optional[bool] = None
     doubletiles: Optional[Sequence[Tuple[str | int, str | int]]] = tuple()
@@ -193,7 +194,13 @@ class Tile:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> Tile:
-        return cls(**d)
+        fd = {}
+        for k, v in d.items():
+            if k in cls.__dataclass_fields__:  # type: ignore
+                fd[k] = v
+            else:
+                warn(f"Ignoring {k}={v} in tile {d.get('name', 'unnamed')}.")
+        return cls(**fd)
 
     def to_dict(self) -> Dict[str, str | int]:
         return {k: v for k, v in self.__dict__.items() if v is not None}
